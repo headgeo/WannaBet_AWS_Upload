@@ -31,7 +31,7 @@ export default async function HomePage() {
   let profileError = null
 
   try {
-    const profileData = await select("profiles", "*", [{ column: "id", operator: "eq", value: user.id }])
+    const profileData = await select("profiles", "*", [{ column: "id", value: user.id }])
 
     profile = profileData?.[0] || null
     console.log("[v0] HomePage: Profile fetch result:", { profile })

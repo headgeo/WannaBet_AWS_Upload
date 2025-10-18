@@ -7,8 +7,20 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { query as rdsQuery, transaction as rdsTransaction } from "./rds"
 import type { PoolClient } from "pg"
 
-// Toggle between Supabase and RDS
-const USE_RDS = process.env.USE_RDS === "true"
+const hasRDSConfig = !!(
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_PRISMA_URL ||
+  process.env.POSTGRES_URL_NON_POOLING
+)
+
+const USE_RDS = hasRDSConfig
+
+console.log("[Adapter] Database backend:", USE_RDS ? "AWS RDS" : "Supabase", {
+  hasRDSConfig,
+  POSTGRES_URL: !!process.env.POSTGRES_URL,
+  POSTGRES_PRISMA_URL: !!process.env.POSTGRES_PRISMA_URL,
+  POSTGRES_URL_NON_POOLING: !!process.env.POSTGRES_URL_NON_POOLING,
+})
 
 export interface QueryResult<T = any> {
   rows: T[]
@@ -305,18 +317,19 @@ export async function rpc<T = any>(
  * Execute a complex SELECT query with joins
  */
 export async function selectWithJoin<T = any>(
-table: string, p0: string, p1: string, p2: ({ column: string; operator: string; value: string } | { column: string; operator: string; value: null })[], options: {
-  select?: string
-  joins?: Array<{
-    table: string
-    on: string
-    type?: "INNER" | "LEFT" | "RIGHT"
-  }>
-  where?: Array<{ column: string; operator?: string; value: any} >
-  orderBy?: { column: string; ascending?: boolean} 
-  limit?: number
-  single?: boolean
-} = {},
+  table: string,
+  options: {
+    select?: string
+    joins?: Array<{
+      table: string
+      on: string
+      type?: "INNER" | "LEFT" | "RIGHT"
+    }>
+    where?: Array<{ column: string; operator?: string; value: any }>
+    orderBy?: { column: string; ascending?: boolean }
+    limit?: number
+    single?: boolean
+  } = {},
 ): Promise<{ data: T | T[] | null; error: Error | null }> {
   if (USE_RDS) {
     try {
@@ -431,4 +444,18 @@ export async function getClient() {
     throw new Error("Direct client access not available when using RDS. Use adapter functions instead.")
   }
   return await createSupabaseClient()
+}
+
+export function getDb() {
+  return {
+    query,
+    select,
+    insert,
+    update,
+    delete: deleteRows,
+    transaction,
+    rpc,
+    selectWithJoin,
+    isUsingRDS,
+  }
 }

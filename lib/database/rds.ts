@@ -9,24 +9,43 @@ let pool: Pool | null = null
  */
 export function getRDSPool(): Pool {
   if (!pool) {
+    const connectionString =
+      process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL_NON_POOLING
+
+    console.log("[RDS] Available env vars:", {
+      POSTGRES_URL: !!process.env.POSTGRES_URL,
+      POSTGRES_PRISMA_URL: !!process.env.POSTGRES_PRISMA_URL,
+      POSTGRES_URL_NON_POOLING: !!process.env.POSTGRES_URL_NON_POOLING,
+      selected: connectionString ? "found" : "not found",
+    })
+
+    if (!connectionString) {
+      throw new Error(
+        "No PostgreSQL connection string found. Please set one of: POSTGRES_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL_NON_POOLING",
+      )
+    }
+
+    console.log("[RDS] Initializing connection pool")
+
     pool = new Pool({
-      host: process.env.RDS_HOST,
-      port: Number.parseInt(process.env.RDS_PORT || "5432"),
-      database: process.env.RDS_DATABASE,
-      user: process.env.RDS_USER,
-      password: process.env.RDS_PASSWORD,
+      connectionString,
       ssl: {
-        rejectUnauthorized: true,
+        rejectUnauthorized: false, // Set to false for AWS RDS connections
       },
       max: 20, // Maximum number of clients in the pool
       idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection cannot be established
+      connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection cannot be established
     })
 
     // Handle pool errors
     pool.on("error", (err) => {
       console.error("[RDS Pool] Unexpected error on idle client", err)
     })
+
+    pool
+      .query("SELECT NOW()")
+      .then(() => console.log("[RDS] Connection pool initialized successfully"))
+      .catch((err) => console.error("[RDS] Failed to initialize connection pool:", err))
   }
 
   return pool

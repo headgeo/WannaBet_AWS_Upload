@@ -17,13 +17,9 @@ export default async function ProfileSetupPage() {
     redirect("/auth/login")
   }
 
-  const { data: existingProfile } = await select({
-    table: "profiles",
-    where: { id: user.id },
-    single: true,
-  })
+  const existingProfile = await select("profiles", "*", [{ column: "id", value: user.id }])
 
-  if (existingProfile) {
+  if (existingProfile && existingProfile.length > 0) {
     redirect("/")
   }
 
@@ -35,15 +31,12 @@ export default async function ProfileSetupPage() {
     const displayName = formData.get("displayName") as string
     const startingBalance = Number.parseFloat(formData.get("startingBalance") as string) || 1000
 
-    const { error } = await insert({
-      table: "profiles",
-      data: {
-        id: user!.id,
-        username: username || user!.email?.split("@")[0] || "user",
-        display_name: displayName || user!.email?.split("@")[0] || "User",
-        balance: startingBalance,
-        role: "user",
-      },
+    const { error } = await insert("profiles", {
+      id: user!.id,
+      username: username || user!.email?.split("@")[0] || "user",
+      display_name: displayName || user!.email?.split("@")[0] || "User",
+      balance: startingBalance,
+      role: "user",
     })
 
     if (error) {

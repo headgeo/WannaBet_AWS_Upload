@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Bell, TrendingUp, TrendingDown, DollarSign, Users, ChevronDown, ChevronUp } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
+import { getNotifications, markNotificationsAsRead } from "@/app/actions/notifications"
 
 interface Notification {
   id: string
@@ -37,25 +37,7 @@ export function NotificationBell() {
 
   const loadNotifications = async () => {
     try {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) return
-
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(20)
-
-      if (error) {
-        console.error("Error loading notifications:", error)
-        return
-      }
-
+      const data = await getNotifications()
       setNotifications(data || [])
     } catch (error) {
       console.error("Error loading notifications:", error)
@@ -88,23 +70,11 @@ export function NotificationBell() {
 
   const markAllAsRead = async () => {
     try {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) return
-
       const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id)
 
       if (unreadIds.length === 0) return
 
-      const { error } = await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds)
-
-      if (error) {
-        console.error("Error marking notifications as read:", error)
-        return
-      }
+      await markNotificationsAsRead(unreadIds)
 
       // Update local state
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))

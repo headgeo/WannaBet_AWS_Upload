@@ -3,11 +3,11 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { User } from "lucide-react"
+import { searchUsers } from "@/app/actions/search"
 
 interface UserProfile {
   id: string
@@ -40,7 +40,7 @@ export default function UserAutocomplete({
   const suggestionsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const searchUsers = async () => {
+    const performSearch = async () => {
       if (!value || value.length < 2) {
         setSuggestions([])
         setShowSuggestions(false)
@@ -49,25 +49,7 @@ export default function UserAutocomplete({
 
       setIsLoading(true)
       try {
-        const supabase = createClient()
-
-        // Get current user to exclude from suggestions
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, username, display_name")
-          .or(`username.ilike.%${value}%,display_name.ilike.%${value}%`)
-          .neq("id", user?.id || "")
-          .limit(5)
-
-        if (error) {
-          console.error("Error searching users:", error)
-          throw error
-        }
-
+        const data = await searchUsers(value)
         setSuggestions(data || [])
         setShowSuggestions(true)
         setSelectedIndex(-1)
@@ -79,7 +61,7 @@ export default function UserAutocomplete({
       }
     }
 
-    const debounceTimer = setTimeout(searchUsers, 300)
+    const debounceTimer = setTimeout(performSearch, 300)
     return () => clearTimeout(debounceTimer)
   }, [value])
 

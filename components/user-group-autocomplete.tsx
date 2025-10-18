@@ -3,11 +3,11 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { User, Users } from "lucide-react"
+import { searchUsersAndGroups } from "@/app/actions/search"
 
 interface UserProfile {
   id: string
@@ -52,7 +52,7 @@ export default function UserGroupAutocomplete({
   const suggestionsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const searchUsersAndGroups = async () => {
+    const performSearch = async () => {
       if (!value || value.length < 2) {
         setSuggestions([])
         setShowSuggestions(false)
@@ -61,47 +61,7 @@ export default function UserGroupAutocomplete({
 
       setIsLoading(true)
       try {
-        const supabase = createClient()
-
-        let userResults: UserProfile[] = []
-        if (!groupsOnly) {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser()
-
-          const { data: users, error: usersError } = await supabase
-            .from("profiles")
-            .select("id, username, display_name")
-            .or(`username.ilike.%${value}%,display_name.ilike.%${value}%`)
-            .neq("id", user?.id || "")
-            .limit(3)
-
-          if (usersError) {
-            console.error("Error searching users:", usersError)
-          }
-
-          userResults = (users || []).map((user) => ({
-            ...user,
-            type: "user" as const,
-          }))
-        }
-
-        const { data: groups, error: groupsError } = await supabase
-          .from("groups")
-          .select("id, name, description")
-          .or(`name.ilike.%${value}%,description.ilike.%${value}%`)
-          .limit(3)
-
-        if (groupsError) {
-          console.error("Error searching groups:", groupsError)
-        }
-
-        const groupResults: Group[] = (groups || []).map((group) => ({
-          ...group,
-          type: "group" as const,
-        }))
-
-        const allResults = [...userResults, ...groupResults]
+        const allResults = await searchUsersAndGroups(value, groupsOnly)
         setSuggestions(allResults)
         setShowSuggestions(true)
         setSelectedIndex(-1)
@@ -113,7 +73,7 @@ export default function UserGroupAutocomplete({
       }
     }
 
-    const debounceTimer = setTimeout(searchUsersAndGroups, 300)
+    const debounceTimer = setTimeout(performSearch, 300)
     return () => clearTimeout(debounceTimer)
   }, [value, groupsOnly])
 

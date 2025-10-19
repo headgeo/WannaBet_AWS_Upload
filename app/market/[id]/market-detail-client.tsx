@@ -307,7 +307,9 @@ export function MarketDetailClient({
                         <DollarSign className="w-4 h-4" />
                         <span className="text-sm">Total Volume</span>
                       </div>
-                      <div className="text-lg font-semibold">${market.total_volume.toFixed(2)}</div>
+                      <div className="text-lg font-semibold">
+                        ${Number.parseFloat(market.total_volume.toString()).toFixed(2)}
+                      </div>
                     </div>
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
@@ -378,16 +380,22 @@ export function MarketDetailClient({
                     <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-semibold text-green-600">YES Position</span>
-                        <span className="text-sm text-muted-foreground">{yesPosition.shares.toFixed(2)} shares</span>
+                        <span className="text-sm text-muted-foreground">
+                          {Number.parseFloat(yesPosition.shares.toString()).toFixed(2)} shares
+                        </span>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">Invested: </span>
-                          <span className="font-medium">${yesPosition.amount_invested.toFixed(2)}</span>
+                          <span className="font-medium">
+                            ${Number.parseFloat(yesPosition.amount_invested.toString()).toFixed(2)}
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Avg Price: </span>
-                          <span className="font-medium">${yesPosition.avg_price.toFixed(3)} per share</span>
+                          <span className="font-medium">
+                            ${Number.parseFloat(yesPosition.avg_price.toString()).toFixed(3)} per share
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -396,16 +404,22 @@ export function MarketDetailClient({
                     <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-semibold text-red-600">NO Position</span>
-                        <span className="text-sm text-muted-foreground">{noPosition.shares.toFixed(2)} shares</span>
+                        <span className="text-sm text-muted-foreground">
+                          {Number.parseFloat(noPosition.shares.toString()).toFixed(2)} shares
+                        </span>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">Invested: </span>
-                          <span className="font-medium">${noPosition.amount_invested.toFixed(2)}</span>
+                          <span className="font-medium">
+                            ${Number.parseFloat(noPosition.amount_invested.toString()).toFixed(2)}
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Avg Price: </span>
-                          <span className="font-medium">${noPosition.avg_price.toFixed(3)} per share</span>
+                          <span className="font-medium">
+                            ${Number.parseFloat(noPosition.avg_price.toString()).toFixed(3)} per share
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -467,7 +481,9 @@ export function MarketDetailClient({
                 <CardTitle className="text-lg">Your Balance</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">${userBalance.toFixed(2)}</div>
+                <div className="text-2xl font-bold text-green-600">
+                  ${Number.parseFloat(userBalance.toString()).toFixed(2)}
+                </div>
               </CardContent>
             </Card>
 

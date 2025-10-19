@@ -84,7 +84,7 @@ export function MarketPriceChart({ marketId }: MarketPriceChartProps) {
     fullTime: format(new Date(point.timestamp), "MMM d, yyyy HH:mm"),
     YES: (point.yes_probability * 100).toFixed(1),
     NO: (point.no_probability * 100).toFixed(1),
-    volume: point.total_volume.toFixed(2),
+    volume: Number.parseFloat(point.total_volume.toString()).toFixed(2),
   }))
 
   return (

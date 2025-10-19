@@ -32,17 +32,21 @@ export default async function BrowseMarketsPage() {
   let error: string | null = null
 
   try {
+    console.log("[v0] Fetching active markets")
+
     const marketsData = await select<Market>(
       "markets",
       "*",
       [
-        { column: "is_private", operator: "=", value: false },
-        { column: "status", operator: "not.in", value: "(settled,cancelled,closed)" },
+        { column: "is_private", value: false },
+        { column: "status", value: "active" },
+        { column: "outcome", operator: "=", value: null }, // Not settled
       ],
       { column: "created_at", ascending: false },
     )
 
     markets = marketsData || []
+    console.log("[v0] Active markets fetched:", markets.length)
   } catch (err: any) {
     console.error("[v0] Error fetching markets:", err)
     error = "Failed to load markets. Please try again later."

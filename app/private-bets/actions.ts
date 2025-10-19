@@ -1,6 +1,6 @@
 "use server"
 
-import { select, query } from "@/lib/database/adapter"
+import { selectWithJoin } from "@/lib/database/adapter"
 import { createClient } from "@/lib/supabase/server"
 
 export interface PrivateMarket {
@@ -32,84 +32,33 @@ export async function getPrivateBetsData() {
   }
 
   try {
-    // Get user's group IDs
-    const userGroups = await select<any>("user_groups", ["group_id"], [{ column: "user_id", value: user.id }])
+    console.log("[v0] Fetching private bets data for user:", user.id)
 
-    const userGroupIds = userGroups.map((ug: any) => ug.group_id)
-
-    let privateMarkets: any[] = []
-
-    if (userGroupIds.length > 0) {
-      // Get markets created by user
-      const createdMarkets = await query<any>(
-        `
-        SELECT 
-          m.*,
-          p.username as creator_username,
-          p.display_name as creator_display_name
-        FROM markets m
-        LEFT JOIN profiles p ON m.creator_id = p.id
-        WHERE m.is_private = true 
-          AND m.creator_id = $1
-        ORDER BY m.created_at DESC
+    const createdMarketsResult = await selectWithJoin<any>("markets", {
+      select: `
+        markets.*,
+        profiles.username as creator_username,
+        profiles.display_name as creator_display_name
       `,
-        [user.id],
-      )
+      joins: [{ table: "profiles", on: "markets.creator_id = profiles.id", type: "LEFT" }],
+      where: [
+        { column: "markets.is_private", value: true },
+        { column: "markets.creator_id", value: user.id },
+        { column: "markets.status", operator: "!=", value: "cancelled" },
+      ],
+      orderBy: { column: "markets.created_at", ascending: false },
+    })
 
-      // Get markets from user's groups
-      const groupMarkets = await query<any>(
-        `
-        SELECT 
-          m.*,
-          p.username as creator_username,
-          p.display_name as creator_display_name
-        FROM markets m
-        LEFT JOIN profiles p ON m.creator_id = p.id
-        WHERE m.is_private = true 
-          AND m.group_id = ANY($1::uuid[])
-        ORDER BY m.created_at DESC
-      `,
-        [userGroupIds],
-      )
+    const createdMarketsData = Array.isArray(createdMarketsResult.data) ? createdMarketsResult.data : []
+    console.log("[v0] Private markets created by user:", createdMarketsData.length)
 
-      // Combine and deduplicate
-      const allMarkets = [...createdMarkets.rows, ...groupMarkets.rows]
-      const uniqueMarkets = allMarkets.filter(
-        (market, index, self) => index === self.findIndex((m: any) => m.id === market.id),
-      )
-
-      privateMarkets = uniqueMarkets.map((m: any) => ({
-        ...m,
-        creator: {
-          username: m.creator_username || "Unknown",
-          display_name: m.creator_display_name || "Unknown User",
-        },
-      }))
-    } else {
-      // Only get markets created by user
-      const createdMarkets = await query<any>(
-        `
-        SELECT 
-          m.*,
-          p.username as creator_username,
-          p.display_name as creator_display_name
-        FROM markets m
-        LEFT JOIN profiles p ON m.creator_id = p.id
-        WHERE m.is_private = true 
-          AND m.creator_id = $1
-        ORDER BY m.created_at DESC
-      `,
-        [user.id],
-      )
-
-      privateMarkets = createdMarkets.rows.map((m: any) => ({
-        ...m,
-        creator: {
-          username: m.creator_username || "Unknown",
-          display_name: m.creator_display_name || "Unknown User",
-        },
-      }))
-    }
+    const privateMarkets = createdMarketsData.map((m: any) => ({
+      ...m,
+      creator: {
+        username: m.creator_username || "Unknown",
+        display_name: m.creator_display_name || "Unknown User",
+      },
+    }))
 
     return {
       user,

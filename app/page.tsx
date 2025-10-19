@@ -93,13 +93,15 @@ export default async function HomePage() {
       "*, settled_at, winning_side",
       [
         { column: "is_private", operator: "eq", value: false },
-        { column: "status", operator: "not.in", value: "(settled,cancelled,closed)" },
+        { column: "status", operator: "eq", value: "active" },
+        { column: "outcome", operator: "=", value: null }, // Only markets that haven't been settled
       ],
       { column: "created_at", ascending: false },
       12,
     )
 
     markets = marketsData || []
+    console.log("[v0] HomePage: Active markets fetched:", markets.length)
   } catch (error) {
     console.log("[v0] HomePage: Markets fetch failed:", error)
     markets = []
@@ -110,7 +112,7 @@ export default async function HomePage() {
     const stats = await select("markets", "total_volume", [
       { column: "status", operator: "not.in", value: "(settled,cancelled)" },
     ])
-    totalVolume = stats?.reduce((sum, market) => sum + market.total_volume, 0) || 0
+    totalVolume = stats?.reduce((sum, market) => sum + Number.parseFloat(market.total_volume || "0"), 0) || 0
   } catch (error) {
     console.log("[v0] HomePage: Stats fetch failed:", error)
     totalVolume = 0
@@ -241,7 +243,7 @@ export default async function HomePage() {
               </div>
               <p className="text-xs md:text-sm font-medium text-gray-600 dark:text-gray-400">Your Balance</p>
               <p className="text-xl md:text-3xl font-bold text-green-600 dark:text-green-400">
-                ${profile?.balance?.toFixed(2) || "0.00"}
+                ${Number.parseFloat(profile?.balance || "0").toFixed(2)}
               </p>
             </CardContent>
           </Card>
@@ -262,7 +264,9 @@ export default async function HomePage() {
                 <BarChart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Volume</p>
-              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">${totalVolume.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                ${(totalVolume || 0).toFixed(2)}
+              </p>
             </CardContent>
           </Card>
         </div>

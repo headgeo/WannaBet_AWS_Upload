@@ -217,7 +217,9 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-green-600">${profile.balance.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-green-600">
+                  ${Number.parseFloat(profile.balance.toString()).toFixed(2)}
+                </div>
                 <p className="text-sm text-muted-foreground mt-1">Available for trading</p>
               </CardContent>
             </Card>
@@ -237,7 +239,7 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Volume Traded</span>
-                    <span className="font-semibold">${stats.totalVolume.toFixed(2)}</span>
+                    <span className="font-semibold">${Number.parseFloat(stats.totalVolume.toString()).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Markets Created</span>
@@ -245,7 +247,9 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                   </div>
                   <div className="flex justify-between border-t pt-4">
                     <span className="text-muted-foreground">Total Fees Earned</span>
-                    <span className="font-semibold text-green-600">${stats.totalFeesEarned.toFixed(2)}</span>
+                    <span className="font-semibold text-green-600">
+                      ${Number.parseFloat(stats.totalFeesEarned.toString()).toFixed(2)}
+                    </span>
                   </div>
                 </CardContent>
               </Card>

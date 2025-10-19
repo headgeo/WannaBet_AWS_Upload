@@ -25,6 +25,35 @@ export function getRDSPool(): Pool {
       )
     }
 
+    try {
+      const url = new URL(connectionString)
+      console.log("[RDS] Connection string validation:", {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || "5432",
+        database: url.pathname.slice(1),
+        hasUsername: !!url.username,
+        hasPassword: !!url.password,
+      })
+
+      if (!url.hostname || url.hostname === "base") {
+        throw new Error(
+          `Invalid hostname in connection string: "${url.hostname}". Expected format: postgresql://username:password@your-rds-endpoint.region.rds.amazonaws.com:5432/database_name`,
+        )
+      }
+
+      if (!url.username || !url.password) {
+        throw new Error("Connection string must include username and password")
+      }
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(
+          `Invalid POSTGRES_URL format. Expected: postgresql://username:password@host:5432/database\nGot: ${connectionString.replace(/:[^:@]+@/, ":****@")}`,
+        )
+      }
+      throw error
+    }
+
     console.log("[RDS] Initializing connection pool")
 
     pool = new Pool({

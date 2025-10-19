@@ -250,7 +250,7 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent className="pb-2 md:pb-6">
               <div className="text-xl md:text-2xl font-bold text-purple-600">
-                ${allMarkets.reduce((sum, m) => sum + m.total_volume, 0).toFixed(2)}
+                ${allMarkets.reduce((sum, m) => sum + Number.parseFloat(m.total_volume.toString()), 0).toFixed(2)}
               </div>
               <p className="text-[10px] md:text-xs text-muted-foreground">All markets</p>
             </CardContent>
@@ -353,7 +353,8 @@ export default function AdminPage() {
                               </div>
                               <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-sm text-muted-foreground">
                                 <div className="flex items-center gap-1">
-                                  <DollarSign className="w-2 h-2 md:w-3 md:h-3" />${market.total_volume.toFixed(2)}
+                                  <DollarSign className="w-2 h-2 md:w-3 md:h-3" />$
+                                  {Number.parseFloat(market.total_volume.toString()).toFixed(2)}
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Users className="w-2 h-2 md:w-3 md:h-3" />
@@ -449,7 +450,8 @@ export default function AdminPage() {
                               </div>
                               <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-sm text-muted-foreground">
                                 <div className="flex items-center gap-1">
-                                  <DollarSign className="w-2 h-2 md:w-3 md:h-3" />${market.total_volume.toFixed(2)}
+                                  <DollarSign className="w-2 h-2 md:w-3 md:h-3" />$
+                                  {Number.parseFloat(market.total_volume.toString()).toFixed(2)}
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Users className="w-2 h-2 md:w-3 md:h-3" />
@@ -555,7 +557,8 @@ export default function AdminPage() {
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 md:gap-4 text-[10px] md:text-sm text-muted-foreground">
                                   <div className="flex items-center gap-1">
-                                    <DollarSign className="w-2 h-2 md:w-3 md:h-3" />${market.total_volume.toFixed(2)}
+                                    <DollarSign className="w-2 h-2 md:w-3 md:h-3" />$
+                                    {Number.parseFloat(market.total_volume.toString()).toFixed(2)}
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <Users className="w-2 h-2 md:w-3 md:h-3" />
@@ -612,7 +615,7 @@ export default function AdminPage() {
                         <div className="text-4xl font-bold text-green-600 mb-2">
                           ${feesSummary.totalSitFees.toFixed(2)}
                         </div>
-                        <p className="text-sm text-muted-foreground">Total site fees collected from all transactions</p>
+                        <p className="text-sm text-muted-foreground">Total sit_fee collected from all transactions</p>
                       </CardContent>
                     </Card>
 

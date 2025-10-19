@@ -22,7 +22,7 @@ interface Position {
   id: string
   side: boolean
   shares: number
-  avg_price: number
+  avg_price: string // Updated to be a string
   amount_invested: number
   market: {
     id: string
@@ -120,7 +120,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
               </Badge>
             </div>
             <div className="text-sm text-muted-foreground">
-              You own {displayShares.toFixed(2)} shares @ ${position.avg_price.toFixed(3)} avg
+              You own {displayShares.toFixed(2)} shares @ ${Number.parseFloat(position.avg_price).toFixed(3)} avg
             </div>
           </div>
 

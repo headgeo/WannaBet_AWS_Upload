@@ -244,7 +244,8 @@ export default function MyBetsClient({
                       <span className="font-semibold text-xs md:text-base">{position.side ? "YES" : "NO"}</span>
                     </div>
                     <div className="text-xs md:text-sm text-muted-foreground">
-                      {position.shares.toFixed(2)} shares @ ${position.avg_price.toFixed(3)}
+                      {Number.parseFloat(position.shares.toString()).toFixed(2)} shares @ $
+                      {Number.parseFloat(position.avg_price.toString()).toFixed(3)}
                     </div>
                   </div>
                 </div>
@@ -252,7 +253,9 @@ export default function MyBetsClient({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 pt-2 md:pt-4 border-t">
                   <div>
                     <div className="text-xs md:text-sm text-muted-foreground">Invested</div>
-                    <div className="font-semibold text-xs md:text-base">${position.amount_invested.toFixed(2)}</div>
+                    <div className="font-semibold text-xs md:text-base">
+                      ${Number.parseFloat(position.amount_invested.toString()).toFixed(2)}
+                    </div>
                   </div>
                   {isCancelled ? (
                     <>
@@ -429,12 +432,14 @@ export default function MyBetsClient({
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 pt-2 md:pt-4 border-t">
                   <div>
                     <div className="text-xs md:text-sm text-muted-foreground">Total Volume</div>
-                    <div className="font-semibold text-xs md:text-base">${market.total_volume.toFixed(2)}</div>
+                    <div className="font-semibold text-xs md:text-base">
+                      ${Number.parseFloat(market.total_volume.toString()).toFixed(2)}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs md:text-sm text-muted-foreground">Fees Earned</div>
                     <div className="font-semibold text-xs md:text-base text-green-600">
-                      ${market.cumulative_creator_fees.toFixed(2)}
+                      ${Number.parseFloat(market.cumulative_creator_fees.toString()).toFixed(2)}
                     </div>
                   </div>
                   <div className="col-span-2 md:col-span-1">

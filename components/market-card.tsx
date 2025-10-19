@@ -126,7 +126,7 @@ export function MarketCard({ market }: MarketCardProps) {
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 md:mb-4">
           <div className="flex items-center gap-1">
             <Users className="w-3 h-3" />
-            <span>Volume: ${market.total_volume.toFixed(2)}</span>
+            <span>Volume: ${Number.parseFloat(market.total_volume.toString()).toFixed(2)}</span>
           </div>
           <span className="truncate ml-2">
             by {market.creator?.display_name || market.creator?.username || "Anonymous"}

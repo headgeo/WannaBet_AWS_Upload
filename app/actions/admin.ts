@@ -98,6 +98,78 @@ export async function settlePrivateMarket(marketId: string, winningSide: boolean
   }
 }
 
+export async function getAllMarkets() {
+  try {
+    await requireAdmin()
+
+    console.log("[v0] getAllMarkets: Starting market fetch")
+
+    // Fetch all markets
+    const { data: marketsOnly, error: marketsError } = await selectWithJoin("markets", {
+      select: "*",
+      orderBy: { column: "created_at", ascending: false },
+    })
+
+    console.log("[v0] getAllMarkets: Markets query result:", {
+      count: marketsOnly?.length,
+      error: marketsError,
+    })
+
+    if (marketsError) {
+      console.error("[v0] getAllMarkets: Error fetching markets:", marketsError)
+      throw new Error(`Failed to fetch markets: ${marketsError.message}`)
+    }
+
+    if (!marketsOnly || !Array.isArray(marketsOnly)) {
+      console.log("[v0] getAllMarkets: No markets found or invalid data")
+      return { success: true, data: [] }
+    }
+
+    if (marketsOnly.length === 0) {
+      console.log("[v0] getAllMarkets: No markets in database")
+      return { success: true, data: [] }
+    }
+
+    // Get unique creator IDs
+    const creatorIds = [...new Set(marketsOnly.map((m: any) => m.creator_id).filter(Boolean))]
+    console.log("[v0] getAllMarkets: Fetching profiles for creator IDs:", creatorIds)
+
+    // Fetch creator profiles
+    const { data: profiles, error: profilesError } = await selectWithJoin("profiles", {
+      select: "id, username, display_name",
+      where: [{ column: "id", operator: "IN", value: creatorIds }],
+    })
+
+    console.log("[v0] getAllMarkets: Profiles query result:", {
+      count: profiles?.length,
+      error: profilesError,
+    })
+
+    // Map markets with creator information
+    const marketsWithCreators = marketsOnly.map((market: any) => {
+      const creator = Array.isArray(profiles) ? profiles.find((p: any) => p.id === market.creator_id) : null
+
+      return {
+        ...market,
+        creator: creator || {
+          username: "Unknown",
+          display_name: "Unknown User",
+        },
+      }
+    })
+
+    console.log("[v0] getAllMarkets: Returning", marketsWithCreators.length, "markets")
+    return { success: true, data: marketsWithCreators }
+  } catch (error) {
+    console.error("[v0] getAllMarkets: Error:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+      data: [],
+    }
+  }
+}
+
 export async function getExpiredMarkets() {
   try {
     await requireAdmin()
@@ -121,60 +193,6 @@ export async function getExpiredMarkets() {
     return { success: true, data: markets }
   } catch (error) {
     console.error("Error fetching expired markets:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    }
-  }
-}
-
-export async function getAllMarkets() {
-  try {
-    await requireAdmin()
-
-    console.log("[v0] getAllMarkets: Starting market fetch")
-
-    const { data: marketsOnly, error: marketsError } = await selectWithJoin("markets", {
-      select: "*",
-      orderBy: { column: "created_at", ascending: false },
-    })
-
-    console.log("[v0] getAllMarkets: Markets only query result:", { marketsOnly, marketsError })
-
-    if (marketsError) {
-      console.log("[v0] getAllMarkets: Error fetching markets:", marketsError)
-      throw new Error(`Failed to fetch markets: ${marketsError.message}`)
-    }
-
-    if (marketsOnly && Array.isArray(marketsOnly) && marketsOnly.length > 0) {
-      const creatorIds = marketsOnly.map((m: any) => m.creator_id).filter(Boolean)
-      console.log("[v0] getAllMarkets: Creator IDs:", creatorIds)
-
-      const { data: profiles, error: profilesError } = await selectWithJoin("profiles", {
-        select: "id, username, display_name",
-        where: [{ column: "id", operator: "IN", value: creatorIds }],
-      })
-
-      console.log("[v0] getAllMarkets: Profiles query result:", { profiles, profilesError })
-
-      const marketsWithCreators = marketsOnly.map((market: any) => ({
-        ...market,
-        creator:
-          Array.isArray(profiles) && profiles.find((p: any) => p.id === market.creator_id)
-            ? profiles.find((p: any) => p.id === market.creator_id)
-            : {
-                username: "Unknown",
-                display_name: "Unknown User",
-              },
-      }))
-
-      console.log("[v0] getAllMarkets: Final markets with creators:", marketsWithCreators)
-      return { success: true, data: marketsWithCreators }
-    }
-
-    return { success: true, data: [] }
-  } catch (error) {
-    console.error("Error fetching markets:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

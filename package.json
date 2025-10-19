@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:rds": "tsx scripts/test-rds-connection.ts"
+    "test:rds": "tsx scripts/test-rds-connection.ts",
+    "clean": "rm -rf .next && echo 'Cache cleared! Run npm run dev to restart.'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

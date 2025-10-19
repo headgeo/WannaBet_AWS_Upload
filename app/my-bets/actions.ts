@@ -75,6 +75,8 @@ export async function getMyBetsData() {
   }
 
   try {
+    console.log("[v0] Fetching my bets data for user:", user.id)
+
     const positionsResult = await selectWithJoin<any>("positions", {
       select: `
         positions.*,
@@ -104,7 +106,13 @@ export async function getMyBetsData() {
       orderBy: { column: "positions.created_at", ascending: false },
     })
 
+    if (positionsResult.error) {
+      console.error("[v0] Error fetching positions:", positionsResult.error)
+      throw positionsResult.error
+    }
+
     const positionsData = Array.isArray(positionsResult.data) ? positionsResult.data : []
+    console.log("[v0] Positions fetched:", positionsData.length)
 
     // Transform positions to match expected structure
     const transformedPositions: Position[] = positionsData.map((p: any) => ({
@@ -120,13 +128,13 @@ export async function getMyBetsData() {
         status: p.market_status,
         end_date: p.market_end_date,
         outcome: p.market_outcome,
-        qy: p.market_qy,
-        qn: p.market_qn,
-        liquidity_pool: p.market_liquidity_pool,
-        yes_shares: p.market_yes_shares,
-        no_shares: p.market_no_shares,
-        total_volume: p.market_total_volume,
-        is_private: p.market_is_private,
+        qy: p.market_qy || 0,
+        qn: p.market_qn || 0,
+        liquidity_pool: p.market_liquidity_pool || 0,
+        yes_shares: p.market_yes_shares || 0,
+        no_shares: p.market_no_shares || 0,
+        total_volume: p.market_total_volume || 0,
+        is_private: p.market_is_private || false,
         b: p.market_b,
         creator: {
           username: p.creator_username || "Unknown",
@@ -154,9 +162,12 @@ export async function getMyBetsData() {
       [
         { column: "creator_id", value: user.id },
         { column: "status", operator: "!=", value: "cancelled" },
+        { column: "outcome", operator: "=", value: null }, // Only active markets (not settled)
       ],
       { column: "created_at", ascending: false },
     )
+
+    console.log("[v0] Created markets fetched:", createdMarkets.length)
 
     const transformedCreatedMarkets: CreatedMarket[] = createdMarkets.map((m: any) => ({
       ...m,
@@ -166,27 +177,13 @@ export async function getMyBetsData() {
     const userGroups = await select<any>("user_groups", ["group_id"], [{ column: "user_id", value: user.id }])
 
     const userGroupIds = userGroups.map((ug: any) => ug.group_id)
+    console.log("[v0] User groups:", userGroupIds.length, userGroupIds)
 
     let privateMarkets: any[] = []
 
     if (userGroupIds.length > 0) {
-      // Get markets created by user
-      const createdPrivateResult = await selectWithJoin<any>("markets", {
-        select: `
-          markets.*,
-          profiles.username as creator_username,
-          profiles.display_name as creator_display_name
-        `,
-        joins: [{ table: "profiles", on: "markets.creator_id = profiles.id", type: "LEFT" }],
-        where: [
-          { column: "markets.is_private", value: true },
-          { column: "markets.creator_id", value: user.id },
-          { column: "markets.status", operator: "!=", value: "cancelled" },
-        ],
-        orderBy: { column: "markets.created_at", ascending: false },
-      })
+      console.log("[v0] Fetching private markets for groups:", userGroupIds)
 
-      // Get markets from user's groups
       const groupPrivateResult = await selectWithJoin<any>("markets", {
         select: `
           markets.*,
@@ -198,53 +195,68 @@ export async function getMyBetsData() {
           { column: "markets.is_private", value: true },
           { column: "markets.group_id", operator: "IN", value: userGroupIds },
           { column: "markets.status", operator: "!=", value: "cancelled" },
+          { column: "markets.outcome", operator: "=", value: null }, // Only active markets
         ],
         orderBy: { column: "markets.created_at", ascending: false },
       })
 
-      const createdPrivateData = Array.isArray(createdPrivateResult.data) ? createdPrivateResult.data : []
-      const groupPrivateData = Array.isArray(groupPrivateResult.data) ? groupPrivateResult.data : []
+      if (groupPrivateResult.error) {
+        console.error("[v0] Error fetching group private markets:", groupPrivateResult.error)
+      } else {
+        const groupPrivateData = Array.isArray(groupPrivateResult.data) ? groupPrivateResult.data : []
+        console.log("[v0] Group private markets fetched:", groupPrivateData.length)
 
-      // Combine and deduplicate
-      const allMarkets = [...createdPrivateData, ...groupPrivateData]
-      const uniqueMarkets = allMarkets.filter(
+        privateMarkets = groupPrivateData.map((m: any) => ({
+          ...m,
+          creator: {
+            username: m.creator_username || "Unknown",
+            display_name: m.creator_display_name || "Unknown User",
+          },
+        }))
+      }
+    } else {
+      console.log("[v0] User is not in any groups, skipping group private markets")
+    }
+
+    // Also get markets created by user
+    const createdPrivateResult = await selectWithJoin<any>("markets", {
+      select: `
+        markets.*,
+        profiles.username as creator_username,
+        profiles.display_name as creator_display_name
+      `,
+      joins: [{ table: "profiles", on: "markets.creator_id = profiles.id", type: "LEFT" }],
+      where: [
+        { column: "markets.is_private", value: true },
+        { column: "markets.creator_id", value: user.id },
+        { column: "markets.status", operator: "!=", value: "cancelled" },
+        { column: "markets.outcome", operator: "=", value: null }, // Only active markets
+      ],
+      orderBy: { column: "markets.created_at", ascending: false },
+    })
+
+    if (createdPrivateResult.error) {
+      console.error("[v0] Error fetching created private markets:", createdPrivateResult.error)
+    } else {
+      const createdPrivateData = Array.isArray(createdPrivateResult.data) ? createdPrivateResult.data : []
+      console.log("[v0] Created private markets fetched:", createdPrivateData.length)
+
+      // Merge and deduplicate
+      const createdMapped = createdPrivateData.map((m: any) => ({
+        ...m,
+        creator: {
+          username: m.creator_username || "Unknown",
+          display_name: m.creator_display_name || "Unknown User",
+        },
+      }))
+
+      const allMarkets = [...privateMarkets, ...createdMapped]
+      privateMarkets = allMarkets.filter(
         (market, index, self) => index === self.findIndex((m: any) => m.id === market.id),
       )
-
-      privateMarkets = uniqueMarkets.map((m: any) => ({
-        ...m,
-        creator: {
-          username: m.creator_username || "Unknown",
-          display_name: m.creator_display_name || "Unknown User",
-        },
-      }))
-    } else {
-      // Only get markets created by user
-      const createdPrivateResult = await selectWithJoin<any>("markets", {
-        select: `
-          markets.*,
-          profiles.username as creator_username,
-          profiles.display_name as creator_display_name
-        `,
-        joins: [{ table: "profiles", on: "markets.creator_id = profiles.id", type: "LEFT" }],
-        where: [
-          { column: "markets.is_private", value: true },
-          { column: "markets.creator_id", value: user.id },
-          { column: "markets.status", operator: "!=", value: "cancelled" },
-        ],
-        orderBy: { column: "markets.created_at", ascending: false },
-      })
-
-      const createdPrivateData = Array.isArray(createdPrivateResult.data) ? createdPrivateResult.data : []
-
-      privateMarkets = createdPrivateData.map((m: any) => ({
-        ...m,
-        creator: {
-          username: m.creator_username || "Unknown",
-          display_name: m.creator_display_name || "Unknown User",
-        },
-      }))
     }
+
+    console.log("[v0] Total private markets:", privateMarkets.length)
 
     return {
       user,

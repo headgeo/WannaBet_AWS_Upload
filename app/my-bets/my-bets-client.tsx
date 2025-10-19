@@ -20,6 +20,7 @@ import {
 import type { Position, CreatedMarket, PrivateMarket } from "./actions"
 
 interface MyBetsClientProps {
+  userId: string // Added userId prop
   activePositions: Position[]
   historicalPositions: Position[]
   proposedToMe: PrivateMarket[]
@@ -28,6 +29,7 @@ interface MyBetsClientProps {
 }
 
 export default function MyBetsClient({
+  userId, // Destructure userId
   activePositions: initialActivePositions,
   historicalPositions: initialHistoricalPositions,
   proposedToMe: initialProposedToMe,
@@ -74,20 +76,19 @@ export default function MyBetsClient({
       const newLiquidityPool = position.market.liquidity_pool - sellCalculation.netValue
 
       const result = await sellShares(
-        positionId,
-        actualSharesToSell,
-        sellCalculation.grossValue,
-        position.market.id,
-        position.market.qy,
-        position.market.qn,
-        newQy,
-        newQn,
-        position.market.total_volume,
-        newYesShares,
-        newNoShares,
-        newLiquidityPool,
-        sellCalculation.feeAmount,
-        sellCalculation.netValue,
+        positionId, // 1. positionId
+        actualSharesToSell, // 2. sharesToSell
+        sellCalculation.grossValue, // 3. expectedValue
+        position.market.id, // 4. marketId
+        userId, // 5. userId - from props
+        newQy, // 6. newQy
+        newQn, // 7. newQn
+        position.market.total_volume, // 8. totalVolume
+        newYesShares, // 9. yesShares
+        newNoShares, // 10. noShares
+        newLiquidityPool, // 11. newLiquidityPool
+        sellCalculation.feeAmount, // 12. feeAmount
+        sellCalculation.netValue, // 13. netValue
       )
 
       if (result.success) {
@@ -241,7 +242,7 @@ export default function MyBetsClient({
                       ) : (
                         <TrendingDown className="w-3 h-3 md:w-4 md:h-4" />
                       )}
-                      <span className="font-semibold text-xs md:text-base">{position.side ? "YES" : "NO"}</span>
+                      <span className="font-semibold text-xs md:text-sm">{position.side ? "YES" : "NO"}</span>
                     </div>
                     <div className="text-xs md:text-sm text-muted-foreground">
                       {Number.parseFloat(position.shares.toString()).toFixed(2)} shares @ $

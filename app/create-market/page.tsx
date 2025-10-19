@@ -4,8 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { insert, update, select } from "@/lib/database/adapter"
-import { createClient } from "@/lib/supabase/client"
+import { getUserBalance, createMarket } from "@/app/actions/markets"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -54,20 +53,16 @@ export default function CreateMarketPage() {
 
   const loadUserBalance = async () => {
     try {
-      const supabase = createClient()
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
+      const result = await getUserBalance()
 
-      if (userError || !user) {
-        router.push("/auth/login")
+      if (result.error) {
+        if (result.error === "Not authenticated") {
+          router.push("/auth/login")
+        }
         return
       }
 
-      const profileData = await select("profiles", "balance", [{ column: "id", operator: "eq", value: user.id }])
-
-      setUserBalance(profileData?.[0]?.balance || 0)
+      setUserBalance(result.balance || 0)
     } catch (error) {
       console.error("Error loading user balance:", error)
     }
@@ -124,135 +119,23 @@ export default function CreateMarketPage() {
     setError(null)
 
     try {
-      const supabase = createClient()
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-      if (userError || !user) {
-        throw new Error("You must be logged in to create a market")
-      }
-
-      const endDateTime = new Date(endDate + "T23:59:59")
-
-      const calculatedB = calculateBFromLiquidity(liquidityAmountNum)
-
-      const invitedGroups = invitedItems.filter((item) => item.type === "group")
-      const groupId = isPrivate && invitedGroups.length > 0 ? invitedGroups[0].id : null
-
-      console.log("[v0] Creating market with group_id:", groupId)
-      console.log("[v0] Invited groups:", invitedGroups)
-
-      const market = await insert("markets", {
+      const result = await createMarket({
         title,
         description,
         category,
-        end_date: endDateTime.toISOString(),
-        creator_id: user.id,
-        is_private: isPrivate,
-        invited_user_id: null,
-        status: "active",
-        total_volume: 0,
-        yes_shares: 0,
-        no_shares: 0,
-        qy: 0,
-        qn: 0,
-        liquidity_pool: liquidityAmountNum,
-        b: calculatedB,
-        group_id: groupId,
+        endDate,
+        isPrivate,
+        invitedItems,
+        liquidityAmount: liquidityAmountNum,
       })
 
-      if (market.error || !market.data || market.data.length === 0) {
-        throw new Error(market.error?.message || "Failed to create market")
-      }
-      const createdMarket = market.data[0]
-
-      const updateResult = await update(
-        "profiles",
-        { column: "id", operator: "eq", value: user.id },
-        { balance: userBalance - liquidityAmountNum },
-      )
-
-      if (updateResult.error) {
-        throw new Error(`Failed to update balance: ${updateResult.error.message}`)
+      if (result.error) {
+        throw new Error(result.error)
       }
 
-      if (isPrivate) {
-        const allParticipants = []
-
-        allParticipants.push({
-          market_id: createdMarket.id,
-          user_id: user.id,
-          role: "creator",
-          status: "accepted",
-          group_id: null,
-        })
-
-        for (const item of invitedItems) {
-          if (item.type === "user") {
-            const existingUser = allParticipants.find((p) => p.user_id === item.id)
-            if (!existingUser) {
-              allParticipants.push({
-                market_id: createdMarket.id,
-                user_id: item.id,
-                role: "participant",
-                status: "accepted",
-                group_id: null,
-              })
-            }
-          }
-        }
-
-        console.log("[v0] Final participants to insert:", allParticipants)
-
-        if (allParticipants.length > 0) {
-          const participantsResult = await insert("market_participants", allParticipants)
-          if (participantsResult.error) {
-            throw new Error(`Failed to add participants: ${participantsResult.error.message}`)
-          }
-          console.log(`[v0] Successfully inserted ${allParticipants.length} participants`)
-        }
-
-        if (groupId) {
-          const groupMembers = await select("user_groups", "user_id", [
-            { column: "group_id", operator: "eq", value: groupId },
-          ])
-
-          if (groupMembers) {
-            const notifications = groupMembers
-              .filter((member) => member.user_id !== user.id)
-              .map((member) => ({
-                user_id: member.user_id,
-                market_id: createdMarket.id,
-                type: "new_market",
-                title: "New Private Market Created",
-                message: `A new private market "${title}" has been created in your group. Start trading now!`,
-              }))
-
-            if (notifications.length > 0) {
-              const notifResult = await insert("notifications", notifications)
-              if (notifResult.error) {
-                console.error("Failed to send notifications:", notifResult.error)
-              }
-            }
-          }
-        }
+      if (result.success && result.marketId) {
+        router.push(`/market/${result.marketId}`)
       }
-
-      const transactionResult = await insert("transactions", {
-        user_id: user.id,
-        market_id: createdMarket.id,
-        type: "market_creation",
-        amount: -liquidityAmountNum,
-        description: `Created market: ${title} (Liquidity: $${liquidityAmountNum})`,
-      })
-
-      if (transactionResult.error) {
-        console.error("Failed to record transaction:", transactionResult.error)
-      }
-
-      router.push(`/market/${createdMarket.id}`)
     } catch (error: any) {
       setError(error.message)
     } finally {

@@ -20,6 +20,7 @@ export default async function MyBetsPage() {
 
   return (
     <MyBetsClient
+      userId={user.id}
       activePositions={activePositions}
       historicalPositions={historicalPositions}
       proposedToMe={privateMarkets}

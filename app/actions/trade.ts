@@ -88,7 +88,7 @@ export async function executeTrade(
     const { data: tradeResult, error: rpcError } = await rpc("execute_trade_lmsr", {
       p_market_id: marketId,
       p_user_id: userId,
-      p_bet_amount: betAmount,
+      p_bet_amount: netAmount, // Use net amount (after fees)
       p_bet_side: betSide.toLowerCase(),
       p_qy: newQy,
       p_qn: newQn,
@@ -175,7 +175,7 @@ export async function sellShares(
       throw new Error("Trading is not available for this market")
     }
 
-    const { data: sellResult, error: rpcError } = await rpc("sell_shares_lmsr", {
+    const rpcParams = {
       p_position_id: positionId,
       p_shares_to_sell: sharesToSell,
       p_expected_value: expectedValue,
@@ -187,7 +187,9 @@ export async function sellShares(
       p_no_shares: noShares,
       p_total_volume: totalVolume,
       p_liquidity_pool: newLiquidityPool,
-    })
+    }
+
+    const { data: sellResult, error: rpcError } = await rpc("sell_shares_lmsr", rpcParams)
 
     if (rpcError) {
       throw new Error(`Sell execution failed: ${rpcError.message}`)

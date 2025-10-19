@@ -76,9 +76,18 @@ export function MarketDetailClient({
   currentUserId,
   marketId,
 }: MarketDetailClientProps) {
-  const [market, setMarket] = useState(initialMarket)
+  const [market, setMarket] = useState({
+    ...initialMarket,
+    total_volume: Number.parseFloat(initialMarket.total_volume.toString()),
+    yes_shares: Number.parseFloat(initialMarket.yes_shares.toString()),
+    no_shares: Number.parseFloat(initialMarket.no_shares.toString()),
+    qy: Number.parseFloat(initialMarket.qy.toString()),
+    qn: Number.parseFloat(initialMarket.qn.toString()),
+    liquidity_pool: Number.parseFloat(initialMarket.liquidity_pool.toString()),
+    b: Number.parseFloat(initialMarket.b.toString()),
+  })
   const [userPositions, setUserPositions] = useState(initialUserPositions)
-  const [userBalance, setUserBalance] = useState(initialUserBalance)
+  const [userBalance, setUserBalance] = useState(Number.parseFloat(initialUserBalance.toString()))
   const [accessibleGroups] = useState(initialAccessibleGroups)
   const [betAmount, setBetAmount] = useState("")
   const [selectedSide, setSelectedSide] = useState<boolean>(true)
@@ -131,6 +140,15 @@ export function MarketDetailClient({
       const pricing = calculatePrice(market.qy, market.qn, market.b, selectedSide, amount)
       const shares = pricing.shares
 
+      console.log("[v0] Trade calculation:", {
+        amount,
+        pricing,
+        shares,
+        marketQy: market.qy,
+        marketQn: market.qn,
+        selectedSide,
+      })
+
       if (shares <= 0) {
         throw new Error("Invalid trade: would receive 0 or negative shares")
       }
@@ -147,6 +165,24 @@ export function MarketDetailClient({
       }
 
       const newLiquidityPool = market.liquidity_pool + pricing.netAmount
+      const newTotalVolume = market.total_volume + pricing.netAmount
+      const newYesShares = selectedSide ? market.yes_shares + shares : market.yes_shares
+      const newNoShares = !selectedSide ? market.no_shares + shares : market.no_shares
+
+      console.log("[v0] Executing trade with params:", {
+        marketId: market.id,
+        amount,
+        side: selectedSide ? "YES" : "NO",
+        newQy,
+        newQn,
+        shares,
+        newTotalVolume,
+        newYesShares,
+        newNoShares,
+        newLiquidityPool,
+        feeAmount: pricing.feeAmount,
+        netAmount: pricing.netAmount,
+      })
 
       const result = await executeTrade(
         market.id,
@@ -156,9 +192,9 @@ export function MarketDetailClient({
         newQy,
         newQn,
         shares,
-        market.total_volume + amount,
-        selectedSide ? market.yes_shares + shares : market.yes_shares,
-        !selectedSide ? market.no_shares + shares : market.no_shares,
+        newTotalVolume,
+        newYesShares,
+        newNoShares,
         newLiquidityPool,
         pricing.feeAmount,
         pricing.netAmount,
@@ -531,7 +567,7 @@ export function MarketDetailClient({
                   </div>
 
                   {previewPricing && previewPricing.shares > 0 && (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-sm">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-sm space-y-2">
                       <div className="font-medium mb-1">Bet Preview:</div>
                       <div className="space-y-1">
                         <div>
@@ -542,7 +578,17 @@ export function MarketDetailClient({
                           <span className="font-medium">${previewPricing.avgPrice.toFixed(3)} per share</span>
                         </div>
                         <div>
-                          Fee ({(FEE_PERCENTAGE * 100).toFixed(1)}%): ${previewPricing.feeAmount.toFixed(2)}
+                          Fee ({(FEE_PERCENTAGE * 100).toFixed(1)}%):{" "}
+                          <span className="font-medium">${previewPricing.feeAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="pt-1 border-t border-blue-200 dark:border-blue-800">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Max Payout:</span>
+                            <span className="font-bold text-green-600">${previewPricing.shares.toFixed(2)}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            (if {selectedSide ? "YES" : "NO"} wins, each share pays $1)
+                          </div>
                         </div>
                       </div>
                     </div>

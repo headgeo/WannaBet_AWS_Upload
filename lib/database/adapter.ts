@@ -9,7 +9,7 @@ import type { PoolClient } from "pg"
 
 const USE_RDS = !!(process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL_NON_POOLING)
 
-console.log("[Adapter] Database mode:", USE_RDS ? "AWS RDS (with Supabase fallback)" : "Supabase only")
+console.log("[Adapter] Database mode:", USE_RDS ? "AWS RDS" : "Supabase only")
 console.log("[Adapter] Environment check:", {
   POSTGRES_URL: !!process.env.POSTGRES_URL,
   POSTGRES_PRISMA_URL: !!process.env.POSTGRES_PRISMA_URL,
@@ -175,42 +175,12 @@ export async function select<T = any>(
       const result = await rdsQuery(sql, params)
       return result.rows as T[]
     } catch (error: any) {
-      if (error.message?.includes("Connection terminated") || error.message?.includes("timeout")) {
-        console.warn("[Adapter] RDS connection failed, falling back to Supabase for select query")
-        // Fallback to Supabase
-        const supabase = createSupabaseClient()
-        let query = supabase.from(table).select(Array.isArray(columns) ? columns.join(", ") : columns)
-
-        if (where) {
-          where.forEach((w) => {
-            if (w.value === null) {
-              query = query.is(w.column, null)
-            } else if (w.operator === "in" || w.operator === "IN") {
-              query = query.in(w.column, Array.isArray(w.value) ? w.value : [w.value])
-            } else {
-              query = query.eq(w.column, w.value)
-            }
-          })
-        }
-
-        if (orderBy) {
-          query = query.order(orderBy.column, { ascending: orderBy.ascending !== false })
-        }
-
-        if (limit) {
-          query = query.limit(limit)
-        }
-
-        const { data, error } = await query
-        if (error) throw error
-        return (data as T[]) || []
-      }
+      console.error("[Adapter] RDS query failed:", error)
       throw error
     }
   }
 
-  // Supabase mode
-  const supabase = createSupabaseClient()
+  const supabase = await createSupabaseClient()
   let query = supabase.from(table).select(Array.isArray(columns) ? columns.join(", ") : columns)
 
   if (where) {
@@ -260,14 +230,79 @@ export async function rpc<T = any>(
   params: Record<string, any> = {},
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
-    const paramKeys = Object.keys(params)
-    const paramValues = Object.values(params)
-    const paramList = paramKeys.map((key, i) => `${key} => $${i + 1}`).join(", ")
-    const sql = `SELECT * FROM ${functionName}(${paramList})`
+    console.log(`[v0] Calling RPC function: ${functionName}`, params)
 
-    const result = await rdsQuery(sql, paramValues)
+    // Define the expected parameter order for each function
+    const functionParamOrder: Record<string, string[]> = {
+      execute_trade_lmsr: [
+        "p_market_id",
+        "p_user_id",
+        "p_bet_amount",
+        "p_bet_side",
+        "p_qy",
+        "p_qn",
+        "p_yes_shares",
+        "p_no_shares",
+        "p_total_volume",
+        "p_calculated_shares",
+        "p_liquidity_pool",
+      ],
+      sell_shares_lmsr: [
+        "p_position_id",
+        "p_shares_to_sell",
+        "p_expected_value",
+        "p_market_id",
+        "p_user_id",
+        "p_qy",
+        "p_qn",
+        "p_yes_shares",
+        "p_no_shares",
+        "p_total_volume",
+        "p_liquidity_pool",
+      ],
+      split_trading_fees_secure: ["p_market_id", "p_trader_id", "p_creator_id", "p_total_fee"],
+    }
+
+    const expectedOrder = functionParamOrder[functionName]
+    if (!expectedOrder) {
+      // Fallback to object key order if function not in map
+      const paramKeys = Object.keys(params)
+      const paramValues = Object.values(params)
+      const paramList = paramKeys.map((key, i) => `${key} => $${i + 1}`).join(", ")
+      const sql = `SELECT * FROM ${functionName}(${paramList})`
+      console.log(`[v0] RPC SQL (fallback):`, sql)
+      console.log(`[v0] RPC Values:`, paramValues)
+      const result = await rdsQuery(sql, paramValues)
+      return { data: result.rows[0] as T, error: null }
+    }
+
+    console.log(`[v0] Expected parameter order for ${functionName}:`, expectedOrder)
+    console.log(`[v0] Received parameters:`, params)
+
+    // Order parameters according to function signature
+    const orderedValues = expectedOrder.map((key, index) => {
+      if (!(key in params)) {
+        throw new Error(`Missing required parameter: ${key} for function ${functionName}`)
+      }
+      const value = params[key]
+      console.log(`[v0] Parameter ${index + 1}: ${key} = ${value} (type: ${typeof value})`)
+      return value
+    })
+
+    const placeholders = expectedOrder.map((_, i) => `$${i + 1}`).join(", ")
+    const sql = `SELECT * FROM ${functionName}(${placeholders})`
+
+    console.log(`[v0] RPC SQL:`, sql)
+    console.log(`[v0] RPC Values (ordered):`, orderedValues)
+    console.log(
+      `[v0] RPC Values with types:`,
+      orderedValues.map((v, i) => `$${i + 1}: ${v} (${typeof v})`),
+    )
+
+    const result = await rdsQuery(sql, orderedValues)
     return { data: result.rows[0] as T, error: null }
   } catch (error) {
+    console.error(`[v0] RPC error for ${functionName}:`, error)
     return { data: null, error: error as Error }
   }
 }

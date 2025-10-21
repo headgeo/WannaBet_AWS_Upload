@@ -6,7 +6,20 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, TrendingUp, TrendingDown, History, Activity, Users, Building2, AlertTriangle } from "lucide-react"
+import {
+  ArrowLeft,
+  TrendingUp,
+  TrendingDown,
+  History,
+  Activity,
+  Users,
+  Building2,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Receipt,
+  DollarSign,
+} from "lucide-react"
 import Link from "next/link"
 import { SellSharesDialog } from "@/components/sell-shares-dialog"
 import { sellShares } from "@/app/actions/trade"
@@ -17,32 +30,37 @@ import {
   DEFAULT_LIQUIDITY_AMOUNT,
   calculateSellValueWithFee,
 } from "@/lib/lmsr"
-import type { Position, CreatedMarket, PrivateMarket } from "./actions"
+import type { Position, CreatedMarket, PrivateMarket, TradeHistory, PnLHistory } from "./actions"
 
 interface MyBetsClientProps {
-  userId: string // Added userId prop
+  userId: string
   activePositions: Position[]
-  historicalPositions: Position[]
   proposedToMe: PrivateMarket[]
   createdMarkets: CreatedMarket[]
+  trades: TradeHistory[] // Added trades prop
+  pnlHistory: PnLHistory[]
   initialError: string | null
 }
 
 export default function MyBetsClient({
-  userId, // Destructure userId
+  userId,
   activePositions: initialActivePositions,
-  historicalPositions: initialHistoricalPositions,
   proposedToMe: initialProposedToMe,
   createdMarkets: initialCreatedMarkets,
+  trades: initialTrades = [], // Added default empty array to prevent undefined error
+  pnlHistory: initialPnlHistory = [],
   initialError,
 }: MyBetsClientProps) {
   const [activePositions, setActivePositions] = useState(initialActivePositions)
-  const [historicalPositions, setHistoricalPositions] = useState(initialHistoricalPositions)
   const [proposedToMe, setProposedToMe] = useState(initialProposedToMe)
   const [createdMarkets, setCreatedMarkets] = useState(initialCreatedMarkets)
+  const [trades] = useState(initialTrades || []) // Added fallback to empty array
+  const [pnlHistory] = useState(initialPnlHistory || [])
   const [error, setError] = useState<string | null>(initialError)
   const [isSettling, setIsSettling] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState<string | null>(null)
+  const [expandedTradeId, setExpandedTradeId] = useState<string | null>(null) // Changed from expandedHistoricalId to expandedTradeId
+  const [expandedPnlId, setExpandedPnlId] = useState<string | null>(null)
   const router = useRouter()
 
   const getCurrentSharePrice = (qy: number, qn: number, side: boolean) => {
@@ -52,7 +70,7 @@ export default function MyBetsClient({
 
   const handleSellShares = async (positionId: string, sharesToSell: number, expectedValue: number) => {
     try {
-      const position = [...activePositions, ...historicalPositions].find((p) => p.id === positionId)
+      const position = activePositions.find((p) => p.id === positionId)
       if (!position) throw new Error("Position not found")
 
       const isSellingAll = Math.abs(sharesToSell - position.shares) < 0.001
@@ -92,6 +110,9 @@ export default function MyBetsClient({
       )
 
       if (result.success) {
+        if (isSellingAll) {
+          setActivePositions((prev) => prev.filter((p) => p.id !== positionId))
+        }
         router.refresh()
       } else {
         throw new Error(result.error || "Sell failed")
@@ -194,6 +215,129 @@ export default function MyBetsClient({
           const pnl = isCancelled ? 0 : currentValue - position.amount_invested
           const pnlPerShare = isCancelled ? 0 : currentSharePrice - position.avg_price
 
+          const isExpanded = isHistorical && expandedTradeId === position.id
+
+          if (isHistorical) {
+            return (
+              <Card
+                key={position.id}
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setExpandedTradeId(isExpanded ? null : position.id)}
+              >
+                <CardContent className="p-4">
+                  {!isExpanded ? (
+                    // Compact view
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0 mr-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant={position.side ? "default" : "destructive"} className="text-xs px-1.5 py-0">
+                            {position.side ? "YES" : "NO"}
+                          </Badge>
+                          {position.market.outcome !== null && (
+                            <Badge variant={isWinner ? "default" : "destructive"} className="text-xs px-1.5 py-0">
+                              {isWinner ? "Won" : "Lost"}
+                            </Badge>
+                          )}
+                          {isCancelled && (
+                            <Badge variant="outline" className="text-xs px-1.5 py-0">
+                              Cancelled
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium truncate">{position.market.title}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className="text-xs text-muted-foreground">P&L</div>
+                          <div className={`font-semibold ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+                          </div>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ) : (
+                    // Expanded view
+                    <div>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-base mb-2">{position.market.title}</h3>
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <Badge variant="secondary" className="text-xs">
+                              {position.market.category}
+                            </Badge>
+                            <Badge variant={position.side ? "default" : "destructive"} className="text-xs">
+                              {position.side ? "YES" : "NO"}
+                            </Badge>
+                            {position.market.outcome !== null && (
+                              <Badge variant={isWinner ? "default" : "destructive"} className="text-xs">
+                                {isWinner ? "Won" : "Lost"}
+                              </Badge>
+                            )}
+                            {isCancelled && (
+                              <Badge variant="outline" className="text-xs">
+                                Cancelled - Refunded
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronUp className="w-4 h-4 text-muted-foreground ml-2" />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+                        <div>
+                          <div className="text-xs text-muted-foreground">Shares</div>
+                          <div className="font-medium text-sm">
+                            {Number.parseFloat(position.shares.toString()).toFixed(2)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Avg Price</div>
+                          <div className="font-medium text-sm">
+                            ${Number.parseFloat(position.avg_price.toString()).toFixed(3)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Invested</div>
+                          <div className="font-medium text-sm">
+                            ${Number.parseFloat(position.amount_invested.toString()).toFixed(2)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Sale Price</div>
+                          <div className="font-medium text-sm">${currentSharePrice.toFixed(3)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Final Value</div>
+                          <div className="font-medium text-sm">${currentValue.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">P&L</div>
+                          <div className={`font-semibold text-sm ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t">
+                        <Button
+                          variant="outline"
+                          asChild
+                          size="sm"
+                          className="w-full bg-transparent"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Link href={`/market/${position.market.id}`}>View Market</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          }
+
+          // Active positions - existing full card view
           return (
             <Card key={position.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-3 md:p-6">
@@ -507,6 +651,349 @@ export default function MyBetsClient({
     )
   }
 
+  const renderTradeHistory = (trades: TradeHistory[]) => {
+    if (trades.length === 0) {
+      return (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Receipt className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Trade History</h3>
+            <p className="text-muted-foreground">Your buy and sell transactions will appear here.</p>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    // Group trades by market for better organization
+    const tradesByMarket = trades.reduce(
+      (acc, trade) => {
+        if (!acc[trade.market_id]) {
+          acc[trade.market_id] = {
+            market_title: trade.market_title,
+            trades: [],
+          }
+        }
+        acc[trade.market_id].trades.push(trade)
+        return acc
+      },
+      {} as Record<string, { market_title: string; trades: TradeHistory[] }>,
+    )
+
+    return (
+      <div className="space-y-6">
+        {Object.entries(tradesByMarket).map(([marketId, { market_title, trades: marketTrades }]) => {
+          const totalPnL = marketTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0)
+
+          return (
+            <div key={marketId} className="space-y-2">
+              <div className="flex items-center justify-between px-2">
+                <h3 className="font-semibold text-sm truncate flex-1">{market_title}</h3>
+                {totalPnL !== 0 && (
+                  <div className={`text-sm font-semibold ${totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    Total: {totalPnL >= 0 ? "+" : ""}${totalPnL.toFixed(2)}
+                  </div>
+                )}
+              </div>
+
+              {marketTrades.map((trade) => {
+                const isExpanded = expandedTradeId === trade.id
+
+                return (
+                  <Card
+                    key={trade.id}
+                    className="hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setExpandedTradeId(isExpanded ? null : trade.id)}
+                  >
+                    <CardContent className="p-3">
+                      {!isExpanded ? (
+                        // Compact view
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <Badge
+                              variant={trade.type === "buy" ? "default" : "secondary"}
+                              className="text-xs px-1.5 py-0 shrink-0"
+                            >
+                              {trade.type.toUpperCase()}
+                            </Badge>
+                            <Badge
+                              variant={trade.side === "YES" ? "default" : "destructive"}
+                              className="text-xs px-1.5 py-0 shrink-0"
+                            >
+                              {trade.side}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground truncate">
+                              {trade.shares.toFixed(2)} shares @ ${trade.price_per_share.toFixed(3)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {trade.pnl !== null && (
+                              <div
+                                className={`text-sm font-semibold ${trade.pnl >= 0 ? "text-green-600" : "text-red-600"}`}
+                              >
+                                {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
+                              </div>
+                            )}
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      ) : (
+                        // Expanded view
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={trade.type === "buy" ? "default" : "secondary"}
+                                className="text-xs px-2 py-0.5"
+                              >
+                                {trade.type.toUpperCase()}
+                              </Badge>
+                              <Badge
+                                variant={trade.side === "YES" ? "default" : "destructive"}
+                                className="text-xs px-2 py-0.5"
+                              >
+                                {trade.side}
+                              </Badge>
+                              {trade.market_outcome !== null && (
+                                <Badge
+                                  variant={
+                                    (trade.side === "YES" && trade.market_outcome) ||
+                                    (trade.side === "NO" && !trade.market_outcome)
+                                      ? "default"
+                                      : "destructive"
+                                  }
+                                  className="text-xs px-2 py-0.5"
+                                >
+                                  {(trade.side === "YES" && trade.market_outcome) ||
+                                  (trade.side === "NO" && !trade.market_outcome)
+                                    ? "Won"
+                                    : "Lost"}
+                                </Badge>
+                              )}
+                            </div>
+                            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+                            <div>
+                              <div className="text-xs text-muted-foreground">Shares</div>
+                              <div className="font-medium text-sm">{trade.shares.toFixed(2)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Price/Share</div>
+                              <div className="font-medium text-sm">${trade.price_per_share.toFixed(3)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Total Amount</div>
+                              <div className="font-medium text-sm">${trade.total_amount.toFixed(2)}</div>
+                            </div>
+                            {trade.pnl !== null && (
+                              <div>
+                                <div className="text-xs text-muted-foreground">P&L</div>
+                                <div
+                                  className={`font-semibold text-sm ${trade.pnl >= 0 ? "text-green-600" : "text-red-600"}`}
+                                >
+                                  {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
+                                </div>
+                              </div>
+                            )}
+                            <div className="col-span-2">
+                              <div className="text-xs text-muted-foreground">Time</div>
+                              <div className="font-medium text-sm">{new Date(trade.created_at).toLocaleString()}</div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-3 border-t">
+                            <Button
+                              variant="outline"
+                              asChild
+                              size="sm"
+                              className="w-full bg-transparent"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Link href={`/market/${trade.market_id}`}>View Market</Link>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const renderPnLHistory = (pnlHistory: PnLHistory[]) => {
+    if (pnlHistory.length === 0) {
+      return (
+        <Card>
+          <CardContent className="text-center py-12">
+            <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No P&L History</h3>
+            <p className="text-muted-foreground">
+              Your realized profits and losses from selling shares will appear here.
+            </p>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    // Group by market for better organization
+    const pnlByMarket = pnlHistory.reduce(
+      (acc, pnl) => {
+        if (!acc[pnl.market_id]) {
+          acc[pnl.market_id] = {
+            market_title: pnl.market_title,
+            pnls: [],
+          }
+        }
+        acc[pnl.market_id].pnls.push(pnl)
+        return acc
+      },
+      {} as Record<string, { market_title: string; pnls: PnLHistory[] }>,
+    )
+
+    return (
+      <div className="space-y-4">
+        {Object.entries(pnlByMarket).map(([marketId, { market_title, pnls }]) => {
+          const totalPnL = pnls.reduce((sum, pnl) => sum + pnl.realized_pnl, 0)
+
+          return (
+            <Card key={marketId} className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="px-4 py-3 border-b flex items-center justify-between">
+                  <h3 className="font-semibold text-sm truncate flex-1 pr-4 max-w-[70%]">{market_title}</h3>
+                  <div
+                    className={`text-sm font-semibold shrink-0 ${totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}
+                  >
+                    {totalPnL >= 0 ? "+" : ""}${totalPnL.toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="divide-y">
+                  {pnls.map((pnl) => {
+                    const isExpanded = expandedPnlId === pnl.id
+
+                    return (
+                      <div
+                        key={pnl.id}
+                        className="hover:bg-muted/30 transition-colors cursor-pointer"
+                        onClick={() => setExpandedPnlId(isExpanded ? null : pnl.id)}
+                      >
+                        <div className={isExpanded ? "p-3" : "px-4 py-2"}>
+                          {!isExpanded ? (
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs px-2 py-0 shrink-0 w-12 justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                                >
+                                  {pnl.side}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground truncate">
+                                  Sold {pnl.shares.toFixed(2)} @ ${pnl.price_per_share.toFixed(3)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div
+                                  className={`text-sm font-semibold ${pnl.realized_pnl >= 0 ? "text-green-600" : "text-red-600"}`}
+                                >
+                                  {pnl.realized_pnl >= 0 ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
+                                </div>
+                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                            </div>
+                          ) : (
+                            // Expanded view
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs px-2 py-0.5 w-12 justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                                  >
+                                    {pnl.side}
+                                  </Badge>
+                                  {pnl.market_outcome !== null && (
+                                    <Badge
+                                      variant={
+                                        (pnl.side === "Yes" && pnl.market_outcome) ||
+                                        (pnl.side === "No" && !pnl.market_outcome)
+                                          ? "default"
+                                          : "destructive"
+                                      }
+                                      className="text-xs px-2 py-0.5"
+                                    >
+                                      {(pnl.side === "Yes" && pnl.market_outcome) ||
+                                      (pnl.side === "No" && !pnl.market_outcome)
+                                        ? "Won"
+                                        : "Lost"}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+                                <div>
+                                  <div className="text-xs text-muted-foreground">Shares Sold</div>
+                                  <div className="font-medium text-sm">{pnl.shares.toFixed(2)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-muted-foreground">Sale Price</div>
+                                  <div className="font-medium text-sm">${pnl.price_per_share.toFixed(3)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-muted-foreground">Cost Basis</div>
+                                  <div className="font-medium text-sm">${pnl.cost_basis.toFixed(3)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-muted-foreground">Total Received</div>
+                                  <div className="font-medium text-sm">${pnl.total_amount.toFixed(2)}</div>
+                                </div>
+                                <div className="col-span-2">
+                                  <div className="text-xs text-muted-foreground">Realized P&L</div>
+                                  <div
+                                    className={`font-semibold text-base ${pnl.realized_pnl >= 0 ? "text-green-600" : "text-red-600"}`}
+                                  >
+                                    {pnl.realized_pnl >= 0 ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
+                                  </div>
+                                </div>
+                                <div className="col-span-2">
+                                  <div className="text-xs text-muted-foreground">Time</div>
+                                  <div className="font-medium text-sm">{new Date(pnl.created_at).toLocaleString()}</div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 pt-3 border-t">
+                                <Button
+                                  variant="outline"
+                                  asChild
+                                  size="sm"
+                                  className="w-full bg-transparent"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Link href={`/market/${pnl.market_id}`}>View Market</Link>
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -540,15 +1027,7 @@ export default function MyBetsClient({
               <span className="sm:hidden">Active</span>
               <span className="ml-0.5">({activePositions.length})</span>
             </TabsTrigger>
-            <TabsTrigger
-              value="historical"
-              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4 border border-border md:border-0 shadow-sm md:shadow-none"
-            >
-              <History className="w-3 h-3 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">Historical</span>
-              <span className="sm:hidden">History</span>
-              <span className="ml-0.5">({historicalPositions.length})</span>
-            </TabsTrigger>
+            {/* Removed Historical and Trade History tabs */}
             <TabsTrigger
               value="private-markets"
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4 border border-border md:border-0 shadow-sm md:shadow-none"
@@ -567,22 +1046,32 @@ export default function MyBetsClient({
               <span className="sm:hidden">Markets</span>
               <span className="ml-0.5">({createdMarkets.length})</span>
             </TabsTrigger>
+            <TabsTrigger
+              value="pnl-history"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4 border border-border md:border-0 shadow-sm md:shadow-none"
+            >
+              <DollarSign className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">P&L History</span>
+              <span className="sm:hidden">P&L</span>
+              <span className="ml-0.5">({pnlHistory.length})</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="mt-6">
             {renderPositions(activePositions, false)}
           </TabsContent>
 
-          <TabsContent value="historical" className="mt-6">
-            {renderPositions(historicalPositions, true)}
-          </TabsContent>
-
+          {/* Removed Historical tab content */}
           <TabsContent value="private-markets" className="mt-6">
             {renderPrivateBets(proposedToMe)}
           </TabsContent>
 
           <TabsContent value="my-markets" className="mt-6">
             {renderCreatedMarkets(createdMarkets)}
+          </TabsContent>
+
+          <TabsContent value="pnl-history" className="mt-6">
+            {renderPnLHistory(pnlHistory)}
           </TabsContent>
         </Tabs>
       </div>

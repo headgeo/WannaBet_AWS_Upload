@@ -62,6 +62,106 @@ export interface PrivateMarket {
   }
 }
 
+export interface TradeHistory {
+  id: string
+  market_id: string
+  market_title: string
+  type: "buy" | "sell"
+  side: "YES" | "NO"
+  shares: number
+  price_per_share: number
+  total_amount: number
+  pnl: number | null
+  created_at: string
+  market_status: string
+  market_outcome: boolean | null
+}
+
+export interface PnLHistory {
+  id: string
+  market_id: string
+  market_title: string
+  side: string
+  shares: number
+  price_per_share: number
+  cost_basis: number
+  realized_pnl: number
+  total_amount: number
+  created_at: string
+  market_status: string
+  market_outcome: boolean | null
+}
+
+export async function getUserPnLHistory() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  if (userError || !user) {
+    return { error: "Not authenticated", pnlHistory: [] }
+  }
+
+  try {
+    console.log("[v0] Fetching P&L history for user:", user.id)
+
+    // Fetch only sell transactions with P&L data from database
+    const pnlResult = await selectWithJoin<any>("transactions", {
+      select: `
+        transactions.id,
+        transactions.market_id,
+        transactions.shares,
+        transactions.price_per_share,
+        transactions.cost_basis,
+        transactions.realized_pnl,
+        transactions.amount,
+        transactions.side,
+        transactions.created_at,
+        markets.title as market_title,
+        markets.status as market_status,
+        markets.outcome as market_outcome
+      `,
+      joins: [{ table: "markets", on: "transactions.market_id = markets.id", type: "INNER" }],
+      where: [
+        { column: "transactions.user_id", value: user.id },
+        { column: "transactions.type", value: "sell" },
+      ],
+      orderBy: { column: "transactions.created_at", ascending: false },
+    })
+
+    if (pnlResult.error) {
+      console.error("[v0] Error fetching P&L history:", pnlResult.error)
+      throw pnlResult.error
+    }
+
+    const pnlData = Array.isArray(pnlResult.data) ? pnlResult.data : []
+    console.log("[v0] P&L history fetched:", pnlData.length)
+
+    const pnlHistory: PnLHistory[] = pnlData.map((tx: any) => ({
+      id: tx.id,
+      market_id: tx.market_id,
+      market_title: tx.market_title,
+      side: tx.side === true || tx.side === "true" || tx.side === "YES" || tx.side === "Yes" ? "Yes" : "No",
+      shares: Number.parseFloat(tx.shares) || 0,
+      price_per_share: Number.parseFloat(tx.price_per_share) || 0,
+      cost_basis: Number.parseFloat(tx.cost_basis) || 0,
+      realized_pnl: Number.parseFloat(tx.realized_pnl) || 0,
+      total_amount: Number.parseFloat(tx.amount) || 0,
+      created_at: tx.created_at,
+      market_status: tx.market_status,
+      market_outcome: tx.market_outcome,
+    }))
+
+    console.log("[v0] P&L history processed:", pnlHistory.length)
+    return { pnlHistory, error: null }
+  } catch (error: any) {
+    console.error("[v0] Error loading P&L history:", error)
+    return { pnlHistory: [], error: error.message }
+  }
+}
+
 export async function getMyBetsData() {
   const supabase = await createClient()
 
@@ -71,7 +171,15 @@ export async function getMyBetsData() {
   } = await supabase.auth.getUser()
 
   if (userError || !user) {
-    return { error: "Not authenticated", user: null, positions: [], createdMarkets: [], privateMarkets: [] }
+    return {
+      error: "Not authenticated",
+      user: null,
+      positions: [],
+      historicalPositions: [],
+      createdMarkets: [],
+      privateMarkets: [],
+      pnlHistory: [],
+    }
   }
 
   try {
@@ -114,7 +222,6 @@ export async function getMyBetsData() {
     const positionsData = Array.isArray(positionsResult.data) ? positionsResult.data : []
     console.log("[v0] Positions fetched:", positionsData.length)
 
-    // Transform positions to match expected structure
     const transformedPositions: Position[] = positionsData.map((p: any) => ({
       id: p.id,
       side: p.side,
@@ -143,6 +250,12 @@ export async function getMyBetsData() {
       },
     }))
 
+    const activePositions = transformedPositions.filter(
+      (p) => p.shares > 0.01 && p.market.status === "active" && p.market.outcome === null,
+    )
+
+    console.log("[v0] Active positions:", activePositions.length)
+
     const createdMarkets = await select<any>(
       "markets",
       [
@@ -162,7 +275,7 @@ export async function getMyBetsData() {
       [
         { column: "creator_id", value: user.id },
         { column: "status", operator: "!=", value: "cancelled" },
-        { column: "outcome", operator: "=", value: null }, // Only active markets (not settled)
+        { column: "outcome", operator: "=", value: null },
       ],
       { column: "created_at", ascending: false },
     )
@@ -195,7 +308,7 @@ export async function getMyBetsData() {
           { column: "markets.is_private", value: true },
           { column: "markets.group_id", operator: "IN", value: userGroupIds },
           { column: "markets.status", operator: "!=", value: "cancelled" },
-          { column: "markets.outcome", operator: "=", value: null }, // Only active markets
+          { column: "markets.outcome", operator: "=", value: null },
         ],
         orderBy: { column: "markets.created_at", ascending: false },
       })
@@ -218,7 +331,6 @@ export async function getMyBetsData() {
       console.log("[v0] User is not in any groups, skipping group private markets")
     }
 
-    // Also get markets created by user
     const createdPrivateResult = await selectWithJoin<any>("markets", {
       select: `
         markets.*,
@@ -230,7 +342,7 @@ export async function getMyBetsData() {
         { column: "markets.is_private", value: true },
         { column: "markets.creator_id", value: user.id },
         { column: "markets.status", operator: "!=", value: "cancelled" },
-        { column: "markets.outcome", operator: "=", value: null }, // Only active markets
+        { column: "markets.outcome", operator: "=", value: null },
       ],
       orderBy: { column: "markets.created_at", ascending: false },
     })
@@ -241,7 +353,6 @@ export async function getMyBetsData() {
       const createdPrivateData = Array.isArray(createdPrivateResult.data) ? createdPrivateResult.data : []
       console.log("[v0] Created private markets fetched:", createdPrivateData.length)
 
-      // Merge and deduplicate
       const createdMapped = createdPrivateData.map((m: any) => ({
         ...m,
         creator: {
@@ -258,15 +369,28 @@ export async function getMyBetsData() {
 
     console.log("[v0] Total private markets:", privateMarkets.length)
 
+    const pnlHistoryResult = await getUserPnLHistory()
+    const pnlHistory = pnlHistoryResult.pnlHistory || []
+
+    console.log("[v0] P&L history fetched:", pnlHistory.length)
+
     return {
       user,
-      positions: transformedPositions,
+      positions: activePositions,
       createdMarkets: transformedCreatedMarkets,
       privateMarkets,
+      pnlHistory,
       error: null,
     }
   } catch (error: any) {
     console.error("[v0] Error loading bets data:", error)
-    return { error: error.message, user, positions: [], createdMarkets: [], privateMarkets: [] }
+    return {
+      error: error.message,
+      user,
+      positions: [],
+      createdMarkets: [],
+      privateMarkets: [],
+      pnlHistory: [],
+    }
   }
 }

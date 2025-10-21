@@ -86,7 +86,9 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
 
   const handleSellAll = () => {
     setIsSellingAll(true)
-    setSharesToSell(displayShares)
+    // Set to shares - 0.01 to avoid rounding errors that could round up
+    const sharesToSet = Math.max(0, displayShares - 0.01)
+    setSharesToSell(sharesToSet)
   }
 
   const handleSharesChange = (value: number) => {

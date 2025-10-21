@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 /**
  * @title UMAOracleAdapter
  * @notice Adapter contract for interacting with UMA Optimistic Oracle V3
- * @dev Handles price requests, proposals, and settlements
+ * @dev Handles price requests, proposals, settlements, and disputes for early settlement
  */
 contract UMAOracleAdapter is Ownable, ReentrancyGuard {
     // UMA Optimistic Oracle V3 interface
@@ -24,6 +24,8 @@ contract UMAOracleAdapter is Ownable, ReentrancyGuard {
     mapping(bytes32 => address) public requestToMarket;
     mapping(address => bytes32) public marketToRequest;
     mapping(bytes32 => bool) public settledRequests;
+    mapping(bytes32 => uint256) public proposalExpiryTime;
+    mapping(bytes32 => bool) public proposalDisputed;
     
     // Events
     event PriceRequested(
@@ -35,11 +37,17 @@ contract UMAOracleAdapter is Ownable, ReentrancyGuard {
     event PriceProposed(
         bytes32 indexed requestId,
         address indexed proposer,
-        bytes32 outcome
+        bytes32 outcome,
+        uint256 livenessEndsAt
     );
     event PriceSettled(
         bytes32 indexed requestId,
         bytes32 outcome
+    );
+    event ProposalDisputed(
+        bytes32 indexed requestId,
+        address indexed disputer,
+        string reason
     );
 
     constructor(
@@ -110,11 +118,42 @@ contract UMAOracleAdapter is Ownable, ReentrancyGuard {
         // Approve bond for UMA
         bondToken.approve(address(optimisticOracle), defaultBond);
         
+        uint256 livenessEndsAt = block.timestamp + defaultLiveness;
+        proposalExpiryTime[requestId] = livenessEndsAt;
+        
         // Submit assertion to UMA
         // Note: In production, you would call the actual UMA OO V3 assertTruth function
         // For now, we emit an event to track the proposal
         
-        emit PriceProposed(requestId, proposer, outcome);
+        emit PriceProposed(requestId, proposer, outcome, livenessEndsAt);
+    }
+
+    /**
+     * @notice Dispute a proposal (e.g., if event hasn't occurred yet)
+     * @param requestId The request ID to dispute
+     * @param reason Human-readable reason for dispute
+     */
+    function disputeProposal(bytes32 requestId, string calldata reason) external nonReentrant {
+        require(requestToMarket[requestId] != address(0), "Request does not exist");
+        require(!settledRequests[requestId], "Already settled");
+        require(block.timestamp < proposalExpiryTime[requestId], "Liveness period expired");
+        require(!proposalDisputed[requestId], "Already disputed");
+        
+        // Transfer dispute bond from disputer
+        require(
+            bondToken.transferFrom(msg.sender, address(this), defaultBond),
+            "Dispute bond transfer failed"
+        );
+        
+        proposalDisputed[requestId] = true;
+        
+        // Clear pending proposal in market contract
+        address market = requestToMarket[requestId];
+        IMarket(market).clearPendingProposal();
+        
+        emit ProposalDisputed(requestId, msg.sender, reason);
+        
+        // In production, this would escalate to UMA's DVM for resolution
     }
 
     /**
@@ -125,6 +164,8 @@ contract UMAOracleAdapter is Ownable, ReentrancyGuard {
     function settleRequest(bytes32 requestId, bytes32 outcome) external nonReentrant {
         require(requestToMarket[requestId] != address(0), "Request does not exist");
         require(!settledRequests[requestId], "Already settled");
+        require(block.timestamp >= proposalExpiryTime[requestId], "Liveness period not expired");
+        require(!proposalDisputed[requestId], "Proposal was disputed");
         
         address market = requestToMarket[requestId];
         settledRequests[requestId] = true;
@@ -165,6 +206,25 @@ contract UMAOracleAdapter is Ownable, ReentrancyGuard {
     ) {
         return (requestToMarket[requestId], settledRequests[requestId]);
     }
+
+    /**
+     * @notice Check if a proposal can be settled
+     * @param requestId The request ID
+     * @return canSettle Whether the proposal can be settled
+     * @return timeRemaining Seconds remaining in liveness period (0 if can settle)
+     */
+    function canSettleProposal(bytes32 requestId) external view returns (bool canSettle, uint256 timeRemaining) {
+        if (settledRequests[requestId] || proposalDisputed[requestId]) {
+            return (false, 0);
+        }
+        
+        uint256 expiryTime = proposalExpiryTime[requestId];
+        if (block.timestamp >= expiryTime) {
+            return (true, 0);
+        } else {
+            return (false, expiryTime - block.timestamp);
+        }
+    }
 }
 
 // UMA Optimistic Oracle V3 interface (simplified)
@@ -185,4 +245,5 @@ interface IOptimisticOracleV3 {
 // Market interface
 interface IMarket {
     function settle(bytes32 outcome) external;
+    function clearPendingProposal() external;
 }

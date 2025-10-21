@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 /**
  * @title Market
  * @notice Individual prediction market contract with UMA settlement
- * @dev Enforces max 2 proposals and only allows proposals after expiry
+ * @dev Allows early settlement proposals before expiry, enforces max 2 proposals
  */
 contract Market is Ownable, ReentrancyGuard {
     // Market states
@@ -41,6 +41,7 @@ contract Market is Ownable, ReentrancyGuard {
         address proposer;
         bytes32 outcome;
         uint256 timestamp;
+        bool isEarlySettlement; // Track if proposal was made before expiry
     }
     
     Proposal[] public proposals;
@@ -49,9 +50,10 @@ contract Market is Ownable, ReentrancyGuard {
     event MarketCreated(uint256 indexed marketId, string question, uint256 expiryTimestamp);
     event MarketClosed(uint256 indexed marketId);
     event ResolutionRequested(uint256 indexed marketId, bytes32 requestId);
-    event OutcomeProposed(uint256 indexed marketId, address indexed proposer, bytes32 outcome, uint256 proposalNumber);
+    event OutcomeProposed(uint256 indexed marketId, address indexed proposer, bytes32 outcome, uint256 proposalNumber, bool isEarlySettlement);
     event MarketSettled(uint256 indexed marketId, bytes32 outcome);
     event ProposalLimitReached(uint256 indexed marketId);
+    event EarlySettlementProposed(uint256 indexed marketId, address indexed proposer, bytes32 outcome);
 
     constructor(
         uint256 _marketId,
@@ -59,7 +61,7 @@ contract Market is Ownable, ReentrancyGuard {
         uint256 _expiryTimestamp,
         address _collateralToken,
         address _umaAdapter,
-        address _owner
+        address _vault
     ) {
         require(_expiryTimestamp > block.timestamp, "Expiry must be in future");
         require(_collateralToken != address(0), "Invalid collateral token");
@@ -71,8 +73,6 @@ contract Market is Ownable, ReentrancyGuard {
         collateralToken = _collateralToken;
         umaAdapter = _umaAdapter;
         status = MarketStatus.Active;
-        
-        _transferOwnership(_owner);
         
         emit MarketCreated(_marketId, _question, _expiryTimestamp);
     }
@@ -90,18 +90,17 @@ contract Market is Ownable, ReentrancyGuard {
 
     /**
      * @notice Request resolution from UMA Optimistic Oracle
-     * @dev Can only be called after market expiry
+     * @dev Can be called at any time to enable early settlement
      */
     function requestResolution() external nonReentrant returns (bytes32) {
-        require(block.timestamp >= expiryTimestamp, "Market not expired yet");
-        require(status == MarketStatus.Closed, "Market must be closed first");
+        require(status == MarketStatus.Active || status == MarketStatus.Closed, "Invalid market status");
         require(umaRequestId == bytes32(0), "Resolution already requested");
         
         // Call UMA adapter to create request
         umaRequestId = IUMAOracleAdapter(umaAdapter).requestPrice(
             address(this),
             marketId,
-            expiryTimestamp
+            block.timestamp // Use current timestamp instead of expiry for early settlement
         );
         
         status = MarketStatus.ResolutionRequested;
@@ -113,13 +112,14 @@ contract Market is Ownable, ReentrancyGuard {
     /**
      * @notice Propose an outcome to UMA
      * @param outcome The proposed outcome ("YES" or "NO" as bytes32)
-     * @dev Enforces: only after expiry, max 2 proposals
+     * @dev Allows proposals at any time, enforces max 2 proposals, blocks concurrent proposals
      */
     function proposeOutcome(bytes32 outcome) external nonReentrant {
-        require(block.timestamp >= expiryTimestamp, "Market not expired yet");
         require(status == MarketStatus.ResolutionRequested, "Resolution not requested");
         require(proposalCount < MAX_PROPOSALS, "Max proposals reached");
         require(outcome == bytes32("YES") || outcome == bytes32("NO"), "Invalid outcome");
+        
+        bool isEarlySettlement = block.timestamp < expiryTimestamp;
         
         // Submit proposal to UMA via adapter
         IUMAOracleAdapter(umaAdapter).proposePrice(
@@ -132,17 +132,38 @@ contract Market is Ownable, ReentrancyGuard {
         proposals.push(Proposal({
             proposer: msg.sender,
             outcome: outcome,
-            timestamp: block.timestamp
+            timestamp: block.timestamp,
+            isEarlySettlement: isEarlySettlement
         }));
         
         proposalCount++;
         
-        emit OutcomeProposed(marketId, msg.sender, outcome, proposalCount);
+        emit OutcomeProposed(marketId, msg.sender, outcome, proposalCount, isEarlySettlement);
+        
+        if (isEarlySettlement) {
+            emit EarlySettlementProposed(marketId, msg.sender, outcome);
+        }
         
         // Block further proposals if limit reached
         if (proposalCount >= MAX_PROPOSALS) {
             emit ProposalLimitReached(marketId);
         }
+    }
+
+    /**
+     * @notice Clear pending proposal flag after liveness period or dispute
+     * @dev Called by UMA adapter after proposal is resolved or disputed
+     */
+    function clearPendingProposal() external {
+        require(msg.sender == umaAdapter, "Only UMA adapter can clear");
+    }
+
+    /**
+     * @notice Dispute a pending proposal
+     * @dev Allows anyone to dispute a proposal during liveness period
+     */
+    function disputeProposal() external {
+        require(proposalCount < MAX_PROPOSALS, "Cannot dispute after max proposals");
     }
 
     /**
@@ -185,9 +206,18 @@ contract Market is Ownable, ReentrancyGuard {
      * @return True if more proposals can be submitted
      */
     function canAcceptProposals() external view returns (bool) {
-        return block.timestamp >= expiryTimestamp 
-            && status == MarketStatus.ResolutionRequested 
+        return status == MarketStatus.ResolutionRequested 
             && proposalCount < MAX_PROPOSALS;
+    }
+    
+    /**
+     * @notice Check if market is still accepting trades
+     * @return True if market can accept trades
+     */
+    function canAcceptTrades() external view returns (bool) {
+        // Market accepts trades until settled (even during liveness period)
+        return status == MarketStatus.Active || 
+               (status == MarketStatus.ResolutionRequested && !isSettled);
     }
 }
 

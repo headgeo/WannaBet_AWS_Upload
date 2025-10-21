@@ -33,11 +33,11 @@ module.exports = {
       url: "http://127.0.0.1:8545",
       chainId: 31337,
     },
-    mumbai: {
-      url: process.env.MUMBAI_RPC_URL || "https://rpc-mumbai.maticvigil.com",
+    amoy: {
+      url: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
       accounts: getAccounts(),
-      chainId: 80001,
-      gasPrice: 20000000000, // 20 gwei
+      chainId: 80002,
+      gasPrice: 30000000000, // 30 gwei
     },
     polygon: {
       url: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
@@ -49,7 +49,7 @@ module.exports = {
   etherscan: {
     apiKey: {
       polygon: process.env.POLYGONSCAN_API_KEY || "",
-      polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
+      polygonAmoy: process.env.POLYGONSCAN_API_KEY || "",
     },
   },
   gasReporter: {

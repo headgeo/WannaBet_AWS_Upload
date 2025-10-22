@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle } from "lucide-react"
-import Link from "next/link"
+import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from "lucide-react"
 import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { settlePrivateMarket, cancelPrivateMarket } from "@/app/actions/admin"
+import Link from "next/link"
 import {
   calculateSharesToBuyWithFee,
   calculatePricePerShare,
@@ -275,10 +275,10 @@ export function MarketDetailClient({
   const hasAnyPosition = userPositions.length > 0
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Button variant="ghost" asChild className="mb-4">
+        <div className="mb-4 hidden md:block">
+          <Button variant="ghost" asChild className="w-fit">
             <Link href="/">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard

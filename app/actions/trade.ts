@@ -4,6 +4,7 @@ import { rpc, selectWithJoin } from "@/lib/database/adapter"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import type { FeeRecord } from "@/lib/fees"
 import { canTrade, getMarketStatus } from "@/lib/market-status"
+import { revalidatePath } from "next/cache"
 
 async function recordFee(feeRecord: FeeRecord, marketCreatorId: string) {
   try {
@@ -116,6 +117,10 @@ export async function executeTrade(
       marketData.creator_id,
     )
 
+    revalidatePath(`/market/${marketId}`)
+    revalidatePath("/")
+    revalidatePath("/my-bets")
+
     return { success: true, data: tradeResult }
   } catch (error) {
     console.error("Trade execution failed:", error)
@@ -207,6 +212,10 @@ export async function sellShares(
       },
       marketData.creator_id,
     )
+
+    revalidatePath(`/market/${marketId}`)
+    revalidatePath("/")
+    revalidatePath("/my-bets")
 
     return { success: true, data: sellResult }
   } catch (error) {

@@ -19,10 +19,10 @@ export default function PrivateBetsClient({ myActive: initialMyActive, initialEr
   const [error] = useState<string | null>(initialError)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-6">
-          <Button variant="ghost" asChild className="mb-4">
+          <Button variant="ghost" asChild className="mb-4 hidden md:flex">
             <Link href="/">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard

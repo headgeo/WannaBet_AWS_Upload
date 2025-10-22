@@ -7,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  ArrowLeft,
   TrendingUp,
   TrendingDown,
   History,
@@ -19,6 +18,7 @@ import {
   ChevronUp,
   Receipt,
   DollarSign,
+  ArrowLeft,
 } from "lucide-react"
 import Link from "next/link"
 import { SellSharesDialog } from "@/components/sell-shares-dialog"
@@ -995,15 +995,18 @@ export default function MyBetsClient({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Button variant="ghost" asChild className="mb-4">
+        <div className="mb-4 hidden md:block">
+          <Button variant="ghost" asChild className="w-fit">
             <Link href="/">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Link>
           </Button>
+        </div>
+
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Bets</h1>
           <p className="text-gray-600 dark:text-gray-300 mt-2">Track all your prediction market positions</p>
         </div>

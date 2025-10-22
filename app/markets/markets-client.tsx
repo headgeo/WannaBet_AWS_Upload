@@ -12,7 +12,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { NotificationBell } from "@/components/notifications"
 
-export interface Market {
+interface Market {
   id: string
   title: string
   description: string
@@ -106,15 +106,17 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       {/* Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm" onClick={() => router.back()}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
+              <Button variant="ghost" size="sm" asChild className="hidden md:flex">
+                <Link href="/">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Dashboard
+                </Link>
               </Button>
               <h1 className="hidden md:block text-2xl font-bold text-blue-900 dark:text-blue-100">Browse Markets</h1>
               <Badge variant="secondary" className="hidden sm:inline-flex">

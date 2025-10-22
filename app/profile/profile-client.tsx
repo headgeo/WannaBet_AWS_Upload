@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, User, DollarSign, TrendingUp, LogOut } from "lucide-react"
-import Link from "next/link"
+import { User, DollarSign, TrendingUp, LogOut, ArrowLeft } from "lucide-react"
 import GroupsSection from "@/components/groups-section"
+import Link from "next/link"
 import type { Profile, UserStats } from "./actions"
 
 interface ProfileClientProps {
@@ -104,15 +104,18 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Button variant="ghost" asChild className="mb-4">
+        <div className="mb-4 hidden md:block">
+          <Button variant="ghost" asChild className="w-fit">
             <Link href="/">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Link>
           </Button>
+        </div>
+
+        <div className="mb-6">
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Profile</h1>
             <Button variant="outline" onClick={handleSignOut} className="flex items-center gap-2 bg-transparent">

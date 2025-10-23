@@ -55,6 +55,7 @@ export async function createGroup(name: string, description?: string) {
 
 export async function joinGroup(groupId: string) {
   try {
+    console.log("[v0] Join group action called for group:", groupId)
     const supabase = await createClient()
 
     // Get current user
@@ -63,13 +64,21 @@ export async function joinGroup(groupId: string) {
       error: userError,
     } = await supabase.auth.getUser()
     if (userError || !user) {
+      console.log("[v0] Join group: No user authenticated")
       return { success: false, error: "Authentication required" }
     }
 
-    const { error } = await insert("user_groups", {
-      user_id: user.id,
-      group_id: groupId,
-    })
+    console.log("[v0] Join group: User authenticated:", user.id)
+
+    const { data, error } = await supabase
+      .from("user_groups")
+      .insert({
+        user_id: user.id,
+        group_id: groupId,
+      })
+      .select()
+
+    console.log("[v0] Join group insert result:", { data, error: error?.message })
 
     if (error) {
       if (error.message?.includes("duplicate") || error.message?.includes("unique")) {
@@ -79,9 +88,10 @@ export async function joinGroup(groupId: string) {
     }
 
     revalidatePath("/profile")
+    console.log("[v0] Join group: Success, revalidated path")
     return { success: true }
   } catch (error) {
-    console.error("Join group error:", error)
+    console.error("[v0] Join group error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -160,6 +170,7 @@ export async function searchGroups(query: string) {
 
 export async function getUserGroups(userId?: string) {
   try {
+    console.log("[v0] Get user groups called for userId:", userId)
     const supabase = await createClient()
 
     let targetUserId = userId
@@ -169,10 +180,13 @@ export async function getUserGroups(userId?: string) {
         error: userError,
       } = await supabase.auth.getUser()
       if (userError || !user) {
+        console.log("[v0] Get user groups: No user authenticated")
         return { success: false, error: "Authentication required" }
       }
       targetUserId = user.id
     }
+
+    console.log("[v0] Get user groups: Fetching for user:", targetUserId)
 
     // The adapter's select doesn't support Supabase-style nested joins
     const { data: userGroups, error } = await supabase
@@ -194,13 +208,19 @@ export async function getUserGroups(userId?: string) {
       .eq("user_id", targetUserId)
       .order("joined_at", { ascending: false })
 
+    console.log("[v0] Get user groups result:", {
+      groupsCount: userGroups?.length || 0,
+      error: error?.message,
+      groups: userGroups?.map((g) => ({ id: g.id, groupName: g.groups?.name })),
+    })
+
     if (error) {
       return { success: false, error: error.message }
     }
 
     return { success: true, groups: userGroups || [] }
   } catch (error) {
-    console.error("Get user groups error:", error)
+    console.error("[v0] Get user groups error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

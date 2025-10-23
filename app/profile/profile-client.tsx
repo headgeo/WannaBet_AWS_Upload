@@ -151,7 +151,13 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                     </div>
                     <div>
                       <Label className="text-sm text-muted-foreground">Member Since</Label>
-                      <div className="font-medium">{new Date(profile.created_at).toLocaleDateString()}</div>
+                      <div className="font-medium">
+                        {new Date(profile.created_at).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </div>
                     </div>
                     <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
                   </>

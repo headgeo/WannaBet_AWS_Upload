@@ -32,21 +32,48 @@ export default async function BrowseMarketsPage() {
   let error: string | null = null
 
   try {
-    console.log("[v0] Fetching active markets")
+    console.log("[v0] Fetching active markets for browse page")
 
-    const marketsData = await select<Market>(
+    const publicMarkets = await select<Market>(
       "markets",
       "*",
       [
         { column: "is_private", value: false },
         { column: "status", value: "active" },
-        { column: "outcome", operator: "=", value: null }, // Not settled
+        { column: "outcome", operator: "=", value: null },
       ],
       { column: "created_at", ascending: false },
     )
 
-    markets = marketsData || []
-    console.log("[v0] Active markets fetched:", markets.length)
+    const { data: participantMarkets } = await supabase
+      .from("market_participants")
+      .select("market_id")
+      .eq("user_id", user.id)
+
+    let privateMarkets: Market[] = []
+    if (participantMarkets && participantMarkets.length > 0) {
+      const marketIds = participantMarkets.map((p) => p.market_id)
+      const { data: privMarkets } = await supabase
+        .from("markets")
+        .select("*")
+        .in("id", marketIds)
+        .eq("is_private", true)
+        .eq("status", "active")
+        .is("outcome", null)
+        .order("created_at", { ascending: false })
+
+      privateMarkets = (privMarkets as Market[]) || []
+    }
+
+    markets = [...(publicMarkets || []), ...privateMarkets]
+    console.log(
+      "[v0] Browse markets - Public:",
+      publicMarkets?.length,
+      "Private:",
+      privateMarkets.length,
+      "Total:",
+      markets.length,
+    )
   } catch (err: any) {
     console.error("[v0] Error fetching markets:", err)
     error = "Failed to load markets. Please try again later."

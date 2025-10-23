@@ -32,6 +32,8 @@ export default function CreateMarketPage() {
   const [description, setDescription] = useState("")
   const [category, setCategory] = useState("")
   const [endDate, setEndDate] = useState("")
+  const [endHour, setEndHour] = useState("23")
+  const [endMinute, setEndMinute] = useState("50")
   const [isPrivate, setIsPrivate] = useState(false)
   const [invitedItems, setInvitedItems] = useState<InvitedItem[]>([])
   const [currentInviteInput, setCurrentInviteInput] = useState("")
@@ -119,11 +121,14 @@ export default function CreateMarketPage() {
     setError(null)
 
     try {
+      const localDateTime = new Date(`${endDate}T${endHour}:${endMinute}:00`)
+      const isoDateTime = localDateTime.toISOString()
+
       const result = await createMarket({
         title,
         description,
         category,
-        endDate,
+        endDate: isoDateTime,
         isPrivate,
         invitedItems,
         liquidityAmount: liquidityAmountNum,
@@ -146,6 +151,10 @@ export default function CreateMarketPage() {
   const liquidityAmountNum = Number.parseFloat(liquidityAmount) || 0
   const calculatedB = liquidityAmountNum > 0 ? calculateBFromLiquidity(liquidityAmountNum) : 0
   const hasInsufficientBalance = liquidityAmountNum > userBalance
+
+  const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"))
+
+  const minuteOptions = ["00", "10", "20", "30", "40", "50"]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
@@ -233,17 +242,48 @@ export default function CreateMarketPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="endDate">End Date *</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  min={getMinDate()}
-                  required
-                  className="w-full"
-                />
-                <p className="text-xs text-muted-foreground">When should this market close for trading?</p>
+                <Label htmlFor="endDate">End Date & Time *</Label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={getMinDate()}
+                    required
+                    className="flex-1 min-w-0"
+                  />
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Select value={endHour} onValueChange={setEndHour}>
+                      <SelectTrigger className="w-[80px]">
+                        <SelectValue placeholder="Hour" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {hourOptions.map((hour) => (
+                          <SelectItem key={hour} value={hour}>
+                            {hour}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="flex items-center text-muted-foreground">:</span>
+                    <Select value={endMinute} onValueChange={setEndMinute}>
+                      <SelectTrigger className="w-[80px]">
+                        <SelectValue placeholder="Min" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {minuteOptions.map((minute) => (
+                          <SelectItem key={minute} value={minute}>
+                            {minute}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  When should this market close for trading? Time is in your local timezone.
+                </p>
               </div>
 
               <div className="space-y-4">

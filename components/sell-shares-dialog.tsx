@@ -67,7 +67,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
   const sellCalculation = calculateSellValueLMSR(isSellingAll ? exactShares : sharesToSell)
 
   const handleSell = async () => {
-    const actualSharesToSell = isSellingAll ? exactShares : sharesToSell
+    const actualSharesToSell = isSellingAll ? Math.max(0, exactShares - 0.0001) : sharesToSell
 
     if (actualSharesToSell <= 0 || actualSharesToSell > exactShares) return
 
@@ -77,6 +77,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
       setIsOpen(false)
       setSharesToSell(0)
       setIsSellingAll(false)
+      window.location.reload()
     } catch (error) {
       console.error("Sell failed:", error)
     } finally {
@@ -86,8 +87,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
 
   const handleSellAll = () => {
     setIsSellingAll(true)
-    // Set to shares - 0.01 to avoid rounding errors that could round up
-    const sharesToSet = Math.max(0, displayShares - 0.01)
+    const sharesToSet = Math.max(0, exactShares - 0.0001)
     setSharesToSell(sharesToSet)
   }
 

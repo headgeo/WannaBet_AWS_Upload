@@ -43,6 +43,7 @@ const CATEGORIES = [
   "Science",
   "Crypto",
   "Weather",
+  "Private Markets",
   "Other",
 ]
 
@@ -55,6 +56,12 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
   const filteredMarkets = useMemo(() => {
     let filtered = initialMarkets
 
+    if (selectedCategory === "Private Markets") {
+      filtered = filtered.filter((market) => market.is_private)
+    } else if (selectedCategory !== "All Categories") {
+      filtered = filtered.filter((market) => market.category?.toLowerCase() === selectedCategory.toLowerCase())
+    }
+
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
@@ -64,11 +71,6 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
           market.description?.toLowerCase().includes(query) ||
           market.category?.toLowerCase().includes(query),
       )
-    }
-
-    // Filter by category
-    if (selectedCategory !== "All Categories") {
-      filtered = filtered.filter((market) => market.category?.toLowerCase() === selectedCategory.toLowerCase())
     }
 
     // Sort markets
@@ -247,7 +249,12 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
         {filteredMarkets.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredMarkets.map((market) => (
-              <MarketCard key={market.id} market={market} />
+              <div
+                key={market.id}
+                className={market.is_private ? "border-2 border-gray-400 dark:border-gray-600 rounded-lg" : ""}
+              >
+                <MarketCard market={market} />
+              </div>
             ))}
           </div>
         ) : (

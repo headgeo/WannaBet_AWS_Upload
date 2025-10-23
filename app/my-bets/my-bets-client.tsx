@@ -113,7 +113,7 @@ export default function MyBetsClient({
         if (isSellingAll) {
           setActivePositions((prev) => prev.filter((p) => p.id !== positionId))
         }
-        router.refresh()
+        window.location.reload()
       } else {
         throw new Error(result.error || "Sell failed")
       }
@@ -1020,42 +1020,28 @@ export default function MyBetsClient({
         )}
 
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 md:gap-1 bg-transparent md:bg-muted p-0 md:p-1">
+          <TabsList className="w-full grid grid-cols-3 gap-1.5 bg-muted p-1 mb-6 mx-2 md:mx-0 rounded-lg">
             <TabsTrigger
               value="active"
-              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4 border border-border md:border-0 shadow-sm md:shadow-none"
+              className="flex items-center justify-center gap-1 text-xs md:text-sm px-2 md:px-3 py-1 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
-              <Activity className="w-3 h-3 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">Active</span>
-              <span className="sm:hidden">Active</span>
+              <Activity className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span>Active</span>
               <span className="ml-0.5">({activePositions.length})</span>
             </TabsTrigger>
-            {/* Removed Historical and Trade History tabs */}
             <TabsTrigger
-              value="private-markets"
-              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4 border border-border md:border-0 shadow-sm md:shadow-none"
+              value="leveraged-positions"
+              className="flex items-center justify-center gap-1 text-xs md:text-sm px-2 md:px-3 py-1 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
-              <Users className="w-3 h-3 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">Private Markets</span>
-              <span className="sm:hidden">Private</span>
-              <span className="ml-0.5">({proposedToMe.length})</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="my-markets"
-              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4 border border-border md:border-0 shadow-sm md:shadow-none"
-            >
-              <Building2 className="w-3 h-3 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">My Markets</span>
-              <span className="sm:hidden">Markets</span>
-              <span className="ml-0.5">({createdMarkets.length})</span>
+              <Users className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span>Settlement Bonds</span>
             </TabsTrigger>
             <TabsTrigger
               value="pnl-history"
-              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4 border border-border md:border-0 shadow-sm md:shadow-none"
+              className="flex items-center justify-center gap-1 text-xs md:text-sm px-2 md:px-3 py-1 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
-              <DollarSign className="w-3 h-3 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">P&L History</span>
-              <span className="sm:hidden">P&L</span>
+              <DollarSign className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span>P&L</span>
               <span className="ml-0.5">({pnlHistory.length})</span>
             </TabsTrigger>
           </TabsList>
@@ -1064,13 +1050,16 @@ export default function MyBetsClient({
             {renderPositions(activePositions, false)}
           </TabsContent>
 
-          {/* Removed Historical tab content */}
-          <TabsContent value="private-markets" className="mt-6">
-            {renderPrivateBets(proposedToMe)}
-          </TabsContent>
-
-          <TabsContent value="my-markets" className="mt-6">
-            {renderCreatedMarkets(createdMarkets)}
+          <TabsContent value="leveraged-positions" className="mt-6">
+            <Card>
+              <CardContent className="text-center py-12">
+                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Settlement Bonds</h3>
+                <p className="text-muted-foreground">
+                  This feature is coming soon. You'll be able to view your settlement bonds here.
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="pnl-history" className="mt-6">

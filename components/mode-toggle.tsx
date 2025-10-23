@@ -3,11 +3,17 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 
-export function ModeToggle() {
+interface ModeToggleProps {
+  onModeChange?: (mode: "Trader" | "Earner") => void
+}
+
+export function ModeToggle({ onModeChange }: ModeToggleProps) {
   const [mode, setMode] = useState<"Trader" | "Earner">("Trader")
 
   const toggleMode = () => {
-    setMode((prev) => (prev === "Trader" ? "Earner" : "Trader"))
+    const newMode = mode === "Trader" ? "Earner" : "Trader"
+    setMode(newMode)
+    onModeChange?.(newMode)
   }
 
   return (

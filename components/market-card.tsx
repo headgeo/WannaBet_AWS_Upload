@@ -31,6 +31,7 @@ interface Market {
   liquidity_pool?: number
   yes_liquidity?: number
   no_liquidity?: number
+  is_private?: boolean
   creator?: {
     username: string
     display_name: string
@@ -79,7 +80,7 @@ export function MarketCard({ market }: MarketCardProps) {
 
   return (
     <Card
-      className={`h-full flex flex-col hover:shadow-lg transition-shadow duration-200 md:cursor-default cursor-pointer ${!tradingAllowed ? "opacity-75" : ""}`}
+      className={`h-full flex flex-col hover:shadow-lg transition-shadow duration-200 md:cursor-default cursor-pointer ${!tradingAllowed ? "opacity-75" : ""} ${market.is_private ? "border-2 border-gray-400 dark:border-gray-600" : ""}`}
       onClick={handleCardClick}
     >
       <CardHeader className="pb-1.5 md:pb-3 px-4 py-3 md:p-6">
@@ -93,6 +94,11 @@ export function MarketCard({ market }: MarketCardProps) {
           <Badge variant="secondary" className="text-xs">
             {market.category}
           </Badge>
+          {market.is_private && (
+            <Badge variant="outline" className="text-xs">
+              Private
+            </Badge>
+          )}
           <Badge variant={statusInfo.color} className="text-xs flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {statusInfo.status === "active" ? `${daysLeft}d left` : statusInfo.label}

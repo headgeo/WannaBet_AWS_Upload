@@ -62,9 +62,12 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
 
   const loadUserGroups = async () => {
     try {
+      console.log("[v0] Loading groups for user:", userId)
       const result = await getUserGroups(userId)
+      console.log("[v0] getUserGroups result:", result)
 
       if (result.success) {
+        console.log("[v0] Raw groups data:", result.groups)
         const groups: Group[] =
           (result.groups
             ?.map((userGroup: UserGroup) => {
@@ -76,6 +79,7 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
             })
             .filter(Boolean) as Group[]) || []
 
+        console.log("[v0] Processed groups:", groups)
         setUserGroups(groups)
       } else {
         console.error("Error loading user groups:", result.error)

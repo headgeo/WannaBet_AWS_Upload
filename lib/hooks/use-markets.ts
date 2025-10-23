@@ -11,8 +11,19 @@ export function useMarkets() {
     dedupingInterval: 60000, // Cache for 1 minute
   })
 
+  console.log("[v0] useMarkets hook - Raw data from SWR:", {
+    hasData: !!data,
+    markets: data?.markets?.length || 0,
+    privateMarkets: data?.privateMarkets?.length || 0,
+    createdMarkets: data?.createdMarkets?.length || 0,
+    isLoading,
+    error: error?.message,
+  })
+
   return {
     markets: data?.markets || [],
+    privateMarkets: data?.privateMarkets || [],
+    createdMarkets: data?.createdMarkets || [],
     totalVolume: data?.totalVolume || 0,
     activeMarkets: data?.activeMarkets || 0,
     isLoading,

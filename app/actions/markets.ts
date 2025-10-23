@@ -57,7 +57,7 @@ export async function createMarket(data: CreateMarketData) {
       return { error: "Insufficient balance" }
     }
 
-    const endDateTime = new Date(data.endDate + "T23:59:59")
+    const endDateTime = new Date(data.endDate)
     const calculatedB = calculateBFromLiquidity(data.liquidityAmount)
 
     const invitedGroups = data.invitedItems.filter((item) => item.type === "group")

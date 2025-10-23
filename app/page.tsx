@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { isAdmin } from "@/lib/auth/admin"
 import HomePage from "@/components/home-page-client"
+import { select } from "@/lib/database/adapter"
 
 export default async function Page() {
   const supabase = await createClient()
@@ -14,8 +15,8 @@ export default async function Page() {
     redirect("/auth/login")
   }
 
-  // Check if user has profile
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+  const profileData = await select("profiles", "*", [{ column: "id", operator: "eq", value: user.id }])
+  const profile = profileData?.[0]
 
   if (!profile) {
     redirect("/profile/setup")

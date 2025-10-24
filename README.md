@@ -2,7 +2,7 @@
 
 A full-stack prediction market application built with Next.js, Supabase, and the Logarithmic Market Scoring Rule (LMSR) pricing mechanism. Users can create markets, trade on predictions, and earn fees as market creators.
 
-## Table of Contents
+## Table of Content
 
 - [Overview](#overview)
 - [Technical Architecture](#technical-architecture)

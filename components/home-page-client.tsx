@@ -19,6 +19,7 @@ import Link from "next/link"
 import { NotificationBell } from "@/components/notifications"
 import { ModeToggle } from "@/components/mode-toggle"
 import { MarketCard } from "@/components/market-card"
+import { MobileHeader } from "@/components/mobile-header"
 import { useMarkets } from "@/lib/hooks/use-markets"
 import { settlePrivateMarket, cancelPrivateMarket } from "@/app/actions/admin"
 import { useRouter } from "next/navigation"
@@ -109,12 +110,16 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+      <MobileHeader showModeToggle={true} onModeChange={setMode} />
+
       {/* Header */}
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
+      <header className="hidden md:block bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 md:h-16">
             <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
-              <ModeToggle onModeChange={setMode} />
+              <div className="hidden md:block">
+                <ModeToggle onModeChange={setMode} />
+              </div>
               <h1 className="hidden md:block text-lg md:text-2xl font-bold text-blue-900 dark:text-blue-100">
                 WannaBet
               </h1>
@@ -164,7 +169,7 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
               </form>
             </nav>
 
-            <nav className="flex md:hidden items-center gap-2">
+            <nav className="hidden items-center gap-2">
               {userIsAdmin && (
                 <Button variant="ghost" asChild size="sm">
                   <Link href="/admin" className="px-2">

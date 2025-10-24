@@ -45,25 +45,35 @@ export default async function BrowseMarketsPage() {
       { column: "created_at", ascending: false },
     )
 
-    const { data: participantMarkets } = await supabase
-      .from("market_participants")
-      .select("market_id")
-      .eq("user_id", user.id)
+    const userGroups = await select("user_groups", "group_id", [{ column: "user_id", operator: "eq", value: user.id }])
+    const groupIds = userGroups?.map((ug) => ug.group_id) || []
 
-    let privateMarkets: Market[] = []
-    if (participantMarkets && participantMarkets.length > 0) {
-      const marketIds = participantMarkets.map((p) => p.market_id)
-      const { data: privMarkets } = await supabase
-        .from("markets")
-        .select("*")
-        .in("id", marketIds)
-        .eq("is_private", true)
-        .eq("status", "active")
-        .is("outcome", null)
-        .order("created_at", { ascending: false })
+    console.log("[v0] Browse page - User groups:", groupIds)
 
-      privateMarkets = (privMarkets as Market[]) || []
+    const privateMarketsMap = new Map()
+    if (groupIds.length > 0) {
+      for (const groupId of groupIds) {
+        const groupMarkets = await select<Market>(
+          "markets",
+          "*",
+          [
+            { column: "is_private", operator: "eq", value: true },
+            { column: "group_id", operator: "eq", value: groupId },
+            { column: "status", operator: "eq", value: "active" },
+            { column: "outcome", operator: "=", value: null },
+          ],
+          { column: "created_at", ascending: false },
+        )
+        if (groupMarkets) {
+          groupMarkets.forEach((market) => {
+            if (!privateMarketsMap.has(market.id)) {
+              privateMarketsMap.set(market.id, market)
+            }
+          })
+        }
+      }
     }
+    const privateMarkets = Array.from(privateMarketsMap.values())
 
     markets = [...(publicMarkets || []), ...privateMarkets]
     console.log(

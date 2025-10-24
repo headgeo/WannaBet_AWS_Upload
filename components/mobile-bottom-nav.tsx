@@ -30,7 +30,7 @@ export function MobileBottomNav() {
                 key={item.href}
                 asChild
                 size="sm"
-                className="h-12 w-12 rounded-full bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200"
+                className="h-12 w-12 rounded-lg bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200"
               >
                 <Link href={item.href}>
                   <Icon className="w-5 h-5 text-white dark:text-black" />

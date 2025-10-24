@@ -11,6 +11,7 @@ import { Search, Filter, TrendingUp, Plus, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { NotificationBell } from "@/components/notifications"
+import { MobileHeader } from "@/components/mobile-header"
 
 interface Market {
   id: string
@@ -109,8 +110,10 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+      <MobileHeader />
+
       {/* Header */}
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
+      <header className="hidden md:block bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
@@ -126,7 +129,7 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
               </Badge>
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-4">
               <Button variant="ghost" asChild className="hidden md:inline-flex">
                 <Link href="/">Home</Link>
               </Button>
@@ -135,11 +138,6 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
                 <Link href="/create-market">
                   <Plus className="w-4 h-4 mr-2" />
                   Create Market
-                </Link>
-              </Button>
-              <Button asChild size="sm" className="md:hidden">
-                <Link href="/create-market" className="px-2">
-                  <Plus className="w-4 h-4" />
                 </Link>
               </Button>
             </div>
@@ -249,12 +247,7 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
         {filteredMarkets.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredMarkets.map((market) => (
-              <div
-                key={market.id}
-                className={market.is_private ? "border-2 border-gray-400 dark:border-gray-600 rounded-lg" : ""}
-              >
-                <MarketCard market={market} />
-              </div>
+              <MarketCard key={market.id} market={market} />
             ))}
           </div>
         ) : (

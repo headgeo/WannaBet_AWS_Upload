@@ -30,6 +30,7 @@ import {
   DEFAULT_LIQUIDITY_AMOUNT,
   calculateSellValueWithFee,
 } from "@/lib/lmsr"
+import { MobileHeader } from "@/components/mobile-header"
 import type { Position, CreatedMarket, PrivateMarket, TradeHistory, PnLHistory } from "./actions"
 
 interface MyBetsClientProps {
@@ -996,6 +997,8 @@ export default function MyBetsClient({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+      <MobileHeader />
+
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-4 hidden md:block">
           <Button variant="ghost" asChild className="w-fit">

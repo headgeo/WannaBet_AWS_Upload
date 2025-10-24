@@ -17,6 +17,8 @@ const CATEGORIES = [
   "Other",
 ]
 
+export const revalidate = 30
+
 export default async function BrowseMarketsPage() {
   const supabase = await createClient()
 

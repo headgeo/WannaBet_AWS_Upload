@@ -2,6 +2,8 @@ import { redirect } from "next/navigation"
 import { getMyBetsData } from "./actions"
 import MyBetsClient from "./my-bets-client"
 
+export const revalidate = 30
+
 export default async function MyBetsPage() {
   const { user, positions, createdMarkets, privateMarkets, pnlHistory, error } = await getMyBetsData()
 

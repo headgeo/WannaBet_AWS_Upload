@@ -8,7 +8,8 @@ export function useMarkets() {
   const { data, error, isLoading, mutate } = useSWR("/api/markets", fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
-    dedupingInterval: 60000, // Cache for 1 minute
+    dedupingInterval: 300000, // Cache for 5 minutes (increased from 1 minute)
+    keepPreviousData: true, // Show cached data immediately while revalidating
   })
 
   console.log("[v0] useMarkets hook - Raw data from SWR:", {
@@ -35,7 +36,8 @@ export function useMarkets() {
 export function useMyBets() {
   const { data, error, isLoading, mutate } = useSWR("/api/my-bets", fetcher, {
     revalidateOnFocus: false,
-    dedupingInterval: 30000, // Cache for 30 seconds
+    dedupingInterval: 300000, // Cache for 5 minutes (increased from 30 seconds)
+    keepPreviousData: true,
   })
 
   return {
@@ -52,7 +54,8 @@ export function useMyBets() {
 export function useProfile() {
   const { data, error, isLoading, mutate } = useSWR("/api/profile", fetcher, {
     revalidateOnFocus: false,
-    dedupingInterval: 60000,
+    dedupingInterval: 300000, // Cache for 5 minutes (increased from 1 minute)
+    keepPreviousData: true,
   })
 
   return {

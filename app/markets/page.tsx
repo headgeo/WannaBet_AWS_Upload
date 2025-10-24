@@ -17,7 +17,7 @@ const CATEGORIES = [
   "Other",
 ]
 
-export const revalidate = 30
+export const revalidate = 300 // 5 minutes (increased from 30 seconds)
 
 export default async function BrowseMarketsPage() {
   const supabase = await createClient()

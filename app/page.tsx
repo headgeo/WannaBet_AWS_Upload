@@ -4,7 +4,7 @@ import { isAdmin } from "@/lib/auth/admin"
 import HomePage from "@/components/home-page-client"
 import { select } from "@/lib/database/adapter"
 
-export const revalidate = 30
+export const revalidate = 300 // 5 minutes (increased from 30 seconds)
 
 export default async function Page() {
   const supabase = await createClient()

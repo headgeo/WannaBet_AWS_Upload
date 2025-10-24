@@ -1023,7 +1023,7 @@ export default function MyBetsClient({
         )}
 
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className="w-full grid grid-cols-3 gap-1.5 bg-muted p-1 mb-6 mx-2 md:mx-0 rounded-lg">
+          <TabsList className="w-full grid grid-cols-3 gap-1.5 bg-muted p-1 mb-6 rounded-lg">
             <TabsTrigger
               value="active"
               className="flex items-center justify-center gap-1 text-xs md:text-sm px-2 md:px-3 py-1 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"

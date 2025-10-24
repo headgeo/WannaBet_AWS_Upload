@@ -114,7 +114,7 @@ export default function MyBetsClient({
         if (isSellingAll) {
           setActivePositions((prev) => prev.filter((p) => p.id !== positionId))
         }
-        window.location.reload()
+        router.refresh()
       } else {
         throw new Error(result.error || "Sell failed")
       }
@@ -1037,7 +1037,8 @@ export default function MyBetsClient({
               className="flex items-center justify-center gap-1 text-xs md:text-sm px-2 md:px-3 py-1 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
               <Users className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              <span>Settlement Bonds</span>
+              <span className="hidden md:inline">Settlement Bonds</span>
+              <span className="md:hidden">Bonds</span>
             </TabsTrigger>
             <TabsTrigger
               value="pnl-history"

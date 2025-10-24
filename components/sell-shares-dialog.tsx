@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -43,6 +44,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
   const [isSellingAll, setIsSellingAll] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
 
   const calculateSellValueLMSR = (sharesToSell: number) => {
     if (sharesToSell <= 0) return { grossValue: 0, feeAmount: 0, netValue: 0 }
@@ -77,7 +79,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
       setIsOpen(false)
       setSharesToSell(0)
       setIsSellingAll(false)
-      window.location.reload()
+      router.refresh()
     } catch (error) {
       console.error("Sell failed:", error)
     } finally {

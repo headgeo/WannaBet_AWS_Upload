@@ -205,7 +205,7 @@ export function MarketDetailClient({
       }
 
       setBetAmount("")
-      window.location.reload()
+      router.refresh()
     } catch (error: any) {
       console.error("[v0] Trade failed:", error)
       setError(error.message)

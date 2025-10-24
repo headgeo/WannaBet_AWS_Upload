@@ -251,9 +251,9 @@ export default function CreateMarketPage() {
                     onChange={(e) => setEndDate(e.target.value)}
                     min={getMinDate()}
                     required
-                    className="flex-1 min-w-0"
+                    className="w-full sm:flex-1 sm:min-w-0"
                   />
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex gap-2 w-full sm:w-auto sm:flex-shrink-0">
                     <Select value={endHour} onValueChange={setEndHour}>
                       <SelectTrigger className="w-[80px]">
                         <SelectValue placeholder="Hour" />

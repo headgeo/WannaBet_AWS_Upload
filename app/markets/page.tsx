@@ -41,7 +41,7 @@ export default async function BrowseMarketsPage() {
       "*",
       [
         { column: "is_private", value: false },
-        { column: "status", value: "active" },
+        { column: "status", operator: "IN", value: ["active", "suspended", "contested"] },
         { column: "outcome", operator: "=", value: null },
       ],
       { column: "created_at", ascending: false },
@@ -61,7 +61,7 @@ export default async function BrowseMarketsPage() {
           [
             { column: "is_private", operator: "eq", value: true },
             { column: "group_id", operator: "eq", value: groupId },
-            { column: "status", operator: "eq", value: "active" },
+            { column: "status", operator: "IN", value: ["active", "suspended", "contested"] },
             { column: "outcome", operator: "=", value: null },
           ],
           { column: "created_at", ascending: false },

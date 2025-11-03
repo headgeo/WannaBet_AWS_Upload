@@ -29,6 +29,7 @@ export default async function MarketPage({ params }: { params: { id: string } })
       initialUserPositions={data.userPositions}
       initialUserBalance={data.userBalance}
       initialAccessibleGroups={data.accessibleGroups}
+      initialSettlementBond={data.settlementBond}
       currentUserId={data.user.id}
       marketId={params.id}
     />

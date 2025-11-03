@@ -16,9 +16,11 @@ export async function getMarketData(marketId: string) {
     redirect("/auth/login")
   }
 
-  const marketData = await select("markets", "*, settled_at, winning_side", [
-    { column: "id", operator: "eq", value: marketId },
-  ])
+  const marketData = await select(
+    "markets",
+    "*, settled_at, winning_side, settlement_status, settlement_initiated_at, contest_deadline, creator_settlement_outcome",
+    [{ column: "id", operator: "eq", value: marketId }],
+  )
 
   if (!marketData || marketData.length === 0) {
     return { error: "Market not found", user }
@@ -86,11 +88,18 @@ export async function getMarketData(marketId: string) {
   // Fetch user balance
   const profileData = await select("profiles", ["balance"], [{ column: "id", operator: "eq", value: user.id }])
 
+  let settlementBond = null
+  if (market.settlement_status) {
+    const bondData = await select("settlement_bonds", "*", [{ column: "market_id", operator: "eq", value: marketId }])
+    settlementBond = bondData?.[0] || null
+  }
+
   return {
     market: marketWithCreator,
     userPositions: positionsData || [],
     userBalance: profileData?.[0]?.balance || 0,
     accessibleGroups: accessibleGroups || [],
+    settlementBond,
     user,
   }
 }

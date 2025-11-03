@@ -44,6 +44,10 @@ export interface CreatedMarket {
   total_volume: number
   cumulative_creator_fees: number
   is_private: boolean
+  settlement_status?: string
+  settlement_initiated_at?: string
+  contest_deadline?: string
+  creator_settlement_outcome?: boolean
 }
 
 export interface PrivateMarket {
@@ -92,6 +96,157 @@ export interface PnLHistory {
   market_outcome: boolean | null
 }
 
+export interface Bond {
+  id: string
+  market_id: string
+  market_title: string
+  bond_type: "creator_settlement" | "contest" | "vote"
+  bond_amount: number
+  payout_amount?: number
+  resolved_at?: string
+  status: string
+  created_at: string
+  can_claim: boolean
+}
+
+export async function getUserBonds() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  if (userError || !user) {
+    return { error: "Not authenticated", bonds: [] }
+  }
+
+  try {
+    console.log("[v0] getUserBonds: Fetching bonds for user:", user.id)
+
+    const bonds: Bond[] = []
+
+    console.log("[v0] getUserBonds: Fetching creator settlement bonds from RDS...")
+    const creatorBondsResult = await select<any>(
+      "settlement_bonds",
+      ["id", "market_id", "bond_amount", "payout_amount", "status", "created_at", "resolved_at"],
+      [{ column: "creator_id", value: user.id }],
+      { column: "created_at", ascending: false },
+    )
+
+    console.log("[v0] getUserBonds: Creator bonds from RDS:", creatorBondsResult.length)
+
+    for (const bond of creatorBondsResult) {
+      const marketResult = await select<any>("markets", ["title"], [{ column: "id", value: bond.market_id }])
+      const market_title = marketResult[0]?.title || "Unknown Market"
+
+      const isReturned = bond.resolved_at !== null
+      const payout_amount = isReturned ? Number.parseFloat(bond.payout_amount || "0") : undefined
+
+      bonds.push({
+        id: bond.id,
+        market_id: bond.market_id,
+        market_title,
+        bond_type: "creator_settlement" as const,
+        bond_amount: Number.parseFloat(bond.bond_amount) || 0,
+        payout_amount,
+        resolved_at: bond.resolved_at,
+        status: bond.status,
+        created_at: bond.created_at,
+        can_claim: isReturned,
+      })
+    }
+
+    console.log("[v0] getUserBonds: Fetching contest bonds from RDS...")
+    const contestBondsResult = await select<any>(
+      "settlement_contests",
+      ["id", "market_id", "contest_bond_amount", "payout_amount", "status", "created_at", "resolved_at"],
+      [{ column: "contestant_id", value: user.id }],
+      { column: "created_at", ascending: false },
+    )
+
+    console.log("[v0] getUserBonds: Contest bonds from RDS:", contestBondsResult.length)
+
+    for (const bond of contestBondsResult) {
+      const marketResult = await select<any>("markets", ["title"], [{ column: "id", value: bond.market_id }])
+      const market_title = marketResult[0]?.title || "Unknown Market"
+
+      const isReturned = bond.resolved_at !== null
+      const payout_amount = isReturned ? Number.parseFloat(bond.payout_amount || "0") : undefined
+
+      bonds.push({
+        id: bond.id,
+        market_id: bond.market_id,
+        market_title,
+        bond_type: "contest" as const,
+        bond_amount: Number.parseFloat(bond.contest_bond_amount) || 0,
+        payout_amount,
+        resolved_at: bond.resolved_at,
+        status: bond.status,
+        created_at: bond.created_at,
+        can_claim: isReturned,
+      })
+    }
+
+    console.log("[v0] getUserBonds: Fetching voting bonds from RDS...")
+    const voteBondsResult = await select<any>(
+      "settlement_votes",
+      ["id", "contest_id", "vote_bond_amount", "is_correct", "payout_amount", "created_at"],
+      [{ column: "voter_id", value: user.id }],
+      { column: "created_at", ascending: false },
+    )
+
+    console.log("[v0] getUserBonds: Vote bonds from RDS:", voteBondsResult.length)
+
+    for (const vote of voteBondsResult) {
+      const contestResult = await select<any>(
+        "settlement_contests",
+        ["market_id", "status", "resolved_at"],
+        [{ column: "id", value: vote.contest_id }],
+      )
+
+      if (contestResult.length > 0) {
+        const contest = contestResult[0]
+        const marketResult = await select<any>("markets", ["title"], [{ column: "id", value: contest.market_id }])
+        const market_title = marketResult[0]?.title || "Unknown Market"
+
+        const isReturned = contest.resolved_at !== null
+        const payout_amount = isReturned ? Number.parseFloat(vote.payout_amount || "0") : undefined
+
+        let status = contest.status
+        if (vote.is_correct !== null) {
+          status = vote.is_correct ? "won" : "lost"
+        }
+
+        bonds.push({
+          id: vote.id,
+          market_id: contest.market_id,
+          market_title,
+          bond_type: "vote" as const,
+          bond_amount: Number.parseFloat(vote.vote_bond_amount) || 0,
+          payout_amount,
+          resolved_at: contest.resolved_at,
+          status,
+          created_at: vote.created_at,
+          can_claim: isReturned,
+        })
+      }
+    }
+
+    console.log("[v0] getUserBonds: Total bonds fetched:", bonds.length)
+    console.log("[v0] getUserBonds: Bonds breakdown:", {
+      creator: bonds.filter((b) => b.bond_type === "creator_settlement").length,
+      contest: bonds.filter((b) => b.bond_type === "contest").length,
+      vote: bonds.filter((b) => b.bond_type === "vote").length,
+    })
+
+    return { bonds, error: null }
+  } catch (error: any) {
+    console.error("[v0] getUserBonds: Error:", error)
+    return { bonds: [], error: error.message }
+  }
+}
+
 export async function getUserPnLHistory() {
   const supabase = await createClient()
 
@@ -107,7 +262,6 @@ export async function getUserPnLHistory() {
   try {
     console.log("[v0] Fetching P&L history for user:", user.id)
 
-    // Fetch only sell transactions with P&L data from database
     const pnlResult = await selectWithJoin<any>("transactions", {
       select: `
         transactions.id,
@@ -179,6 +333,7 @@ export async function getMyBetsData() {
       createdMarkets: [],
       privateMarkets: [],
       pnlHistory: [],
+      bonds: [], // Added bonds to return
     }
   }
 
@@ -251,7 +406,10 @@ export async function getMyBetsData() {
     }))
 
     const activePositions = transformedPositions.filter(
-      (p) => p.shares > 0.01 && p.market.status === "active" && p.market.outcome === null,
+      (p) =>
+        p.shares > 0.01 &&
+        (p.market.status === "active" || p.market.status === "suspended" || p.market.status === "contested") &&
+        p.market.outcome === null,
     )
 
     console.log("[v0] Active positions:", activePositions.length)
@@ -271,6 +429,10 @@ export async function getMyBetsData() {
         "total_volume",
         "creator_fees_earned",
         "is_private",
+        "settlement_status",
+        "settlement_initiated_at",
+        "contest_deadline",
+        "creator_settlement_outcome",
       ],
       [
         { column: "creator_id", value: user.id },
@@ -374,12 +536,17 @@ export async function getMyBetsData() {
 
     console.log("[v0] P&L history fetched:", pnlHistory.length)
 
+    const bondsResult = await getUserBonds()
+    const bonds = bondsResult.bonds || []
+    console.log("[v0] Bonds fetched:", bonds.length)
+
     return {
       user,
       positions: activePositions,
       createdMarkets: transformedCreatedMarkets,
       privateMarkets,
       pnlHistory,
+      bonds, // Added bonds to return
       error: null,
     }
   } catch (error: any) {
@@ -391,6 +558,7 @@ export async function getMyBetsData() {
       createdMarkets: [],
       privateMarkets: [],
       pnlHistory: [],
+      bonds: [], // Added bonds to return
     }
   }
 }

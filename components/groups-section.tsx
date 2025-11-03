@@ -79,8 +79,15 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
             })
             .filter(Boolean) as Group[]) || []
 
-        console.log("[v0] Processed groups:", groups)
-        setUserGroups(groups)
+        const uniqueGroups = groups.reduce((acc, group) => {
+          if (!acc.find((g) => g.id === group.id)) {
+            acc.push(group)
+          }
+          return acc
+        }, [] as Group[])
+
+        console.log("[v0] Processed groups:", uniqueGroups)
+        setUserGroups(uniqueGroups)
       } else {
         console.error("Error loading user groups:", result.error)
         toast({
@@ -136,11 +143,15 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return
 
+    console.log("[v0] GroupsSection: Creating group with name:", newGroupName)
     setIsCreating(true)
     try {
       const result = await createGroup(newGroupName.trim(), newGroupDescription.trim() || undefined)
 
+      console.log("[v0] GroupsSection: createGroup result:", result)
+
       if (result.success && result.group) {
+        console.log("[v0] GroupsSection: Group created successfully, adding to local state")
         // Add to local state
         setUserGroups((prev) => [...prev, { ...result.group, joined_at: new Date().toISOString() }])
 
@@ -154,6 +165,7 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
           description: `Group "${result.group.name}" created successfully`,
         })
       } else {
+        console.error("[v0] GroupsSection: Failed to create group:", result.error)
         toast({
           title: "Error",
           description: result.error || "Failed to create group",
@@ -161,7 +173,7 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
         })
       }
     } catch (error) {
-      console.error("Error creating group:", error)
+      console.error("[v0] GroupsSection: Error creating group:", error)
       toast({
         title: "Error",
         description: "Failed to create group",

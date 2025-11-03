@@ -261,6 +261,11 @@ export async function rpc<T = any>(
         "p_liquidity_pool",
       ],
       split_trading_fees_secure: ["p_market_id", "p_trader_id", "p_creator_id", "p_total_fee"],
+      initiate_settlement: ["p_creator_id", "p_market_id", "p_outcome"],
+      contest_settlement: ["p_market_id", "p_contestant_id"],
+      submit_vote: ["p_contest_id", "p_voter_id", "p_vote_outcome"],
+      resolve_contested_settlement: ["p_market_id"],
+      check_pending_settlements: [],
     }
 
     const expectedOrder = functionParamOrder[functionName]

@@ -21,7 +21,8 @@ import { ModeToggle } from "@/components/mode-toggle"
 import { MarketCard } from "@/components/market-card"
 import { MobileHeader } from "@/components/mobile-header"
 import { useMarkets } from "@/lib/hooks/use-markets"
-import { settlePrivateMarket, cancelPrivateMarket } from "@/app/actions/admin"
+import { initiateSettlement } from "@/app/actions/oracle-settlement"
+import { cancelPrivateMarket } from "@/app/actions/admin"
 import { useRouter } from "next/navigation"
 
 interface HomePageProps {
@@ -81,13 +82,15 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
   const handleSettleMarket = async (marketId: string, winningSide: boolean) => {
     setIsSettling(marketId)
     try {
-      const result = await settlePrivateMarket(marketId, winningSide)
+      const result = await initiateSettlement(marketId, winningSide)
       if (!result.success) {
-        throw new Error(result.error || "Settlement failed")
+        throw new Error(result.error || "Settlement initiation failed")
       }
+      await mutate()
       router.refresh()
     } catch (error: any) {
-      console.error("[v0] Settlement error:", error)
+      console.error("[v0] Settlement initiation error:", error)
+      alert(`Failed to initiate settlement: ${error.message}`)
     } finally {
       setIsSettling(null)
     }
@@ -305,8 +308,14 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                     <div className="space-y-4">
                       {earnerMarkets.map((market) => {
                         const isExpired = new Date(market.end_date) < new Date()
-                        const isSettled = market.outcome !== null
-                        const canSettle = market.is_private && !isSettled
+                        const isSettled =
+                          market.outcome !== null ||
+                          market.status === "settled" ||
+                          market.status === "cancelled" ||
+                          market.status === "resolved"
+                        const canSettle = market.is_private && !isSettled && market.status === "active"
+                        const isPendingSettlement =
+                          market.settlement_status === "pending_contest" || market.status === "suspended"
 
                         return (
                           <Card
@@ -350,6 +359,14 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                                         className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
                                       >
                                         {market.status === "active" ? "Active" : "Pending"}
+                                      </Badge>
+                                    )}
+                                    {isPendingSettlement && !isSettled && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300"
+                                      >
+                                        Settlement Pending
                                       </Badge>
                                     )}
                                     {isExpired && !isSettled && (
@@ -399,44 +416,56 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
 
                               {canSettle && (
                                 <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <AlertTriangle className="w-5 h-5 text-orange-600" />
-                                    <span className="font-medium text-orange-800 dark:text-orange-200">
-                                      {isExpired ? "Ready to Settle or Cancel" : "Settle or Cancel Market"}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm text-orange-700 dark:text-orange-300 mb-3">
-                                    {isExpired
-                                      ? "This private market has expired. Choose the winning outcome to settle it, or cancel to refund all participants:"
-                                      : "As the creator, you can settle this private market at any time, or cancel it to refund all participants:"}
-                                  </p>
-                                  <div className="flex gap-3 mb-2">
-                                    <Button
-                                      onClick={() => handleSettleMarket(market.id, true)}
-                                      disabled={isSettling === market.id || isCancelling === market.id}
-                                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                                    >
-                                      {isSettling === market.id ? "Settling..." : "Settle as YES"}
-                                    </Button>
-                                    <Button
-                                      onClick={() => handleSettleMarket(market.id, false)}
-                                      disabled={isSettling === market.id || isCancelling === market.id}
-                                      className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                                    >
-                                      {isSettling === market.id ? "Settling..." : "Settle as NO"}
-                                    </Button>
-                                  </div>
-                                  <Button
-                                    onClick={() => handleCancelMarket(market.id)}
-                                    disabled={isSettling === market.id || isCancelling === market.id}
-                                    variant="outline"
-                                    className="w-full border-gray-300 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800"
-                                  >
-                                    {isCancelling === market.id ? "Cancelling..." : "Cancel Market (Refund All)"}
-                                  </Button>
-                                  <p className="text-xs text-muted-foreground mt-2">
-                                    Cancelling will refund all participants at their average purchase price.
-                                  </p>
+                                  {market.settlement_status === "pending_contest" ||
+                                  market.settlement_status === "contested" ? (
+                                    <div className="flex items-center gap-2">
+                                      <AlertTriangle className="w-5 h-5 text-blue-600" />
+                                      <span className="font-medium text-blue-800 dark:text-blue-200">
+                                        Settlement in Progress
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <AlertTriangle className="w-5 h-5 text-orange-600" />
+                                        <span className="font-medium text-orange-800 dark:text-orange-200">
+                                          {isExpired ? "Ready to Settle or Cancel" : "Settle or Cancel Market"}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-orange-700 dark:text-orange-300 mb-3">
+                                        {isExpired
+                                          ? "This private market has expired. Choose the winning outcome to settle it, or cancel to refund all participants:"
+                                          : "As the creator, you can settle this private market at any time, or cancel it to refund all participants:"}
+                                      </p>
+                                      <div className="flex gap-3 mb-2">
+                                        <Button
+                                          onClick={() => handleSettleMarket(market.id, true)}
+                                          disabled={isSettling === market.id || isCancelling === market.id}
+                                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                        >
+                                          {isSettling === market.id ? "Settling..." : "Settle as YES"}
+                                        </Button>
+                                        <Button
+                                          onClick={() => handleSettleMarket(market.id, false)}
+                                          disabled={isSettling === market.id || isCancelling === market.id}
+                                          className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                                        >
+                                          {isSettling === market.id ? "Settling..." : "Settle as NO"}
+                                        </Button>
+                                      </div>
+                                      <Button
+                                        onClick={() => handleCancelMarket(market.id)}
+                                        disabled={isSettling === market.id || isCancelling === market.id}
+                                        variant="outline"
+                                        className="w-full border-gray-300 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800"
+                                      >
+                                        {isCancelling === market.id ? "Cancelling..." : "Cancel Market (Refund All)"}
+                                      </Button>
+                                      <p className="text-xs text-muted-foreground mt-2">
+                                        Cancelling will refund all participants at their average purchase price.
+                                      </p>
+                                    </>
+                                  )}
                                 </div>
                               )}
 

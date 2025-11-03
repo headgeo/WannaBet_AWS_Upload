@@ -5,7 +5,7 @@ import MyBetsClient from "./my-bets-client"
 export const revalidate = 300 // 5 minutes (increased from 30 seconds)
 
 export default async function MyBetsPage() {
-  const { user, positions, createdMarkets, privateMarkets, pnlHistory, error } = await getMyBetsData()
+  const { user, positions, createdMarkets, privateMarkets, pnlHistory, bonds, error } = await getMyBetsData()
 
   if (!user) {
     redirect("/auth/login")
@@ -19,6 +19,7 @@ export default async function MyBetsPage() {
       createdMarkets={createdMarkets}
       pnlHistory={pnlHistory}
       initialError={error}
+      bonds={bonds} // Bonds are now included in getMyBetsData
     />
   )
 }

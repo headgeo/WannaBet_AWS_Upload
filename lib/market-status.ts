@@ -1,4 +1,4 @@
-export type MarketStatus = "active" | "expired" | "settled" | "cancelled" | "closed"
+export type MarketStatus = "active" | "expired" | "settled" | "cancelled" | "closed" | "suspended" | "contested"
 
 export interface MarketWithStatus {
   id: string
@@ -12,6 +12,14 @@ export interface MarketWithStatus {
 }
 
 export function getMarketStatus(market: MarketWithStatus): MarketStatus {
+  if (market.status === "suspended") {
+    return "suspended"
+  }
+
+  if (market.status === "contested") {
+    return "contested"
+  }
+
   // If market is already settled
   if (market.status === "settled" || market.settled_at) {
     return "settled"
@@ -96,6 +104,18 @@ export function getMarketStatusDisplay(market: MarketWithStatus): {
         status: "closed",
         label: "Closed",
         color: "outline",
+      }
+    case "suspended":
+      return {
+        status: "suspended",
+        label: "Suspended - Settlement Pending",
+        color: "secondary",
+      }
+    case "contested":
+      return {
+        status: "contested",
+        label: "Contested - Voting in Progress",
+        color: "destructive",
       }
   }
 }

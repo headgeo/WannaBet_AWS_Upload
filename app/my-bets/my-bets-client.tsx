@@ -23,7 +23,8 @@ import {
 import Link from "next/link"
 import { SellSharesDialog } from "@/components/sell-shares-dialog"
 import { sellShares } from "@/app/actions/trade"
-import { settlePrivateMarket, cancelPrivateMarket } from "@/app/actions/admin"
+import { cancelPrivateMarket } from "@/app/actions/admin"
+import { initiateSettlement } from "@/app/actions/oracle-settlement"
 import {
   calculateLMSRPrices,
   calculateBFromLiquidity,
@@ -31,16 +32,17 @@ import {
   calculateSellValueWithFee,
 } from "@/lib/lmsr"
 import { MobileHeader } from "@/components/mobile-header"
-import type { Position, CreatedMarket, PrivateMarket, TradeHistory, PnLHistory } from "./actions"
+import type { Position, CreatedMarket, PrivateMarket, TradeHistory, PnLHistory, Bond } from "./actions"
 
 interface MyBetsClientProps {
   userId: string
   activePositions: Position[]
   proposedToMe: PrivateMarket[]
   createdMarkets: CreatedMarket[]
-  trades: TradeHistory[] // Added trades prop
+  trades: TradeHistory[]
   pnlHistory: PnLHistory[]
   initialError: string | null
+  bonds: Bond[]
 }
 
 export default function MyBetsClient({
@@ -51,12 +53,14 @@ export default function MyBetsClient({
   trades: initialTrades = [], // Added default empty array to prevent undefined error
   pnlHistory: initialPnlHistory = [],
   initialError,
+  bonds: initialBonds = [], // Receive bonds as prop
 }: MyBetsClientProps) {
   const [activePositions, setActivePositions] = useState(initialActivePositions)
   const [proposedToMe, setProposedToMe] = useState(initialProposedToMe)
   const [createdMarkets, setCreatedMarkets] = useState(initialCreatedMarkets)
   const [trades] = useState(initialTrades || []) // Added fallback to empty array
   const [pnlHistory] = useState(initialPnlHistory || [])
+  const [bonds] = useState<Bond[]>(initialBonds) // Use bonds from props
   const [error, setError] = useState<string | null>(initialError)
   const [isSettling, setIsSettling] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState<string | null>(null)
@@ -129,15 +133,15 @@ export default function MyBetsClient({
     setError(null)
 
     try {
-      const result = await settlePrivateMarket(marketId, winningSide)
+      const result = await initiateSettlement(marketId, winningSide)
 
       if (!result.success) {
-        throw new Error(result.error || "Settlement failed")
+        throw new Error(result.error || "Settlement initiation failed")
       }
 
       router.refresh()
     } catch (error: any) {
-      console.error("[v0] Settlement error:", error)
+      console.error("[v0] Settlement initiation error:", error)
       setError(error.message)
     } finally {
       setIsSettling(null)
@@ -163,6 +167,8 @@ export default function MyBetsClient({
       setIsCancelling(null)
     }
   }
+
+  // Removed fetchBonds function
 
   const renderPositions = (positions: Position[], isHistorical = false) => {
     if (positions.length === 0) {
@@ -258,7 +264,6 @@ export default function MyBetsClient({
                       </div>
                     </div>
                   ) : (
-                    // Expanded view
                     <div>
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
@@ -272,7 +277,7 @@ export default function MyBetsClient({
                             </Badge>
                             {position.market.outcome !== null && (
                               <Badge variant={isWinner ? "default" : "destructive"} className="text-xs">
-                                {isWinner ? "Won" : "Lost"}
+                                {isWinner ? "✓ Won" : "✗ Lost"}
                               </Badge>
                             )}
                             {isCancelled && (
@@ -281,6 +286,14 @@ export default function MyBetsClient({
                               </Badge>
                             )}
                           </div>
+                          {isWinner && (
+                            <p className="text-xs text-green-600 font-medium mb-2">
+                              Congratulations! Your prediction was correct.
+                            </p>
+                          )}
+                          {isLoser && (
+                            <p className="text-xs text-red-600 font-medium mb-2">Your prediction was incorrect.</p>
+                          )}
                         </div>
                         <ChevronUp className="w-4 h-4 text-muted-foreground ml-2" />
                       </div>
@@ -305,15 +318,19 @@ export default function MyBetsClient({
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-muted-foreground">Sale Price</div>
+                          <div className="text-xs text-muted-foreground">{isWinner ? "Payout" : "Final"} Price</div>
                           <div className="font-medium text-sm">${currentSharePrice.toFixed(3)}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-muted-foreground">Final Value</div>
-                          <div className="font-medium text-sm">${currentValue.toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {isWinner ? "Total Payout" : "Final Value"}
+                          </div>
+                          <div className={`font-medium text-sm ${isWinner ? "text-green-600" : ""}`}>
+                            ${currentValue.toFixed(2)}
+                          </div>
                         </div>
                         <div>
-                          <div className="text-xs text-muted-foreground">P&L</div>
+                          <div className="text-xs text-muted-foreground">Profit/Loss</div>
                           <div className={`font-semibold text-sm ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
                             {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                           </div>
@@ -995,6 +1012,194 @@ export default function MyBetsClient({
     )
   }
 
+  const renderBonds = (bonds: Bond[]) => {
+    if (bonds.length === 0) {
+      return (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Receipt className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Settlement Bonds</h3>
+            <p className="text-muted-foreground">
+              When you participate in oracle settlements for private markets (as creator, contestant, or voter), your
+              bonds will appear here.
+            </p>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    const activeBonds = bonds.filter((b) => !b.resolved_at)
+    const settledBonds = bonds.filter((b) => b.resolved_at)
+
+    return (
+      <div className="space-y-6">
+        {activeBonds.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Outstanding Bonds</h3>
+            <div className="space-y-3">
+              {activeBonds.map((bond) => (
+                <Card
+                  key={bond.id}
+                  className="border-2 border-orange-400 dark:border-orange-600 bg-white dark:bg-gray-950"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            {bond.bond_type === "creator_settlement"
+                              ? "Creator Bond"
+                              : bond.bond_type === "contest"
+                                ? "Contest Bond"
+                                : "Vote Bond"}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700 font-semibold shrink-0"
+                          >
+                            Outstanding
+                          </Badge>
+                        </div>
+                        <p className="text-sm font-medium mb-1 truncate">{bond.market_title}</p>
+                        <p className="text-xs text-muted-foreground">Your bond is locked until the market settles</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
+                          ${bond.bond_amount.toFixed(2)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Locked</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-3 border-t gap-2">
+                      <div className="text-xs text-muted-foreground">
+                        Posted: {new Date(bond.created_at).toLocaleDateString()}
+                      </div>
+                      <Button variant="ghost" asChild size="sm" className="h-7 text-xs px-2">
+                        <Link href={`/market/${bond.market_id}`}>View Market →</Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {settledBonds.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Returned Bonds</h3>
+            <div className="space-y-3">
+              {settledBonds.map((bond) => {
+                const payout = bond.payout_amount || 0
+                const pnl = payout - bond.bond_amount
+                const isProfitable = pnl > 0.01
+                const isBreakEven = Math.abs(pnl) < 0.01
+                const isLoss = pnl < -0.01
+
+                return (
+                  <Card
+                    key={bond.id}
+                    className={`border-2 bg-white dark:bg-gray-950 ${
+                      isProfitable
+                        ? "border-green-400 dark:border-green-600"
+                        : isLoss
+                          ? "border-red-400 dark:border-red-600"
+                          : "border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {bond.bond_type === "creator_settlement"
+                                ? "Creator Bond"
+                                : bond.bond_type === "contest"
+                                  ? "Contest Bond"
+                                  : "Vote Bond"}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs font-semibold shrink-0 ${
+                                isProfitable
+                                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700"
+                                  : isLoss
+                                    ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700"
+                                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
+                              }`}
+                            >
+                              {isProfitable ? "✓ Paid Out" : isLoss ? "✗ Lost" : "✓ Returned"}
+                            </Badge>
+                          </div>
+                          <p className="text-sm font-medium mb-1 truncate">{bond.market_title}</p>
+                          {isProfitable && (
+                            <p className="text-xs text-green-700 dark:text-green-300 font-medium">
+                              You won! Received ${pnl.toFixed(2)} profit from losing bonds.
+                            </p>
+                          )}
+                          {isBreakEven && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                              Bond returned in full.
+                            </p>
+                          )}
+                          {isLoss && (
+                            <p className="text-xs text-red-700 dark:text-red-300 font-medium">
+                              Bond was on losing side. Lost ${Math.abs(pnl).toFixed(2)}.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 pt-3 border-t">
+                        <div>
+                          <div className="text-xs text-muted-foreground">Bond Posted</div>
+                          <div className="text-sm font-semibold">${bond.bond_amount.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Returned</div>
+                          <div
+                            className={`text-sm font-bold ${isProfitable ? "text-green-600 dark:text-green-400" : isLoss ? "text-red-600 dark:text-red-400" : "text-gray-600 dark:text-gray-400"}`}
+                          >
+                            ${payout.toFixed(2)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">P&L</div>
+                          <div
+                            className={`text-sm font-bold ${
+                              isBreakEven
+                                ? "text-black dark:text-white"
+                                : isProfitable
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-red-600 dark:text-red-400"
+                            }`}
+                          >
+                            {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t gap-2">
+                        {bond.resolved_at && (
+                          <div className="text-xs text-muted-foreground">
+                            Returned: {new Date(bond.resolved_at).toLocaleDateString()}
+                          </div>
+                        )}
+                        <Button variant="ghost" asChild size="sm" className="h-7 text-xs px-2 ml-auto">
+                          <Link href={`/market/${bond.market_id}`}>View Market →</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <MobileHeader />
@@ -1055,15 +1260,7 @@ export default function MyBetsClient({
           </TabsContent>
 
           <TabsContent value="leveraged-positions" className="mt-6">
-            <Card>
-              <CardContent className="text-center py-12">
-                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Settlement Bonds</h3>
-                <p className="text-muted-foreground">
-                  This feature is coming soon. You'll be able to view your settlement bonds here.
-                </p>
-              </CardContent>
-            </Card>
+            {renderBonds(bonds)}
           </TabsContent>
 
           <TabsContent value="pnl-history" className="mt-6">

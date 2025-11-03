@@ -1,10 +1,11 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Wallet } from "lucide-react"
+import { Wallet, Shield } from "lucide-react"
 import Link from "next/link"
 import { NotificationBell } from "@/components/notifications"
 import { ModeToggle } from "@/components/mode-toggle"
+import { useIsAdmin } from "@/lib/auth/admin-client"
 
 interface MobileHeaderProps {
   showModeToggle?: boolean
@@ -12,6 +13,8 @@ interface MobileHeaderProps {
 }
 
 export function MobileHeader({ showModeToggle = false, onModeChange }: MobileHeaderProps) {
+  const { isAdmin } = useIsAdmin()
+
   return (
     <header className="md:hidden bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
       <div className="px-4">
@@ -21,6 +24,13 @@ export function MobileHeader({ showModeToggle = false, onModeChange }: MobileHea
           </div>
 
           <nav className="flex items-center gap-2">
+            {isAdmin && (
+              <Button variant="ghost" asChild size="sm">
+                <Link href="/admin" className="px-2">
+                  <Shield className="w-4 h-4 text-blue-600" />
+                </Link>
+              </Button>
+            )}
             <Button variant="ghost" asChild size="sm">
               <Link href="/wallet" className="px-2">
                 <Wallet className="w-4 h-4" />

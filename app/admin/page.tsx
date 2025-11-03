@@ -11,6 +11,9 @@ import { format } from "date-fns"
 import { useIsAdmin } from "@/lib/auth/admin-client"
 import { settleMarket, cancelMarket, getAllMarkets, getFeesAndLiquiditySummary } from "@/app/actions/admin"
 import { createGroupsTables } from "@/app/actions/database"
+import {
+  getAllBondsDebug, // Import new debug function
+} from "@/app/actions/oracle-settlement"
 import { getMarketStatusDisplay } from "@/lib/market-status"
 import { NotificationBell } from "@/components/notifications"
 
@@ -41,6 +44,12 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isCreatingTables, setIsCreatingTables] = useState(false)
+  const [isCheckingSettlements, setIsCheckingSettlements] = useState(false)
+  const [columnVerification, setColumnVerification] = useState<any>(null)
+  const [allBonds, setAllBonds] = useState<any>(null)
+  const [isLoadingBonds, setIsLoadingBonds] = useState(false)
+  const [diagnosticData, setDiagnosticData] = useState<any>(null)
+  const [isLoadingDiagnostics, setIsLoadingDiagnostics] = useState(false)
 
   const { isAdmin, isLoading: adminLoading } = useIsAdmin()
   const router = useRouter()
@@ -140,6 +149,80 @@ export default function AdminPage() {
       setError(`Failed to create groups tables: ${error.message}`)
     } finally {
       setIsCreatingTables(false)
+    }
+  }
+
+  const handleCheckSettlements = async () => {
+    setIsCheckingSettlements(true)
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      console.log("[v0] Admin: Triggering local settlement test via /api/cron/settlement...")
+      const response = await fetch("/api/cron/settlement")
+      const result = await response.json()
+
+      console.log("[v0] Admin: Settlement result:", result)
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to run settlement")
+      }
+
+      const processed = result.processed?.check_pending_settlements || result.processed || {}
+      const autoSettled = processed.auto_settled || 0
+      const contestsResolved = processed.contests_resolved || 0
+      const totalProcessed = processed.total_processed || autoSettled + contestsResolved
+
+      setSuccessMessage(
+        `✅ Settlement complete! Processed ${totalProcessed} market(s): ${autoSettled} auto-settled, ${contestsResolved} contests resolved. ${result.mode === "development" ? "(Local testing mode)" : ""}`,
+      )
+      await loadData() // Refresh the data
+    } catch (error: any) {
+      console.error("[v0] Admin: Settlement error:", error)
+      setError(`Failed to run settlement: ${error.message}`)
+    } finally {
+      setIsCheckingSettlements(false)
+    }
+  }
+
+  const loadAllBondsDebug = async () => {
+    setIsLoadingBonds(true)
+    try {
+      console.log("[v0] Admin: Loading all bonds from database...")
+      const result = await getAllBondsDebug()
+      if (result.success) {
+        setAllBonds(result.data)
+        console.log("[v0] Admin: Loaded bonds:", result.data)
+      } else {
+        console.error("[v0] Admin: Failed to load bonds:", result.error)
+      }
+    } catch (error: any) {
+      console.error("[v0] Admin: Error loading bonds:", error)
+    } finally {
+      setIsLoadingBonds(false)
+    }
+  }
+
+  const loadComprehensiveDiagnostics = async () => {
+    setIsLoadingDiagnostics(true)
+    setError(null)
+
+    try {
+      console.log("[v0] Admin: Loading comprehensive settlement diagnostics...")
+      const response = await fetch("/api/debug/settlement-status")
+      const data = await response.json()
+
+      console.log("[v0] Admin: Diagnostic data received:", data)
+      setDiagnosticData(data)
+
+      if (data.error) {
+        setError(`Diagnostic error: ${data.error}`)
+      }
+    } catch (error: any) {
+      console.error("[v0] Admin: Error loading diagnostics:", error)
+      setError(`Failed to load diagnostics: ${error.message}`)
+    } finally {
+      setIsLoadingDiagnostics(false)
     }
   }
 
@@ -591,6 +674,444 @@ export default function AdminPage() {
           </TabsContent>
 
           <TabsContent value="summary" className="space-y-6">
+            <Card className="border-2 border-purple-200 bg-purple-50/50 dark:bg-purple-900/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-purple-500" />
+                  Comprehensive Settlement Diagnostics
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  View detailed information about all markets and why they are or aren't being settled.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button
+                  onClick={loadComprehensiveDiagnostics}
+                  disabled={isLoadingDiagnostics}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  {isLoadingDiagnostics ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Loading Diagnostics...
+                    </>
+                  ) : (
+                    "Run Full Diagnostics"
+                  )}
+                </Button>
+
+                {diagnosticData && (
+                  <div className="space-y-4 mt-4">
+                    {/* Summary */}
+                    <Card className="border-blue-200">
+                      <CardHeader>
+                        <CardTitle className="text-sm">Summary</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                          <div>
+                            <div className="font-medium text-muted-foreground">Total Markets</div>
+                            <div className="text-2xl font-bold">{diagnosticData.summary?.total_markets || 0}</div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">Pending Contest</div>
+                            <div className="text-2xl font-bold text-amber-600">
+                              {diagnosticData.summary?.pending_contest_markets || 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">Contested</div>
+                            <div className="text-2xl font-bold text-red-600">
+                              {diagnosticData.summary?.contested_markets || 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">Total Contests</div>
+                            <div className="text-2xl font-bold">{diagnosticData.summary?.total_contests || 0}</div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">Total Bonds</div>
+                            <div className="text-2xl font-bold">{diagnosticData.summary?.total_bonds || 0}</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Pending Contest Markets */}
+                    {diagnosticData.pending_contest_markets && diagnosticData.pending_contest_markets.length > 0 && (
+                      <Card className="border-amber-200">
+                        <CardHeader>
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-amber-500" />
+                            Pending Contest Markets ({diagnosticData.pending_contest_markets.length})
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground">Markets waiting for contest period to expire</p>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {diagnosticData.pending_contest_markets.map((market: any) => (
+                              <Card key={market.id} className="border-amber-100 bg-amber-50/30">
+                                <CardContent className="pt-4 text-xs">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
+                                      <h4 className="font-semibold text-sm mb-1">{market.title}</h4>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <span className="font-medium">Status:</span> {market.status}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Settlement Status:</span>{" "}
+                                          {market.settlement_status}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Contest Deadline:</span>{" "}
+                                          {market.contest_deadline || "N/A"}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Expired:</span>{" "}
+                                          <Badge
+                                            variant={market.is_expired ? "destructive" : "secondary"}
+                                            className="text-[10px]"
+                                          >
+                                            {market.is_expired ? "YES" : "NO"}
+                                          </Badge>
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Minutes Past Deadline:</span>{" "}
+                                          {market.minutes_since_deadline || "N/A"}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Has Contest:</span>{" "}
+                                          <Badge
+                                            variant={market.has_contest ? "default" : "secondary"}
+                                            className="text-[10px]"
+                                          >
+                                            {market.has_contest ? "YES" : "NO"}
+                                          </Badge>
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Has Bond:</span>{" "}
+                                          <Badge
+                                            variant={market.has_bond ? "default" : "secondary"}
+                                            className="text-[10px]"
+                                          >
+                                            {market.has_bond ? "YES" : "NO"}
+                                          </Badge>
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Should Auto-Settle:</span>{" "}
+                                          <Badge
+                                            variant={market.should_auto_settle ? "destructive" : "secondary"}
+                                            className="text-[10px]"
+                                          >
+                                            {market.should_auto_settle ? "YES" : "NO"}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <Button variant="outline" size="sm" asChild className="ml-2 text-xs bg-transparent">
+                                      <a href={`/market/${market.id}`} target="_blank" rel="noopener noreferrer">
+                                        View
+                                      </a>
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Contested Markets */}
+                    {diagnosticData.contested_markets && diagnosticData.contested_markets.length > 0 && (
+                      <Card className="border-red-200">
+                        <CardHeader>
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            Contested Markets ({diagnosticData.contested_markets.length})
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground">
+                            Markets with active contests waiting for vote deadline
+                          </p>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {diagnosticData.contested_markets.map((market: any) => (
+                              <Card key={market.id} className="border-red-100 bg-red-50/30">
+                                <CardContent className="pt-4 text-xs">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
+                                      <h4 className="font-semibold text-sm mb-1">{market.title}</h4>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <span className="font-medium">Status:</span> {market.status}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Settlement Status:</span>{" "}
+                                          {market.settlement_status}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Contest ID:</span> {market.contest_id || "N/A"}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Contest Status:</span>{" "}
+                                          {market.contest_status || "N/A"}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Vote Deadline:</span>{" "}
+                                          {market.vote_deadline || "N/A"}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Expired:</span>{" "}
+                                          <Badge
+                                            variant={market.is_expired ? "destructive" : "secondary"}
+                                            className="text-[10px]"
+                                          >
+                                            {market.is_expired ? "YES" : "NO"}
+                                          </Badge>
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Minutes Past Deadline:</span>{" "}
+                                          {market.minutes_since_deadline || "N/A"}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Should Resolve:</span>{" "}
+                                          <Badge
+                                            variant={market.should_resolve ? "destructive" : "secondary"}
+                                            className="text-[10px]"
+                                          >
+                                            {market.should_resolve ? "YES" : "NO"}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <Button variant="outline" size="sm" asChild className="ml-2 text-xs bg-transparent">
+                                      <a href={`/market/${market.id}`} target="_blank" rel="noopener noreferrer">
+                                        View
+                                      </a>
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* No markets found */}
+                    {diagnosticData.summary?.pending_contest_markets === 0 &&
+                      diagnosticData.summary?.contested_markets === 0 && (
+                        <Card className="border-green-200 bg-green-50/50">
+                          <CardContent className="pt-6 text-center">
+                            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold mb-2">No Markets Need Settlement</h3>
+                            <p className="text-sm text-muted-foreground">
+                              All markets are either active or already settled.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
+                  </div>
+                )}
+
+                {!diagnosticData && !isLoadingDiagnostics && (
+                  <p className="text-sm text-muted-foreground">
+                    Click the button above to run comprehensive diagnostics and see exactly what markets exist and why
+                    they are or aren't being settled.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Removed Database Schema Verification card */}
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-blue-500" />
+                  Bonds Diagnostic
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  View all bonds in the database to debug why they're not appearing in my-bets page.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button onClick={loadAllBondsDebug} disabled={isLoadingBonds} variant="outline">
+                  {isLoadingBonds ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                      Loading...
+                    </>
+                  ) : (
+                    "Load All Bonds"
+                  )}
+                </Button>
+
+                {allBonds && (
+                  <div className="space-y-4 mt-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Card className="border-green-200">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Settlement Bonds</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{allBonds.settlementBonds?.length || 0}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-amber-200">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Contest Bonds</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{allBonds.contestBonds?.length || 0}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-blue-200">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Vote Bonds</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{allBonds.voteBonds?.length || 0}</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {allBonds.settlementBonds && allBonds.settlementBonds.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-2">Settlement Bonds:</h4>
+                        <div className="space-y-2">
+                          {allBonds.settlementBonds.map((bond: any) => (
+                            <Card key={bond.id} className="border-green-200 bg-green-50/50">
+                              <CardContent className="pt-4 text-xs">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <span className="font-medium">Market:</span> {bond.market_title}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">User ID:</span> {bond.user_id}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Amount:</span> ${bond.bond_amount}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Status:</span> {bond.status}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Created:</span>{" "}
+                                    {format(new Date(bond.created_at), "MMM d, HH:mm")}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Market Status:</span> {bond.market_status}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {allBonds.contestBonds && allBonds.contestBonds.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-2">Contest Bonds:</h4>
+                        <div className="space-y-2">
+                          {allBonds.contestBonds.map((bond: any) => (
+                            <Card key={bond.id} className="border-amber-200 bg-amber-50/50">
+                              <CardContent className="pt-4 text-xs">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <span className="font-medium">Market:</span> {bond.market_title}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Contestant ID:</span> {bond.contestant_id}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Bond Amount:</span> ${bond.contest_bond_amount}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Status:</span> {bond.status}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Created:</span>{" "}
+                                    {format(new Date(bond.created_at), "MMM d, HH:mm")}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Market Status:</span> {bond.market_status}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-purple-500" />
+                  Settlement Testing (Local Development)
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Test the auto-settlement system locally. This works on localhost without needing CRON_SECRET.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-blue-600 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">Local Testing Mode</h4>
+                      <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                        You're running on localhost, so the Vercel cron job won't trigger automatically. Use this button
+                        to manually test the settlement process.
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        <strong>Note:</strong> When deployed to Vercel, settlements will run automatically every 5
+                        minutes via cron job. You'll need to add CRON_SECRET to your Vercel environment variables.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h3 className="font-semibold mb-1">Run Settlement Check</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Check for expired markets and resolve contests. This simulates what the cron job does in
+                      production.
+                    </p>
+                  </div>
+                  <Button onClick={handleCheckSettlements} disabled={isCheckingSettlements} className="ml-4">
+                    {isCheckingSettlements ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      "Test Settlement Now"
+                    )}
+                  </Button>
+                </div>
+
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <h4 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">How Auto-Settlement Works:</h4>
+                  <ol className="text-sm text-amber-800 dark:text-amber-200 space-y-1 list-decimal list-inside">
+                    <li>Markets with expired contest deadlines are automatically settled</li>
+                    <li>Contested markets with expired vote deadlines are resolved based on vote counts</li>
+                    <li>Settlement initiator and contestant count as implicit votes for their sides</li>
+                    <li>Majority wins; ties result in market cancellation with full refunds</li>
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

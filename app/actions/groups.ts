@@ -1,51 +1,83 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/service"
 import { revalidatePath } from "next/cache"
-import { insert } from "@/lib/database/adapter"
+import { insert, select, deleteRows } from "@/lib/database/adapter"
 
 export async function createGroup(name: string, description?: string) {
   try {
+    console.log("[v0] createGroup called with:", { name, description })
     const supabase = await createClient()
 
-    // Get current user
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser()
+
+    console.log("[v0] createGroup: User authentication result:", {
+      userId: user?.id,
+      error: userError?.message,
+    })
+
     if (userError || !user) {
       return { success: false, error: "Authentication required" }
     }
 
-    const { data: group, error: groupError } = await insert("groups", {
+    console.log("[v0] createGroup: Attempting to insert group into AWS RDS...")
+    const { data: groupArray, error: groupError } = await insert("groups", {
       name: name.trim(),
       description: description?.trim() || null,
       creator_id: user.id,
     })
 
-    if (groupError) {
-      if (groupError.message?.includes("duplicate") || groupError.message?.includes("unique")) {
-        return { success: false, error: "A group with this name already exists" }
-      }
-      return { success: false, error: groupError.message }
-    }
-
-    // Automatically join the creator to the group
-    const { error: joinError } = await insert("user_groups", {
-      user_id: user.id,
-      group_id: Array.isArray(group) ? group[0].id : group.id,
+    console.log("[v0] createGroup: Insert result:", {
+      group: groupArray,
+      error: groupError?.message,
+      errorDetails: groupError,
     })
 
-    if (joinError) {
-      console.error("Failed to auto-join creator to group:", joinError)
-      // Don't fail the whole operation if auto-join fails
+    if (groupError || !groupArray || groupArray.length === 0) {
+      if (groupError?.message?.includes("duplicate") || groupError?.message?.includes("unique")) {
+        return { success: false, error: "A group with this name already exists" }
+      }
+      return { success: false, error: groupError?.message || "Failed to create group" }
+    }
+
+    const group = groupArray[0]
+    console.log("[v0] createGroup: Group created with ID:", group.id)
+
+    const existingMembership = await select<any>(
+      "user_groups",
+      ["id"],
+      [
+        { column: "user_id", value: user.id },
+        { column: "group_id", value: group.id },
+      ],
+      undefined,
+      1,
+    )
+
+    if (!existingMembership || existingMembership.length === 0) {
+      console.log("[v0] createGroup: Auto-joining creator to group...")
+      const { error: joinError } = await insert("user_groups", {
+        user_id: user.id,
+        group_id: group.id,
+      })
+
+      console.log("[v0] createGroup: Auto-join result:", { error: joinError?.message })
+
+      if (joinError) {
+        console.error("Failed to auto-join creator to group:", joinError)
+      }
+    } else {
+      console.log("[v0] createGroup: User already in group, skipping auto-join")
     }
 
     revalidatePath("/profile")
-    return { success: true, group: Array.isArray(group) ? group[0] : group }
+    console.log("[v0] createGroup: Success! Returning group:", group)
+    return { success: true, group }
   } catch (error) {
-    console.error("Create group error:", error)
+    console.error("[v0] Create group error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -58,7 +90,6 @@ export async function joinGroup(groupId: string) {
     console.log("[v0] Join group action called for group:", groupId)
     const supabase = await createClient()
 
-    // Get current user
     const {
       data: { user },
       error: userError,
@@ -70,13 +101,26 @@ export async function joinGroup(groupId: string) {
 
     console.log("[v0] Join group: User authenticated:", user.id)
 
-    const { data, error } = await supabase
-      .from("user_groups")
-      .insert({
-        user_id: user.id,
-        group_id: groupId,
-      })
-      .select()
+    const existingMembership = await select<any>(
+      "user_groups",
+      ["id"],
+      [
+        { column: "user_id", value: user.id },
+        { column: "group_id", value: groupId },
+      ],
+      undefined,
+      1,
+    )
+
+    if (existingMembership && existingMembership.length > 0) {
+      console.log("[v0] Join group: User already in group")
+      return { success: false, error: "You are already a member of this group" }
+    }
+
+    const { data, error } = await insert("user_groups", {
+      user_id: user.id,
+      group_id: groupId,
+    })
 
     console.log("[v0] Join group insert result:", { data, error: error?.message })
 
@@ -103,7 +147,6 @@ export async function leaveGroup(groupId: string) {
   try {
     const supabase = await createClient()
 
-    // Get current user
     const {
       data: { user },
       error: userError,
@@ -112,8 +155,10 @@ export async function leaveGroup(groupId: string) {
       return { success: false, error: "Authentication required" }
     }
 
-    // The adapter's deleteRows only supports single column where clause
-    const { error } = await supabase.from("user_groups").delete().eq("user_id", user.id).eq("group_id", groupId)
+    const { error } = await deleteRows("user_groups", {
+      user_id: user.id,
+      group_id: groupId,
+    })
 
     if (error) {
       return { success: false, error: error.message }
@@ -136,29 +181,35 @@ export async function searchGroups(query: string) {
       return { success: true, groups: [] }
     }
 
-    // The adapter doesn't support ilike operator yet
-    const supabase = await createClient()
-    const { data: groups, error } = await supabase
-      .from("groups")
-      .select(
-        `
-        id,
-        name,
-        description,
-        creator_id,
-        created_at,
-        profiles!groups_creator_id_fkey(username, display_name)
-      `,
-      )
-      .ilike("name", `%${query.trim()}%`)
-      .order("name")
-      .limit(10)
+    const groups = await select<any>(
+      "groups",
+      ["id", "name", "description", "creator_id", "created_at"],
+      [{ column: "name", operator: "ILIKE", value: `%${query.trim()}%` }],
+      { column: "name", ascending: true },
+      10,
+    )
 
-    if (error) {
-      return { success: false, error: error.message }
+    if (!groups) {
+      return { success: false, error: "Failed to search groups" }
     }
 
-    return { success: true, groups: groups || [] }
+    const enrichedGroups = await Promise.all(
+      groups.map(async (group) => {
+        const profiles = await select<any>(
+          "profiles",
+          ["username", "display_name"],
+          [{ column: "id", value: group.creator_id }],
+          undefined,
+          1,
+        )
+        return {
+          ...group,
+          profiles: profiles?.[0] || null,
+        }
+      }),
+    )
+
+    return { success: true, groups: enrichedGroups }
   } catch (error) {
     console.error("Search groups error:", error)
     return {
@@ -186,39 +237,72 @@ export async function getUserGroups(userId?: string) {
       targetUserId = user.id
     }
 
-    console.log("[v0] Get user groups: Fetching for user:", targetUserId)
+    console.log("[v0] Get user groups: Fetching from AWS RDS for user:", targetUserId)
 
-    // The adapter's select doesn't support Supabase-style nested joins
-    const { data: userGroups, error } = await supabase
-      .from("user_groups")
-      .select(
-        `
-        id,
-        joined_at,
-        groups!user_groups_group_id_fkey(
-          id,
-          name,
-          description,
-          creator_id,
-          created_at,
-          profiles!groups_creator_id_fkey(username, display_name)
-        )
-      `,
-      )
-      .eq("user_id", targetUserId)
-      .order("joined_at", { ascending: false })
+    const userGroups = await select<any>(
+      "user_groups",
+      ["id", "user_id", "group_id", "joined_at"],
+      [{ column: "user_id", value: targetUserId }],
+      { column: "joined_at", ascending: false },
+    )
 
-    console.log("[v0] Get user groups result:", {
-      groupsCount: userGroups?.length || 0,
-      error: error?.message,
-      groups: userGroups?.map((g) => ({ id: g.id, groupName: g.groups?.name })),
-    })
-
-    if (error) {
-      return { success: false, error: error.message }
+    if (!userGroups) {
+      return { success: false, error: "Failed to fetch user groups" }
     }
 
-    return { success: true, groups: userGroups || [] }
+    console.log("[v0] Get user groups: Found user_groups:", userGroups.length)
+
+    const groupIds = [...new Set(userGroups.map((ug) => ug.group_id))]
+    console.log("[v0] Get user groups: Unique group IDs:", groupIds.length)
+
+    const enrichedGroups = await Promise.all(
+      groupIds.map(async (groupId) => {
+        const groups = await select<any>(
+          "groups",
+          ["id", "name", "description", "creator_id", "created_at"],
+          [{ column: "id", value: groupId }],
+          undefined,
+          1,
+        )
+        const group = groups?.[0]
+
+        if (!group) {
+          console.log("[v0] Get user groups: Group not found for ID:", groupId)
+          return null
+        }
+
+        const profiles = await select<any>(
+          "profiles",
+          ["id", "username", "display_name"],
+          [{ column: "id", value: group.creator_id }],
+          undefined,
+          1,
+        )
+
+        // Find the most recent user_groups entry for this group
+        const userGroupEntry = userGroups.find((ug) => ug.group_id === groupId)
+
+        return {
+          id: userGroupEntry?.id || groupId,
+          user_id: targetUserId,
+          group_id: groupId,
+          joined_at: userGroupEntry?.joined_at,
+          groups: {
+            ...group,
+            profiles: profiles?.[0] || null,
+          },
+        }
+      }),
+    )
+
+    const validGroups = enrichedGroups.filter((g) => g !== null)
+
+    console.log("[v0] Get user groups result:", {
+      groupsCount: validGroups.length,
+      groups: validGroups.map((g) => ({ id: g.group_id, groupName: g.groups?.name })),
+    })
+
+    return { success: true, groups: validGroups }
   } catch (error) {
     console.error("[v0] Get user groups error:", error)
     return {
@@ -232,35 +316,39 @@ export async function getGroupMembers(groupId: string) {
   try {
     console.log("[v0] Server action: Getting group members for group:", groupId)
 
-    // Use service client to bypass RLS and get all group members
-    const serviceSupabase = createServiceClient()
+    const members = await select<any>(
+      "user_groups",
+      ["user_id", "joined_at"],
+      [{ column: "group_id", value: groupId }],
+      { column: "joined_at", ascending: false },
+    )
 
-    const { data: members, error } = await serviceSupabase
-      .from("user_groups")
-      .select(`
-        user_id,
-        joined_at,
-        profiles!user_groups_user_id_fkey(
-          id,
-          username,
-          display_name
-        )
-      `)
-      .eq("group_id", groupId)
-      .order("joined_at", { ascending: false })
-
-    console.log("[v0] Service query result:", {
-      membersCount: members?.length || 0,
-      error: error?.message,
-      members: members?.map((m) => ({ user_id: m.user_id, username: m.profiles?.username })),
-    })
-
-    if (error) {
-      console.error("[v0] Error getting group members:", error)
-      return { success: false, error: error.message }
+    if (!members) {
+      return { success: false, error: "Failed to fetch group members" }
     }
 
-    return { success: true, members: members || [] }
+    const enrichedMembers = await Promise.all(
+      members.map(async (member) => {
+        const profiles = await select<any>(
+          "profiles",
+          ["id", "username", "display_name"],
+          [{ column: "id", value: member.user_id }],
+          undefined,
+          1,
+        )
+        return {
+          ...member,
+          profiles: profiles?.[0] || null,
+        }
+      }),
+    )
+
+    console.log("[v0] Service query result:", {
+      membersCount: enrichedMembers.length,
+      members: enrichedMembers.map((m) => ({ user_id: m.user_id, username: m.profiles?.username })),
+    })
+
+    return { success: true, members: enrichedMembers }
   } catch (error) {
     console.error("[v0] Get group members error:", error)
     return {

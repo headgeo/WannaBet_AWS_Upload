@@ -255,8 +255,8 @@ export default function AdminPage() {
   const now = new Date()
   const expiredMarketsFiltered = allMarkets.filter((m) => {
     const hasExpired = new Date(m.end_date) <= now
-    const notSettled = m.status !== "settled"
-    return hasExpired && notSettled
+    const notSettledOrCancelled = m.status !== "settled" && m.status !== "cancelled"
+    return hasExpired && notSettledOrCancelled
   })
 
   const activeMarkets = allMarkets.filter((m) => {

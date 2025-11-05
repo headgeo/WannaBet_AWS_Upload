@@ -5,6 +5,7 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import type { FeeRecord } from "@/lib/fees"
 import { canTrade, getMarketStatus } from "@/lib/market-status"
 import { revalidatePath } from "next/cache"
+import { checkTradeRateLimit } from "@/lib/rate-limit"
 
 async function recordFee(feeRecord: FeeRecord, marketCreatorId: string) {
   try {
@@ -48,6 +49,8 @@ export async function executeTrade(
   newLiquidityPool: number,
   feeAmount: number,
   netAmount: number,
+  maxSlippagePercent = 5, // Default 5% max slippage
+  expectedPrice: number, // Price per share user saw when initiating trade
 ) {
   try {
     const supabase = await createSupabaseClient()
@@ -58,6 +61,14 @@ export async function executeTrade(
 
     if (authError || !user) {
       throw new Error("User not authenticated")
+    }
+
+    const rateLimit = await checkTradeRateLimit(userId)
+    if (!rateLimit.allowed) {
+      const resetTime = rateLimit.resetAt.toLocaleTimeString()
+      throw new Error(
+        `Rate limit exceeded. You can make ${rateLimit.remaining} more trades. Limit resets at ${resetTime}.`,
+      )
     }
 
     const { data: marketData, error: marketError } = await selectWithJoin("markets", {
@@ -84,6 +95,23 @@ export async function executeTrade(
         throw new Error("Trading is closed - market has been settled")
       }
       throw new Error("Trading is not available for this market")
+    }
+
+    const actualPricePerShare = netAmount / calculatedShares
+    const priceDifference = Math.abs(actualPricePerShare - expectedPrice)
+    const slippagePercent = (priceDifference / expectedPrice) * 100
+
+    console.log("[v0] Slippage check:", {
+      expectedPrice,
+      actualPricePerShare,
+      slippagePercent: slippagePercent.toFixed(2) + "%",
+      maxAllowed: maxSlippagePercent + "%",
+    })
+
+    if (slippagePercent > maxSlippagePercent) {
+      throw new Error(
+        `Price moved too much! Expected $${expectedPrice.toFixed(4)}/share but current price is $${actualPricePerShare.toFixed(4)}/share (${slippagePercent.toFixed(1)}% slippage). Please try again with updated prices.`,
+      )
     }
 
     const { data: tradeResult, error: rpcError } = await rpc("execute_trade_lmsr", {
@@ -142,6 +170,8 @@ export async function sellShares(
   newLiquidityPool: number,
   feeAmount: number,
   netValue: number,
+  maxSlippagePercent = 5,
+  expectedPricePerShare: number,
 ) {
   try {
     const supabase = await createSupabaseClient()
@@ -152,6 +182,14 @@ export async function sellShares(
 
     if (authError || !user) {
       throw new Error("User not authenticated")
+    }
+
+    const rateLimit = await checkTradeRateLimit(userId)
+    if (!rateLimit.allowed) {
+      const resetTime = rateLimit.resetAt.toLocaleTimeString()
+      throw new Error(
+        `Rate limit exceeded. You can make ${rateLimit.remaining} more trades. Limit resets at ${resetTime}.`,
+      )
     }
 
     const { data: marketData, error: marketError } = await selectWithJoin("markets", {
@@ -178,6 +216,23 @@ export async function sellShares(
         throw new Error("Trading is closed - market has been settled")
       }
       throw new Error("Trading is not available for this market")
+    }
+
+    const actualPricePerShare = netValue / sharesToSell
+    const priceDifference = Math.abs(actualPricePerShare - expectedPricePerShare)
+    const slippagePercent = (priceDifference / expectedPricePerShare) * 100
+
+    console.log("[v0] Sell slippage check:", {
+      expectedPricePerShare,
+      actualPricePerShare,
+      slippagePercent: slippagePercent.toFixed(2) + "%",
+      maxAllowed: maxSlippagePercent + "%",
+    })
+
+    if (slippagePercent > maxSlippagePercent) {
+      throw new Error(
+        `Price moved too much! Expected $${expectedPricePerShare.toFixed(4)}/share but current price is $${actualPricePerShare.toFixed(4)}/share (${slippagePercent.toFixed(1)}% slippage). Please try again with updated prices.`,
+      )
     }
 
     const rpcParams = {

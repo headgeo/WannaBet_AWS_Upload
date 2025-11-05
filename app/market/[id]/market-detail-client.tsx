@@ -275,6 +275,18 @@ export function MarketDetailClient({
         throw new Error(result.error || "Contest failed")
       }
 
+      setSettlementStatus((prev: any) => ({
+        ...prev,
+        status: "contested",
+        contest_id: result.data?.contestId,
+        voting_deadline: result.data?.voteDeadline,
+      }))
+
+      setMarket((prev) => ({
+        ...prev,
+        status: "contested",
+      }))
+
       await fetchSettlementStatus()
       router.refresh()
     } catch (error: any) {
@@ -351,6 +363,7 @@ export function MarketDetailClient({
   const hasAnyPosition = userPositions.length > 0
 
   const canContestSettlement =
+    !marketSettled &&
     (settlementStatus?.status === "pending_contest" || market.status === "suspended") &&
     currentUserId !== market.creator_id &&
     hasAnyPosition &&
@@ -404,7 +417,7 @@ export function MarketDetailClient({
                       Private
                     </Badge>
                   )}
-                  {settlementStatus?.status === "pending_contest" && (
+                  {!marketSettled && settlementStatus?.status === "pending_contest" && (
                     <Badge
                       variant="outline"
                       className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 flex-shrink-0"
@@ -493,7 +506,7 @@ export function MarketDetailClient({
               </Card>
             )}
 
-            {(settlementStatus?.status === "pending_contest" || market.status === "suspended") && (
+            {!marketSettled && (settlementStatus?.status === "pending_contest" || market.status === "suspended") && (
               <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -580,7 +593,7 @@ export function MarketDetailClient({
               </Card>
             )}
 
-            {settlementStatus?.status === "contested" && (
+            {!marketSettled && settlementStatus?.status === "contested" && (
               <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
                 <CardHeader>
                   <CardTitle className="text-lg flex flex-col gap-1 text-red-600">

@@ -45,20 +45,28 @@ export async function GET() {
 
     const now = new Date()
 
-    // Markets with settlement_initiated_at but no active contest = pending_contest
+    const contestedMarkets =
+      allMarkets?.filter((m: any) => {
+        // Exclude already settled or cancelled markets
+        if (m.status === "settled" || m.status === "cancelled") {
+          return false
+        }
+        const hasActiveContest = allContests?.some(
+          (c: any) => c.market_id === m.id && (c.status === "active" || c.status === "voting"),
+        )
+        const hasContestedStatus = m.status === "contested"
+        return hasActiveContest || hasContestedStatus
+      }) || []
+
     const pendingContestMarkets =
       allMarkets?.filter((m: any) => {
         const hasSettlementInitiated = m.settlement_initiated_at != null
-        const hasActiveContest = allContests?.some((c: any) => c.market_id === m.id && c.status === "active")
         const isNotSettled = m.status !== "settled" && m.status !== "cancelled"
-        return hasSettlementInitiated && !hasActiveContest && isNotSettled
-      }) || []
-
-    // Markets with active contests = contested
-    const contestedMarkets =
-      allMarkets?.filter((m: any) => {
-        const hasActiveContest = allContests?.some((c: any) => c.market_id === m.id && c.status === "active")
-        return hasActiveContest
+        const isNotContested = m.status !== "contested"
+        const hasActiveContest = allContests?.some(
+          (c: any) => c.market_id === m.id && (c.status === "active" || c.status === "voting"),
+        )
+        return hasSettlementInitiated && !hasActiveContest && isNotSettled && isNotContested
       }) || []
 
     console.log("[v0] Markets with pending_contest:", pendingContestMarkets.length)
@@ -86,7 +94,7 @@ export async function GET() {
           id: m.id,
           title: m.title,
           status: m.status,
-          settlement_status: "pending_contest", // Calculated, not from DB
+          settlement_status: "pending_contest",
           contest_deadline: m.contest_deadline,
           is_expired: isExpired,
           minutes_since_deadline: minutesSinceDeadline,
@@ -96,8 +104,9 @@ export async function GET() {
         }
       }),
       contested_markets: contestedMarkets.map((m: any) => {
-        const contest = allContests?.find((c: any) => c.market_id === m.id && c.status === "active")
-        const voteDeadline = contest?.vote_deadline ? new Date(contest.vote_deadline) : null
+        const contest = allContests?.find((c: any) => c.market_id === m.id)
+        const deadline = contest?.vote_deadline || m.contest_deadline
+        const voteDeadline = deadline ? new Date(deadline) : null
         const isExpired = voteDeadline ? now > voteDeadline : false
         const minutesSinceDeadline = voteDeadline ? Math.floor((now.getTime() - voteDeadline.getTime()) / 60000) : null
 
@@ -105,10 +114,10 @@ export async function GET() {
           id: m.id,
           title: m.title,
           status: m.status,
-          settlement_status: "contested", // Calculated, not from DB
-          contest_id: contest?.id,
-          contest_status: contest?.status,
-          vote_deadline: contest?.vote_deadline,
+          settlement_status: "contested",
+          contest_id: contest?.id || null,
+          contest_status: contest?.status || null,
+          vote_deadline: deadline || null,
           is_expired: isExpired,
           minutes_since_deadline: minutesSinceDeadline,
           should_resolve: isExpired,

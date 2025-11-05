@@ -859,6 +859,18 @@ export default function MyBetsClient({
       )
     }
 
+    const totalPnL = pnlHistory.reduce((sum, pnl) => sum + pnl.realized_pnl, 0)
+    const winningTrades = pnlHistory.filter((pnl) => pnl.realized_pnl > 0)
+    const losingTrades = pnlHistory.filter((pnl) => pnl.realized_pnl < 0)
+    const winRate = pnlHistory.length > 0 ? (winningTrades.length / pnlHistory.length) * 100 : 0
+    const totalVolume = pnlHistory.reduce((sum, pnl) => sum + pnl.total_amount, 0)
+    const avgWin =
+      winningTrades.length > 0
+        ? winningTrades.reduce((sum, pnl) => sum + pnl.realized_pnl, 0) / winningTrades.length
+        : 0
+    const avgLoss =
+      losingTrades.length > 0 ? losingTrades.reduce((sum, pnl) => sum + pnl.realized_pnl, 0) / losingTrades.length : 0
+
     // Group by market for better organization
     const pnlByMarket = pnlHistory.reduce(
       (acc, pnl) => {
@@ -875,118 +887,272 @@ export default function MyBetsClient({
     )
 
     return (
-      <div className="space-y-4">
-        {Object.entries(pnlByMarket).map(([marketId, { market_title, pnls }]) => {
-          const totalPnL = pnls.reduce((sum, pnl) => sum + pnl.realized_pnl, 0)
-
-          return (
-            <Card key={marketId} className="overflow-hidden">
-              <CardContent className="p-0">
-                <div className="px-4 py-3 border-b flex items-center justify-between">
-                  <h3 className="font-semibold text-sm truncate flex-1 pr-4 max-w-[70%]">{market_title}</h3>
-                  <div
-                    className={`text-sm font-semibold shrink-0 ${totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}
-                  >
-                    {totalPnL >= 0 ? "+" : ""}${totalPnL.toFixed(2)}
-                  </div>
+      <div className="space-y-6">
+        <Card className="border-2 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Trading Performance</h3>
+                <p className="text-sm text-muted-foreground">Realized P&L Summary</p>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground mb-1">Total Realized P&L</div>
+                <div
+                  className={`text-3xl font-bold ${totalPnL >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                >
+                  {totalPnL >= 0 ? "+" : ""}${totalPnL.toFixed(2)}
                 </div>
+              </div>
+            </div>
 
-                <div className="divide-y">
-                  {pnls.map((pnl) => {
-                    const isExpanded = expandedPnlId === pnl.id
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                  <span className="text-xs font-medium text-muted-foreground">Winning Trades</span>
+                </div>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{winningTrades.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">Avg: +${avgWin.toFixed(2)}</div>
+              </div>
 
-                    return (
-                      <div
-                        key={pnl.id}
-                        className="hover:bg-muted/30 transition-colors cursor-pointer"
-                        onClick={() => setExpandedPnlId(isExpanded ? null : pnl.id)}
-                      >
-                        <div className={isExpanded ? "p-3" : "px-4 py-2"}>
-                          {!isExpanded ? (
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs px-2 py-0 shrink-0 w-12 justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
-                                >
-                                  {pnl.side}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground truncate">
-                                  Sold {pnl.shares.toFixed(2)} @ ${pnl.price_per_share.toFixed(3)}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div
-                                  className={`text-sm font-semibold ${pnl.realized_pnl >= 0 ? "text-green-600" : "text-red-600"}`}
-                                >
-                                  {pnl.realized_pnl >= 0 ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
-                                </div>
-                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                              </div>
-                            </div>
-                          ) : (
-                            // Expanded view
-                            <div>
-                              <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs px-2 py-0.5 w-12 justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
-                                  >
-                                    {pnl.side}
-                                  </Badge>
-                                  {pnl.market_outcome !== null && (
-                                    <Badge
-                                      variant={
-                                        (pnl.side === "Yes" && pnl.market_outcome) ||
-                                        (pnl.side === "No" && !pnl.market_outcome)
-                                          ? "default"
-                                          : "destructive"
-                                      }
-                                      className="text-xs px-2 py-0.5"
-                                    >
-                                      {(pnl.side === "Yes" && pnl.market_outcome) ||
-                                      (pnl.side === "No" && !pnl.market_outcome)
-                                        ? "Won"
-                                        : "Lost"}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingDown className="w-4 h-4 text-red-600" />
+                  <span className="text-xs font-medium text-muted-foreground">Losing Trades</span>
+                </div>
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{losingTrades.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">Avg: ${avgLoss.toFixed(2)}</div>
+              </div>
 
-                              <div className="grid grid-cols-2 gap-3 pt-3 border-t">
-                                <div>
-                                  <div className="text-xs text-muted-foreground">Shares Sold</div>
-                                  <div className="font-medium text-sm">{pnl.shares.toFixed(2)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-muted-foreground">Sale Price</div>
-                                  <div className="font-medium text-sm">${pnl.price_per_share.toFixed(3)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-muted-foreground">Cost Basis</div>
-                                  <div className="font-medium text-sm">${pnl.cost_basis.toFixed(3)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-muted-foreground">Total Received</div>
-                                  <div className="font-medium text-sm">${pnl.total_amount.toFixed(2)}</div>
-                                </div>
-                                <div className="col-span-2">
-                                  <div className="text-xs text-muted-foreground">Realized P&L</div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-medium text-muted-foreground">Win Rate</span>
+                </div>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{winRate.toFixed(1)}%</div>
+                <div className="text-xs text-muted-foreground mt-1">{pnlHistory.length} total trades</div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border">
+                <div className="flex items-center gap-2 mb-2">
+                  <DollarSign className="w-4 h-4 text-purple-600" />
+                  <span className="text-xs font-medium text-muted-foreground">Total Volume</span>
+                </div>
+                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">${totalVolume.toFixed(0)}</div>
+                <div className="text-xs text-muted-foreground mt-1">Traded</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white px-1">Trade History by Market</h3>
+
+          {Object.entries(pnlByMarket).map(([marketId, { market_title, pnls }]) => {
+            const marketTotalPnL = pnls.reduce((sum, pnl) => sum + pnl.realized_pnl, 0)
+            const marketWins = pnls.filter((pnl) => pnl.realized_pnl > 0).length
+            const marketLosses = pnls.filter((pnl) => pnl.realized_pnl < 0).length
+
+            return (
+              <Card key={marketId} className="overflow-hidden border-2 hover:shadow-lg transition-shadow">
+                <CardContent className="p-0">
+                  <div
+                    className={`px-6 py-4 border-b-2 ${
+                      marketTotalPnL >= 0
+                        ? "bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200 dark:border-green-800"
+                        : "bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 border-red-200 dark:border-red-800"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-base mb-2 text-gray-900 dark:text-white line-clamp-2">
+                          {market_title}
+                        </h4>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">{pnls.length} trades</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <TrendingUp className="w-3.5 h-3.5 text-green-600" />
+                            <span className="text-sm text-green-700 dark:text-green-400 font-medium">
+                              {marketWins}W
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <TrendingDown className="w-3.5 h-3.5 text-red-600" />
+                            <span className="text-sm text-red-700 dark:text-red-400 font-medium">{marketLosses}L</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs text-muted-foreground mb-1">Market P&L</div>
+                        <div
+                          className={`text-2xl font-bold ${
+                            marketTotalPnL >= 0
+                              ? "text-green-600 dark:text-green-400"
+                              : "text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {marketTotalPnL >= 0 ? "+" : ""}${marketTotalPnL.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="divide-y bg-white dark:bg-gray-950">
+                    {pnls.map((pnl) => {
+                      const isExpanded = expandedPnlId === pnl.id
+                      const isWin = pnl.realized_pnl > 0
+                      const isBreakEven = Math.abs(pnl.realized_pnl) < 0.01
+
+                      return (
+                        <div
+                          key={pnl.id}
+                          className="hover:bg-muted/30 transition-colors cursor-pointer"
+                          onClick={() => setExpandedPnlId(isExpanded ? null : pnl.id)}
+                        >
+                          <div className={isExpanded ? "p-4" : "px-6 py-3"}>
+                            {!isExpanded ? (
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
                                   <div
-                                    className={`font-semibold text-base ${pnl.realized_pnl >= 0 ? "text-green-600" : "text-red-600"}`}
-                                  >
-                                    {pnl.realized_pnl >= 0 ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
+                                    className={`w-1 h-10 rounded-full ${
+                                      isWin ? "bg-green-500" : isBreakEven ? "bg-gray-400" : "bg-red-500"
+                                    }`}
+                                  />
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <Badge
+                                      variant={pnl.side === "Yes" ? "default" : "destructive"}
+                                      className="text-xs px-2 py-0.5 shrink-0 font-semibold"
+                                    >
+                                      {pnl.side.toUpperCase()}
+                                    </Badge>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {pnl.shares.toFixed(2)} shares @ ${pnl.price_per_share.toFixed(3)}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Cost basis: ${pnl.cost_basis.toFixed(3)}/share
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="col-span-2">
-                                  <div className="text-xs text-muted-foreground">Time</div>
-                                  <div className="font-medium text-sm">{new Date(pnl.created_at).toLocaleString()}</div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <div className="text-right">
+                                    <div
+                                      className={`text-lg font-bold ${
+                                        isWin
+                                          ? "text-green-600 dark:text-green-400"
+                                          : isBreakEven
+                                            ? "text-gray-600 dark:text-gray-400"
+                                            : "text-red-600 dark:text-red-400"
+                                      }`}
+                                    >
+                                      {pnl.realized_pnl >= 0 ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      ${pnl.total_amount.toFixed(2)} received
+                                    </div>
+                                  </div>
+                                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
                                 </div>
                               </div>
+                            ) : (
+                              <div>
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant={pnl.side === "Yes" ? "default" : "destructive"}
+                                      className="text-xs px-2.5 py-0.5 font-semibold"
+                                    >
+                                      {pnl.side.toUpperCase()} POSITION
+                                    </Badge>
+                                    {pnl.market_outcome !== null && (
+                                      <Badge
+                                        variant={
+                                          (pnl.side === "Yes" && pnl.market_outcome) ||
+                                          (pnl.side === "No" && !pnl.market_outcome)
+                                            ? "default"
+                                            : "destructive"
+                                        }
+                                        className="text-xs px-2.5 py-0.5"
+                                      >
+                                        {(pnl.side === "Yes" && pnl.market_outcome) ||
+                                        (pnl.side === "No" && !pnl.market_outcome)
+                                          ? "✓ Market Won"
+                                          : "✗ Market Lost"}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                                </div>
 
-                              <div className="mt-3 pt-3 border-t">
+                                <div className="bg-muted/30 rounded-lg p-4 mb-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Shares Sold</div>
+                                      <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                        {pnl.shares.toFixed(2)}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Sale Price</div>
+                                      <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                        ${pnl.price_per_share.toFixed(3)}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">Cost Basis</div>
+                                      <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                        ${pnl.cost_basis.toFixed(3)}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">
+                                        Total Received
+                                      </div>
+                                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                                        ${pnl.total_amount.toFixed(2)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div
+                                  className={`rounded-lg p-4 mb-4 ${
+                                    isWin
+                                      ? "bg-green-50 dark:bg-green-950/30 border-2 border-green-200 dark:border-green-800"
+                                      : isBreakEven
+                                        ? "bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700"
+                                        : "bg-red-50 dark:bg-red-950/30 border-2 border-red-200 dark:border-red-800"
+                                  }`}
+                                >
+                                  <div className="text-center">
+                                    <div className="text-sm font-medium text-muted-foreground mb-2">
+                                      Realized Profit/Loss
+                                    </div>
+                                    <div
+                                      className={`text-4xl font-bold ${
+                                        isWin
+                                          ? "text-green-600 dark:text-green-400"
+                                          : isBreakEven
+                                            ? "text-gray-600 dark:text-gray-400"
+                                            : "text-red-600 dark:text-red-400"
+                                      }`}
+                                    >
+                                      {pnl.realized_pnl >= 0 ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-2">
+                                      {((pnl.realized_pnl / (pnl.shares * pnl.cost_basis)) * 100).toFixed(2)}% return
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
+                                  <span>Trade executed: {new Date(pnl.created_at).toLocaleString()}</span>
+                                </div>
+
                                 <Button
                                   variant="outline"
                                   asChild
@@ -994,20 +1160,20 @@ export default function MyBetsClient({
                                   className="w-full bg-transparent"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <Link href={`/market/${pnl.market_id}`}>View Market</Link>
+                                  <Link href={`/market/${pnl.market_id}`}>View Market Details →</Link>
                                 </Button>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
       </div>
     )
   }
@@ -1029,7 +1195,12 @@ export default function MyBetsClient({
     }
 
     const activeBonds = bonds.filter((b) => !b.resolved_at)
-    const settledBonds = bonds.filter((b) => b.resolved_at)
+    const settledBonds = bonds
+      .filter((b) => b.resolved_at)
+      .sort((a, b) => {
+        if (!a.resolved_at || !b.resolved_at) return 0
+        return new Date(b.resolved_at).getTime() - new Date(a.resolved_at).getTime()
+      })
 
     return (
       <div className="space-y-6">

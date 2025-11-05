@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/service"
+import { select } from "@/lib/database/adapter"
 
 export async function isAdmin(): Promise<boolean> {
   try {
@@ -15,34 +15,27 @@ export async function isAdmin(): Promise<boolean> {
 
     console.log("[v0] isAdmin: Checking role for user:", user.id)
 
-    const { data: profile, error } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+    try {
+      const profiles = await select<{ role: string }>(
+        "profiles",
+        ["role"],
+        [{ column: "id", operator: "=", value: user.id }],
+        undefined,
+        1,
+      )
 
-    if (error) {
-      console.log("[v0] isAdmin: Regular client failed, trying service client:", error)
-
-      try {
-        const serviceSupabase = createServiceClient()
-        const { data: serviceProfile, error: serviceError } = await serviceSupabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single()
-
-        if (serviceError) {
-          console.log("[v0] isAdmin: Service client also failed:", serviceError)
-          return false
-        }
-
-        return serviceProfile?.role === "admin"
-      } catch (serviceError) {
-        console.log("[v0] isAdmin: Service client creation failed:", serviceError)
+      if (!profiles || profiles.length === 0) {
+        console.log("[v0] isAdmin: No profile found for user")
         return false
       }
-    }
 
-    const isAdminUser = profile?.role === "admin"
-    console.log("[v0] isAdmin: Final result:", isAdminUser)
-    return isAdminUser
+      const isAdminUser = profiles[0]?.role === "admin"
+      console.log("[v0] isAdmin: Final result:", isAdminUser, "Role:", profiles[0]?.role)
+      return isAdminUser
+    } catch (error) {
+      console.error("[v0] isAdmin: Error querying RDS:", error)
+      return false
+    }
   } catch (error) {
     console.error("[v0] isAdmin: Error checking admin status:", error)
     return false
@@ -69,33 +62,26 @@ export async function getCurrentUserRole(): Promise<string | null> {
 
     console.log("[v0] getCurrentUserRole: Getting role for user:", user.id)
 
-    const { data: profile, error } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+    try {
+      const profiles = await select<{ role: string }>(
+        "profiles",
+        ["role"],
+        [{ column: "id", operator: "=", value: user.id }],
+        undefined,
+        1,
+      )
 
-    if (error) {
-      console.log("[v0] getCurrentUserRole: Regular client failed, trying service client:", error)
-
-      try {
-        const serviceSupabase = createServiceClient()
-        const { data: serviceProfile, error: serviceError } = await serviceSupabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single()
-
-        if (serviceError) {
-          console.log("[v0] getCurrentUserRole: Service client also failed:", serviceError)
-          return "user"
-        }
-
-        return serviceProfile?.role || "user"
-      } catch (serviceError) {
-        console.log("[v0] getCurrentUserRole: Service client creation failed:", serviceError)
+      if (!profiles || profiles.length === 0) {
+        console.log("[v0] getCurrentUserRole: No profile found, defaulting to 'user'")
         return "user"
       }
-    }
 
-    console.log("[v0] getCurrentUserRole: Role result:", profile?.role)
-    return profile?.role || "user"
+      console.log("[v0] getCurrentUserRole: Role result:", profiles[0]?.role)
+      return profiles[0]?.role || "user"
+    } catch (error) {
+      console.error("[v0] getCurrentUserRole: Error querying RDS:", error)
+      return "user"
+    }
   } catch (error) {
     console.error("[v0] getCurrentUserRole: Error getting user role:", error)
     return "user"
@@ -116,43 +102,33 @@ export async function getAdminProfile() {
 
     console.log("[v0] getAdminProfile: Getting profile for user:", user.id)
 
-    const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+    try {
+      const profiles = await select<{ id: string; role: string; username: string; display_name: string }>(
+        "profiles",
+        "*",
+        [{ column: "id", operator: "=", value: user.id }],
+        undefined,
+        1,
+      )
 
-    if (error) {
-      console.log("[v0] getAdminProfile: Regular client failed, trying service client:", error)
-
-      try {
-        const serviceSupabase = createServiceClient()
-        const { data: serviceProfile, error: serviceError } = await serviceSupabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single()
-
-        if (serviceError) {
-          console.log("[v0] getAdminProfile: Service client also failed:", serviceError)
-          return null
-        }
-
-        if (serviceProfile?.role !== "admin") {
-          console.log("[v0] getAdminProfile: User is not admin, role:", serviceProfile?.role)
-          return null
-        }
-
-        return { user, profile: serviceProfile }
-      } catch (serviceError) {
-        console.log("[v0] getAdminProfile: Service client creation failed:", serviceError)
+      if (!profiles || profiles.length === 0) {
+        console.log("[v0] getAdminProfile: No profile found")
         return null
       }
-    }
 
-    if (profile?.role !== "admin") {
-      console.log("[v0] getAdminProfile: User is not admin, role:", profile?.role)
+      const profile = profiles[0]
+
+      if (profile?.role !== "admin") {
+        console.log("[v0] getAdminProfile: User is not admin, role:", profile?.role)
+        return null
+      }
+
+      console.log("[v0] getAdminProfile: Admin profile found")
+      return { user, profile }
+    } catch (error) {
+      console.error("[v0] getAdminProfile: Error querying RDS:", error)
       return null
     }
-
-    console.log("[v0] getAdminProfile: Admin profile found")
-    return { user, profile }
   } catch (error) {
     console.error("[v0] getAdminProfile: Error getting admin profile:", error)
     return null

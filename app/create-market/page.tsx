@@ -77,6 +77,11 @@ export default function CreateMarketPage() {
   }
 
   const addInvitedItem = (item: any) => {
+    if (isPrivate && invitedItems.length > 0) {
+      setError("Private markets can only be shared with one group at a time")
+      return
+    }
+
     const newItem: InvitedItem = {
       id: item.id,
       name: item.type === "user" ? item.username : item.name,
@@ -87,6 +92,7 @@ export default function CreateMarketPage() {
     if (!invitedItems.find((i) => i.id === newItem.id && i.type === newItem.type)) {
       setInvitedItems([...invitedItems, newItem])
       setCurrentInviteInput("")
+      setError(null)
     }
   }
 
@@ -96,6 +102,11 @@ export default function CreateMarketPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (isLoading) {
+      return
+    }
+
     if (!endDate) {
       setError("Please select an end date")
       return
@@ -140,10 +151,11 @@ export default function CreateMarketPage() {
 
       if (result.success && result.marketId) {
         router.push(`/market/${result.marketId}`)
+        // Don't set isLoading to false here - we're navigating away
+        return
       }
     } catch (error: any) {
       setError(error.message)
-    } finally {
       setIsLoading(false)
     }
   }
@@ -251,11 +263,11 @@ export default function CreateMarketPage() {
                     onChange={(e) => setEndDate(e.target.value)}
                     min={getMinDate()}
                     required
-                    className="w-full sm:flex-1 sm:min-w-0"
+                    className="w-full sm:flex-1"
                   />
-                  <div className="flex gap-2 w-full sm:w-auto sm:flex-shrink-0">
+                  <div className="flex gap-2 shrink-0">
                     <Select value={endHour} onValueChange={setEndHour}>
-                      <SelectTrigger className="w-[80px]">
+                      <SelectTrigger className="w-20">
                         <SelectValue placeholder="Hour" />
                       </SelectTrigger>
                       <SelectContent>
@@ -268,7 +280,7 @@ export default function CreateMarketPage() {
                     </Select>
                     <span className="flex items-center text-muted-foreground">:</span>
                     <Select value={endMinute} onValueChange={setEndMinute}>
-                      <SelectTrigger className="w-[80px]">
+                      <SelectTrigger className="w-20">
                         <SelectValue placeholder="Min" />
                       </SelectTrigger>
                       <SelectContent>
@@ -420,7 +432,7 @@ export default function CreateMarketPage() {
                   <div className="space-y-4">
                     {invitedItems.length > 0 && (
                       <div className="space-y-2">
-                        <Label>Invited Participants ({invitedItems.length})</Label>
+                        <Label>Invited Group</Label>
                         <div className="flex flex-wrap gap-2">
                           {invitedItems.map((item) => (
                             <div
@@ -444,25 +456,24 @@ export default function CreateMarketPage() {
                       </div>
                     )}
 
-                    <div className="space-y-2">
-                      <UserGroupAutocomplete
-                        value={currentInviteInput}
-                        onChange={setCurrentInviteInput}
-                        onSelect={(item) => {
-                          addInvitedItem(item)
-                        }}
-                        placeholder={
-                          isPrivate ? "Start typing to search groups..." : "Start typing to search users or groups..."
-                        }
-                        label="Add Participants"
-                        groupsOnly={isPrivate}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {isPrivate
-                          ? "Search by group name to invite an entire group to your private market. Private markets can only be shared with groups."
-                          : "Search by username, display name, or group name to invite people to your private bet. You can add both individual users and entire groups."}
-                      </p>
-                    </div>
+                    {invitedItems.length === 0 && (
+                      <div className="space-y-2">
+                        <UserGroupAutocomplete
+                          value={currentInviteInput}
+                          onChange={setCurrentInviteInput}
+                          onSelect={(item) => {
+                            addInvitedItem(item)
+                          }}
+                          placeholder="Start typing to search groups..."
+                          label="Add Group"
+                          groupsOnly={isPrivate}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Search by group name to invite a group to your private market. Private markets can only be
+                          shared with one group.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

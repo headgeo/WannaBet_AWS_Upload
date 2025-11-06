@@ -50,7 +50,7 @@ export class UMABlockchainClient {
   private usdc: ethers.Contract | null = null
 
   constructor(network?: string) {
-    this.network = network || process.env.BLOCKCHAIN_NETWORK || "mumbai"
+    this.network = network || process.env.BLOCKCHAIN_NETWORK || "amoy"
     const config = getNetworkConfig(this.network)
 
     // Initialize provider
@@ -94,7 +94,7 @@ export class UMABlockchainClient {
     console.log("[UMA Client] Deploying market:", { marketId, question, expiryTimestamp })
 
     try {
-      const tx = await this.marketFactory.createMarket(marketId, question, expiryTimestamp, {
+      const tx = await this.marketFactory.createMarket(question, expiryTimestamp, {
         gasLimit: GAS_LIMITS.DEPLOY_MARKET,
       })
 
@@ -102,7 +102,7 @@ export class UMABlockchainClient {
       const receipt = await tx.wait()
       console.log("[UMA Client] Deployment confirmed:", receipt.hash)
 
-      // Extract market address from event logs
+      // Extract market address and ID from event logs
       const event = receipt.logs.find((log: any) => {
         try {
           const parsed = this.marketFactory!.interface.parseLog(log)
@@ -113,16 +113,24 @@ export class UMABlockchainClient {
       })
 
       if (!event) {
+        console.error("[UMA Client] No MarketCreated event found. Receipt logs:", receipt.logs)
         throw new Error("MarketCreated event not found in transaction logs")
       }
 
       const parsed = this.marketFactory.interface.parseLog(event)
       const marketAddress = parsed?.args?.marketAddress
+      const blockchainMarketId = parsed?.args?.marketId?.toString()
+
+      console.log("[UMA Client] Market deployed successfully:", {
+        marketAddress,
+        blockchainMarketId,
+        databaseMarketId: marketId,
+      })
 
       return {
         marketAddress,
         transactionHash: receipt.hash,
-        marketId,
+        marketId: blockchainMarketId || marketId, // Use blockchain ID if available
       }
     } catch (error: any) {
       console.error("[UMA Client] Market deployment failed:", error)

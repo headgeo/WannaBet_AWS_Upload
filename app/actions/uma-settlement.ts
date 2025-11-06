@@ -5,8 +5,6 @@
  */
 
 "use server"
-
-import { createClient } from "@/lib/supabase/server"
 import { getUMAClient } from "@/lib/blockchain/client"
 import { insert, update, select, rpc } from "@/lib/database/adapter"
 import { revalidatePath } from "next/cache"
@@ -15,16 +13,10 @@ import { revalidatePath } from "next/cache"
 // PHASE 1: Market Deployment to Blockchain
 // ============================================================================
 
-export async function deployMarketToBlockchain(marketId: string) {
+export async function deployMarketToBlockchain(marketId: string, userId?: string) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      return { success: false, error: "Not authenticated" }
+    if (!userId) {
+      return { success: false, error: "User ID required" }
     }
 
     // Fetch market details
@@ -72,7 +64,7 @@ export async function deployMarketToBlockchain(marketId: string) {
       market_id: marketId,
       transaction_type: "deploy",
       transaction_hash: deployment.transactionHash,
-      from_address: await client.signer.getAddress(),
+      from_address: userId, // Use userId instead of signer address
       status: "confirmed",
     })
 
@@ -97,16 +89,10 @@ export async function deployMarketToBlockchain(marketId: string) {
 // PHASE 2: Initiate UMA Settlement
 // ============================================================================
 
-export async function initiateUMASettlement(marketId: string) {
+export async function initiateUMASettlement(marketId: string, userId?: string) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      return { success: false, error: "Not authenticated" }
+    if (!userId) {
+      return { success: false, error: "User ID required" }
     }
 
     // Fetch market
@@ -138,7 +124,8 @@ export async function initiateUMASettlement(marketId: string) {
 
     if (!isExpired) {
       // Allow early settlement only by creator
-      if (market.creator_id !== user.id) {
+      if (market.creator_id !== userId) {
+        // Use userId parameter
         return { success: false, error: "Only creator can request early settlement" }
       }
     }
@@ -163,7 +150,7 @@ export async function initiateUMASettlement(marketId: string) {
       market_id: marketId,
       transaction_type: "request_resolution",
       transaction_hash: resolution.transactionHash,
-      from_address: user.id,
+      from_address: userId, // Use userId parameter
       status: "confirmed",
     })
 
@@ -174,7 +161,7 @@ export async function initiateUMASettlement(marketId: string) {
 
     if (participants && participants.length > 0) {
       const notifications = participants
-        .filter((p) => p.user_id !== user.id)
+        .filter((p) => p.user_id !== userId)
         .map((p) => ({
           user_id: p.user_id,
           market_id: marketId,
@@ -209,16 +196,10 @@ export async function initiateUMASettlement(marketId: string) {
 // PHASE 3: Propose Outcome
 // ============================================================================
 
-export async function proposeUMAOutcome(marketId: string, outcome: boolean, proposerAddress: string) {
+export async function proposeUMAOutcome(marketId: string, outcome: boolean, proposerAddress: string, userId?: string) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      return { success: false, error: "Not authenticated" }
+    if (!userId) {
+      return { success: false, error: "User ID required" }
     }
 
     // Fetch market

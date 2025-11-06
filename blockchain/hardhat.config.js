@@ -1,5 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox")
-require("dotenv").config()
+require("dotenv").config({ path: ".env.local" })
 
 const getAccounts = () => {
   const privateKey = process.env.PRIVATE_KEY
@@ -37,7 +37,7 @@ module.exports = {
       url: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
       accounts: getAccounts(),
       chainId: 80002,
-      gasPrice: 30000000000, // 30 gwei
+      gasPrice: 5000000000, // 5 gwei (reduced from 30 gwei)
     },
     polygon: {
       url: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",

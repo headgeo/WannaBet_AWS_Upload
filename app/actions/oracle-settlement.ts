@@ -3,6 +3,7 @@
 import { createServerClient } from "@/lib/supabase/server"
 import { rpc, select } from "@/lib/database/adapter"
 import { revalidatePath } from "next/cache"
+import { checkRateLimit } from "@/lib/rate-limit-enhanced"
 
 export type SettlementStatus = "pending_contest" | "contested" | "resolved" | null
 
@@ -64,6 +65,15 @@ export async function initiateSettlement(marketId: string, outcome: boolean) {
     if (authError || !user) {
       console.log("[v0] initiateSettlement: Auth error:", authError)
       return { success: false, error: "Not authenticated" }
+    }
+
+    const rateLimit = await checkRateLimit(user.id, "settlement")
+    if (!rateLimit.allowed) {
+      const resetTime = rateLimit.resetAt.toLocaleTimeString()
+      return {
+        success: false,
+        error: `Rate limit exceeded. You can initiate ${rateLimit.remaining} more settlements. Limit resets at ${resetTime}.`,
+      }
     }
 
     console.log("[v0] initiateSettlement: User authenticated:", user.id)
@@ -130,6 +140,15 @@ export async function contestSettlement(marketId: string) {
     if (authError || !user) {
       console.log("[v0] contestSettlement: Auth error:", authError)
       return { success: false, error: "Not authenticated" }
+    }
+
+    const rateLimit = await checkRateLimit(user.id, "contest")
+    if (!rateLimit.allowed) {
+      const resetTime = rateLimit.resetAt.toLocaleTimeString()
+      return {
+        success: false,
+        error: `Rate limit exceeded. You can create ${rateLimit.remaining} more contests. Limit resets at ${resetTime}.`,
+      }
     }
 
     console.log("[v0] contestSettlement: User authenticated:", user.id)
@@ -211,6 +230,15 @@ export async function submitVote(contestId: string, voteOutcome: boolean) {
     if (authError || !user) {
       console.log("[v0] submitVote: Auth error:", authError)
       return { success: false, error: "Not authenticated" }
+    }
+
+    const rateLimit = await checkRateLimit(user.id, "vote")
+    if (!rateLimit.allowed) {
+      const resetTime = rateLimit.resetAt.toLocaleTimeString()
+      return {
+        success: false,
+        error: `Rate limit exceeded. You can submit ${rateLimit.remaining} more votes. Limit resets at ${resetTime}.`,
+      }
     }
 
     console.log("[v0] submitVote: User authenticated:", user.id)

@@ -62,7 +62,7 @@ export async function deployMarketToBlockchain(marketId: string, userId?: string
     // Log transaction
     await insert("blockchain_transactions", {
       market_id: marketId,
-      transaction_type: "deploy",
+      transaction_type: "deploy_market",
       transaction_hash: deployment.transactionHash,
       from_address: userId, // Use userId instead of signer address
       status: "confirmed",
@@ -70,7 +70,11 @@ export async function deployMarketToBlockchain(marketId: string, userId?: string
 
     console.log("[UMA Settlement] Market deployed successfully:", deployment.marketAddress)
 
-    revalidatePath(`/market/${marketId}`)
+    try {
+      revalidatePath(`/market/${marketId}`)
+    } catch (e) {
+      // Ignore revalidation errors in non-Next.js contexts
+    }
 
     return {
       success: true,
@@ -177,7 +181,11 @@ export async function initiateUMASettlement(marketId: string, userId?: string) {
 
     console.log("[UMA Settlement] Resolution requested:", resolution.requestId)
 
-    revalidatePath(`/market/${marketId}`)
+    try {
+      revalidatePath(`/market/${marketId}`)
+    } catch (e) {
+      // Ignore revalidation errors in non-Next.js contexts
+    }
 
     return {
       success: true,
@@ -220,15 +228,20 @@ export async function proposeUMAOutcome(marketId: string, outcome: boolean, prop
       return { success: false, error: "Maximum 2 proposals already submitted" }
     }
 
-    // Check USDC approval
     const client = getUMAClient()
-    const approval = await client.checkUSDCApproval(proposerAddress, market.blockchain_market_address)
+    const network = process.env.BLOCKCHAIN_NETWORK || "amoy"
 
-    if (!approval.hasEnough) {
-      return {
-        success: false,
-        error: `Insufficient USDC. Need 1000 USDC approved. Balance: ${approval.balance}, Allowance: ${approval.allowance}`,
+    if (network !== "localhost") {
+      const approval = await client.checkUSDCApproval(proposerAddress, market.blockchain_market_address)
+
+      if (!approval.hasEnough) {
+        return {
+          success: false,
+          error: `Insufficient USDC. Need 1000 USDC approved. Balance: ${approval.balance}, Allowance: ${approval.allowance}`,
+        }
       }
+    } else {
+      console.log("[UMA Settlement] Skipping USDC check for localhost network")
     }
 
     // Submit proposal to blockchain
@@ -285,7 +298,11 @@ export async function proposeUMAOutcome(marketId: string, outcome: boolean, prop
 
     console.log("[UMA Settlement] Outcome proposed:", { outcome, proposerAddress })
 
-    revalidatePath(`/market/${marketId}`)
+    try {
+      revalidatePath(`/market/${marketId}`)
+    } catch (e) {
+      // Ignore revalidation errors in non-Next.js contexts
+    }
 
     return {
       success: true,
@@ -367,6 +384,7 @@ export async function finalizeUMASettlement(marketId: string) {
     const payoutResult = await rpc("settle_market", {
       p_market_id: marketId,
       p_outcome: finalOutcome,
+      p_admin_user_id: "00000000-0000-0000-0000-000000000000", // System user for UMA settlements
     })
 
     if (payoutResult.error) {
@@ -376,7 +394,7 @@ export async function finalizeUMASettlement(marketId: string) {
     // Log transaction
     await insert("blockchain_transactions", {
       market_id: marketId,
-      transaction_type: "settle",
+      transaction_type: "settle_market",
       transaction_hash: settlement.transactionHash,
       from_address: "system",
       status: "confirmed",
@@ -387,8 +405,12 @@ export async function finalizeUMASettlement(marketId: string) {
 
     console.log("[UMA Settlement] Market settled:", { marketId, outcome: finalOutcome })
 
-    revalidatePath(`/market/${marketId}`)
-    revalidatePath("/")
+    try {
+      revalidatePath(`/market/${marketId}`)
+      revalidatePath("/")
+    } catch (e) {
+      // Ignore revalidation errors in non-Next.js contexts
+    }
 
     return {
       success: true,

@@ -4,6 +4,7 @@ import { insert, update, select } from "@/lib/database/adapter"
 import { createClient } from "@/lib/supabase/server"
 import { calculateBFromLiquidity } from "@/lib/lmsr"
 import { revalidatePath } from "next/cache"
+import { checkRateLimit } from "@/lib/rate-limit-enhanced"
 
 export async function getUserBalance() {
   try {
@@ -46,6 +47,14 @@ export async function createMarket(data: CreateMarketData) {
 
     if (userError || !user) {
       return { error: "You must be logged in to create a market" }
+    }
+
+    const rateLimit = await checkRateLimit(user.id, "market_creation")
+    if (!rateLimit.allowed) {
+      const resetTime = rateLimit.resetAt.toLocaleTimeString()
+      return {
+        error: `Rate limit exceeded. You can create ${rateLimit.remaining} more markets. Limit resets at ${resetTime}.`,
+      }
     }
 
     // Get user balance

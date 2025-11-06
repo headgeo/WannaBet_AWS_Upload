@@ -19,9 +19,9 @@ export async function settleMarket(marketId: string, winningSide: boolean) {
     }
 
     const { data: result, error } = await rpc("settle_market", {
-      market_id_param: marketId,
-      outcome_param: winningSide,
-      admin_user_id: user.id,
+      p_market_id: marketId,
+      p_outcome: winningSide,
+      p_admin_user_id: user.id,
     })
 
     if (error) {
@@ -76,9 +76,9 @@ export async function settlePrivateMarket(marketId: string, winningSide: boolean
     }
 
     const { data: result, error } = await rpc("settle_market", {
-      market_id_param: marketId,
-      outcome_param: winningSide,
-      admin_user_id: user.id,
+      p_market_id: marketId,
+      p_outcome: winningSide,
+      p_admin_user_id: user.id,
     })
 
     if (error) {
@@ -181,7 +181,7 @@ export async function getExpiredMarkets() {
       `,
       where: [
         { column: "end_date", operator: "<", value: new Date().toISOString() },
-        { column: "status", operator: "!=", value: "settled" },
+        { column: "status", operator: "NOT IN", value: ["settled", "cancelled"] },
       ],
       orderBy: { column: "end_date", ascending: true },
     })
@@ -297,8 +297,8 @@ export async function cancelMarket(marketId: string) {
     }
 
     const { data: result, error } = await rpc("cancel_market", {
-      market_id_param: marketId,
-      admin_user_id: user.id,
+      p_market_id: marketId,
+      p_admin_user_id: user.id,
     })
 
     if (error) {
@@ -357,8 +357,8 @@ export async function cancelPrivateMarket(marketId: string) {
     }
 
     const { data: result, error } = await rpc("cancel_market", {
-      market_id_param: marketId,
-      admin_user_id: user.id,
+      p_market_id: marketId,
+      p_admin_user_id: user.id,
     })
 
     if (error) {

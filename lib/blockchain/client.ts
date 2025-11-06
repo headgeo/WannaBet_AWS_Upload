@@ -84,6 +84,67 @@ export class UMABlockchainClient {
   }
 
   /**
+   * Verify that contracts are properly deployed and accessible
+   */
+  async verifyContracts(): Promise<{
+    marketFactory: { exists: boolean; address: string; error?: string }
+    umaAdapter: { exists: boolean; address: string; error?: string }
+  }> {
+    const results = {
+      marketFactory: { exists: false, address: "", error: undefined as string | undefined },
+      umaAdapter: { exists: false, address: "", error: undefined as string | undefined },
+    }
+
+    // Check MarketFactory
+    if (this.marketFactory) {
+      const address = await this.marketFactory.getAddress()
+      results.marketFactory.address = address
+
+      try {
+        // Check if there's bytecode at the address
+        const code = await this.provider.getCode(address)
+        if (code === "0x" || code === "0x0") {
+          results.marketFactory.error = "No contract deployed at this address"
+        } else {
+          // Try calling a view function to verify the contract is accessible
+          try {
+            const marketCount = await this.marketFactory.marketCount()
+            console.log("[UMA Client] MarketFactory verified. Market count:", marketCount.toString())
+            results.marketFactory.exists = true
+          } catch (error: any) {
+            results.marketFactory.error = `Contract exists but function call failed: ${error.message}`
+          }
+        }
+      } catch (error: any) {
+        results.marketFactory.error = `Failed to verify contract: ${error.message}`
+      }
+    } else {
+      results.marketFactory.error = "MarketFactory not initialized"
+    }
+
+    // Check UMAAdapter
+    if (this.umaAdapter) {
+      const address = await this.umaAdapter.getAddress()
+      results.umaAdapter.address = address
+
+      try {
+        const code = await this.provider.getCode(address)
+        if (code === "0x" || code === "0x0") {
+          results.umaAdapter.error = "No contract deployed at this address"
+        } else {
+          results.umaAdapter.exists = true
+        }
+      } catch (error: any) {
+        results.umaAdapter.error = `Failed to verify contract: ${error.message}`
+      }
+    } else {
+      results.umaAdapter.error = "UMAAdapter not initialized"
+    }
+
+    return results
+  }
+
+  /**
    * Deploy a new market contract to the blockchain
    */
   async deployMarket(marketId: string, question: string, expiryTimestamp: number): Promise<MarketDeploymentResult> {
@@ -91,16 +152,46 @@ export class UMABlockchainClient {
       throw new Error("MarketFactory contract not initialized")
     }
 
+    console.log("[UMA Client] Verifying contracts before deployment...")
+    const verification = await this.verifyContracts()
+    console.log("[UMA Client] Contract verification results:", verification)
+
+    if (!verification.marketFactory.exists) {
+      throw new Error(
+        `MarketFactory contract verification failed: ${verification.marketFactory.error || "Contract not accessible"}`,
+      )
+    }
+
     console.log("[UMA Client] Deploying market:", { marketId, question, expiryTimestamp })
 
     try {
-      const tx = await this.marketFactory.createMarket(question, expiryTimestamp, {
-        gasLimit: GAS_LIMITS.DEPLOY_MARKET,
-      })
+      const tx = await this.marketFactory.createMarket(question, expiryTimestamp)
 
       console.log("[UMA Client] Deployment transaction sent:", tx.hash)
       const receipt = await tx.wait()
-      console.log("[UMA Client] Deployment confirmed:", receipt.hash)
+
+      console.log("[UMA Client] Transaction receipt details:", {
+        hash: receipt.hash,
+        status: receipt.status,
+        gasUsed: receipt.gasUsed.toString(),
+        blockNumber: receipt.blockNumber,
+        logsCount: receipt.logs.length,
+        contractAddress: receipt.contractAddress,
+      })
+
+      // Log all raw logs for debugging
+      if (receipt.logs.length > 0) {
+        console.log(
+          "[UMA Client] Raw logs:",
+          receipt.logs.map((log: any) => ({
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+          })),
+        )
+      } else {
+        console.log("[UMA Client] WARNING: No logs emitted - transaction may have reverted silently")
+      }
 
       // Extract market address and ID from event logs
       const event = receipt.logs.find((log: any) => {
@@ -113,7 +204,9 @@ export class UMABlockchainClient {
       })
 
       if (!event) {
-        console.error("[UMA Client] No MarketCreated event found. Receipt logs:", receipt.logs)
+        console.error("[UMA Client] No MarketCreated event found.")
+        console.error("[UMA Client] Transaction status:", receipt.status === 1 ? "SUCCESS" : "FAILED")
+        console.error("[UMA Client] This usually means the contract function reverted")
         throw new Error("MarketCreated event not found in transaction logs")
       }
 
@@ -147,7 +240,13 @@ export class UMABlockchainClient {
     try {
       const market = new ethers.Contract(marketAddress, MarketABI, this.signer)
 
-      const tx = await market.requestResolution({ gasLimit: GAS_LIMITS.REQUEST_RESOLUTION })
+      const nonce = await this.signer.getNonce("pending")
+      console.log("[UMA Client] Using nonce:", nonce)
+
+      const tx = await market.requestResolution({
+        gasLimit: GAS_LIMITS.REQUEST_RESOLUTION,
+        nonce, // Explicitly set nonce
+      })
 
       console.log("[UMA Client] Resolution request sent:", tx.hash)
       const receipt = await tx.wait()
@@ -189,17 +288,30 @@ export class UMABlockchainClient {
     try {
       const market = new ethers.Contract(marketAddress, MarketABI, this.signer)
 
-      // Check if proposer has approved USDC spending
-      if (this.usdc) {
-        const allowance = await this.usdc.allowance(proposerAddress, marketAddress)
-        const bondAmount = ethers.parseUnits("1000", 6) // 1000 USDC
+      if (this.network !== "localhost") {
+        // Check if proposer has approved USDC spending
+        if (this.usdc) {
+          const allowance = await this.usdc.allowance(proposerAddress, marketAddress)
+          const bondAmount = ethers.parseUnits("1000", 6) // 1000 USDC
 
-        if (allowance < bondAmount) {
-          throw new Error("Insufficient USDC allowance. User must approve USDC spending first.")
+          if (allowance < bondAmount) {
+            throw new Error("Insufficient USDC allowance. User must approve USDC spending first.")
+          }
         }
+      } else {
+        console.log("[UMA Client] Skipping USDC allowance check for localhost network")
       }
 
-      const tx = await market.proposeOutcome(outcome, proposerAddress, { gasLimit: GAS_LIMITS.PROPOSE_OUTCOME })
+      const outcomeBytes32 = ethers.encodeBytes32String(outcome ? "YES" : "NO")
+      console.log("[UMA Client] Outcome as bytes32:", outcomeBytes32)
+
+      const nonce = await this.signer.getNonce("pending")
+      console.log("[UMA Client] Using nonce:", nonce)
+
+      const tx = await market.proposeOutcome(outcomeBytes32, {
+        gasLimit: GAS_LIMITS.PROPOSE_OUTCOME,
+        nonce,
+      })
 
       console.log("[UMA Client] Proposal transaction sent:", tx.hash)
       const receipt = await tx.wait()
@@ -245,7 +357,13 @@ export class UMABlockchainClient {
     try {
       const outcomeBytes = ethers.encodeBytes32String(outcome ? "YES" : "NO")
 
-      const tx = await this.umaAdapter.settleRequest(requestId, outcomeBytes, { gasLimit: GAS_LIMITS.SETTLE_MARKET })
+      const nonce = await this.signer.getNonce("pending")
+      console.log("[UMA Client] Using nonce:", nonce)
+
+      const tx = await this.umaAdapter.settleRequest(requestId, outcomeBytes, {
+        gasLimit: GAS_LIMITS.SETTLE_MARKET,
+        nonce, // Explicitly set nonce
+      })
 
       console.log("[UMA Client] Settlement transaction sent:", tx.hash)
       const receipt = await tx.wait()
@@ -270,19 +388,19 @@ export class UMABlockchainClient {
     try {
       const market = new ethers.Contract(marketAddress, MarketABI, this.provider)
 
-      const [requestId, proposalCount, isSettled] = await Promise.all([
-        market.requestId(),
+      const [umaRequestId, proposalCount, isSettled] = await Promise.all([
+        market.umaRequestId(), // Changed from market.requestId()
         market.proposalCount(),
         market.isSettled(),
       ])
 
-      const hasResolutionRequest = requestId !== ethers.ZeroHash
+      const hasResolutionRequest = umaRequestId !== ethers.ZeroHash
 
       let canSettle = false
       let timeRemaining = 0
 
       if (hasResolutionRequest && !isSettled && this.umaAdapter) {
-        const [canSettleResult, timeRemainingResult] = await this.umaAdapter.canSettleProposal(requestId)
+        const [canSettleResult, timeRemainingResult] = await this.umaAdapter.canSettleProposal(umaRequestId)
         canSettle = canSettleResult
         timeRemaining = Number(timeRemainingResult)
       }
@@ -290,7 +408,7 @@ export class UMABlockchainClient {
       return {
         isDeployed: true,
         hasResolutionRequest,
-        requestId: hasResolutionRequest ? requestId : null,
+        requestId: hasResolutionRequest ? umaRequestId : null,
         proposalCount: Number(proposalCount),
         canSettle,
         timeRemaining,
@@ -308,21 +426,39 @@ export class UMABlockchainClient {
     userAddress: string,
     spenderAddress: string,
   ): Promise<{ balance: string; allowance: string; hasEnough: boolean }> {
+    if (this.network === "localhost") {
+      console.log("[UMA Client] Skipping USDC check for localhost network")
+      return {
+        balance: "1000000", // Mock balance for testing
+        allowance: "1000000", // Mock allowance for testing
+        hasEnough: true,
+      }
+    }
+
     if (!this.usdc) {
       throw new Error("USDC contract not initialized")
     }
 
     const bondAmount = ethers.parseUnits("1000", 6) // 1000 USDC
 
-    const [balance, allowance] = await Promise.all([
-      this.usdc.balanceOf(userAddress),
-      this.usdc.allowance(userAddress, spenderAddress),
-    ])
+    try {
+      const [balance, allowance] = await Promise.all([
+        this.usdc.balanceOf(userAddress),
+        this.usdc.allowance(userAddress, spenderAddress),
+      ])
 
-    return {
-      balance: ethers.formatUnits(balance, 6),
-      allowance: ethers.formatUnits(allowance, 6),
-      hasEnough: balance >= bondAmount && allowance >= bondAmount,
+      return {
+        balance: ethers.formatUnits(balance, 6),
+        allowance: ethers.formatUnits(allowance, 6),
+        hasEnough: balance >= bondAmount && allowance >= bondAmount,
+      }
+    } catch (error: any) {
+      console.error("[UMA Client] USDC check failed:", error)
+      return {
+        balance: "0",
+        allowance: "0",
+        hasEnough: false,
+      }
     }
   }
 
@@ -350,4 +486,9 @@ export function getUMAClient(network?: string): UMABlockchainClient {
     clientInstance = new UMABlockchainClient(network)
   }
   return clientInstance
+}
+
+export function resetUMAClient(): void {
+  clientInstance = null
+  console.log("[UMA Client] Singleton instance reset")
 }

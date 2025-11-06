@@ -266,6 +266,8 @@ export async function rpc<T = any>(
       submit_vote: ["p_contest_id", "p_voter_id", "p_vote_outcome"],
       resolve_contested_settlement: ["p_market_id"],
       check_pending_settlements: [],
+      settle_market: ["p_market_id", "p_outcome", "p_admin_user_id"],
+      cancel_market: ["p_market_id", "p_admin_user_id"],
     }
 
     const expectedOrder = functionParamOrder[functionName]

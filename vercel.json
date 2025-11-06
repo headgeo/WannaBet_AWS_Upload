@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/settlement",
       "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/uma-settlement",
-      "schedule": "*/5 * * * *"
     }
   ]
 }

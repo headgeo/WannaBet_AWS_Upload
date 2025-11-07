@@ -4,17 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  TrendingUp,
-  Plus,
-  Shield,
-  LogOut,
-  Wallet,
-  BarChart,
-  DollarSign,
-  AlertTriangle,
-  CheckCircle2,
-} from "lucide-react"
+import { TrendingUp, Plus, Shield, LogOut, Wallet, BarChart, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import Link from "next/link"
 import { NotificationBell } from "@/components/notifications"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -23,7 +13,7 @@ import { MobileHeader } from "@/components/mobile-header"
 import { useMarkets } from "@/lib/hooks/use-markets"
 import { initiateSettlement } from "@/app/actions/oracle-settlement"
 import { cancelPrivateMarket } from "@/app/actions/admin"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 
 interface HomePageProps {
   userId: string
@@ -216,42 +206,44 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
           </p>
         </div>
 
+        {/* Reduced stats card padding and sizes */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card className="overflow-hidden">
-            <CardContent className="p-0 md:p-2 flex flex-col items-center justify-center space-y-0.5 md:space-y-2">
-              <div className="w-6 h-6 md:w-10 md:h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <Wallet className="w-3 h-3 md:w-5 md:h-5 text-green-600 dark:text-green-400" />
+            <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center space-y-1 md:space-y-1.5">
+              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Wallet className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
               </div>
               <p className="text-xs md:text-sm font-medium text-gray-600 dark:text-gray-400">Your Balance</p>
-              <p className="text-xl md:text-3xl font-bold text-green-600 dark:text-green-400">
+              <p className="text-lg md:text-2xl font-bold text-green-600 dark:text-green-400">
                 ${Number.parseFloat(initialProfile?.balance || "0").toFixed(2)}
               </p>
             </CardContent>
           </Card>
 
           <Card className="hidden md:block overflow-hidden">
-            <CardContent className="p-4 flex flex-col items-center justify-center space-y-2">
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <CardContent className="p-4 flex flex-col items-center justify-center space-y-1.5">
+              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Markets</p>
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{isLoading ? "..." : activeMarkets}</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{isLoading ? "..." : activeMarkets}</p>
             </CardContent>
           </Card>
 
           <Card className="hidden md:block overflow-hidden">
-            <CardContent className="p-4 flex flex-col items-center justify-center space-y-2">
-              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                <BarChart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <CardContent className="p-4 flex flex-col items-center justify-center space-y-1.5">
+              <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                <BarChart className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               </div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Volume</p>
-              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                 {isLoading ? "..." : `$${(totalVolume || 0).toFixed(2)}`}
               </p>
             </CardContent>
           </Card>
         </div>
 
+        {/* Reduced grid gap for tighter layout */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4 md:mb-6">
             <h3 className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">
@@ -265,7 +257,7 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <Card key={i} className="animate-pulse">
                   <CardContent className="p-6">
@@ -280,7 +272,7 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
               {mode === "Trader" && (
                 <>
                   {traderMarkets && traderMarkets.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
                       {traderMarkets.map((market) => (
                         <MarketCard key={market.id} market={market} />
                       ))}

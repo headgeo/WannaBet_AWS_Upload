@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from "lucide-react"
+import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
@@ -378,41 +378,43 @@ export function MarketDetailClient({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-4 hidden md:block">
-          <Button variant="ghost" asChild className="w-fit">
+      <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
+        <div className="mb-3 md:mb-4 hidden md:block">
+          <Button variant="ghost" asChild className="w-fit h-8 text-sm">
             <Link href="/">
-              <ArrowLeft className="w-4 h-4 mr-2" />
+              <ArrowLeft className="w-3 h-3 md:w-4 md:h-4 mr-2" />
               Back to Dashboard
             </Link>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3 md:pb-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-xl mb-2">{market.title}</CardTitle>
-                    <p className="text-muted-foreground mb-4">{market.description}</p>
+                    {/*  Reduced title size from text-xl to text-lg, reduced margin */}
+                    <CardTitle className="text-base md:text-lg mb-1 md:mb-2">{market.title}</CardTitle>
+                    <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-4">{market.description}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap max-w-full overflow-hidden">
-                  <Badge variant="secondary" className="flex-shrink-0">
+                {/*  Made badges smaller with tighter spacing */}
+                <div className="flex items-center gap-1.5 md:gap-2 flex-wrap max-w-full overflow-hidden">
+                  <Badge variant="secondary" className="flex-shrink-0 text-xs px-1.5 py-0">
                     {market.category}
                   </Badge>
                   {marketStatus && (
-                    <Badge variant={marketStatus.color} className="flex items-center gap-1 flex-shrink-0">
-                      <Clock className="w-3 h-3" />
+                    <Badge variant={marketStatus.color} className="flex items-center gap-1 flex-shrink-0 text-xs px-1.5 py-0">
+                      <Clock className="w-2.5 h-2.5 md:w-3 md:h-3" />
                       {marketStatus.label}
                     </Badge>
                   )}
                   {market.is_private && (
                     <Badge
                       variant="outline"
-                      className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 flex-shrink-0"
+                      className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 flex-shrink-0 text-xs px-1.5 py-0"
                     >
                       Private
                     </Badge>
@@ -420,14 +422,14 @@ export function MarketDetailClient({
                   {!marketSettled && settlementStatus?.status === "pending_contest" && (
                     <Badge
                       variant="outline"
-                      className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 flex-shrink-0"
+                      className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 flex-shrink-0 text-xs px-1.5 py-0"
                     >
                       Settlement Pending
                     </Badge>
                   )}
                 </div>
 
-                <div className="mt-3 text-xs text-muted-foreground/80 font-medium">
+                <div className="mt-2 md:mt-3 text-[10px] md:text-xs text-muted-foreground/80 font-medium">
                   Created by{" "}
                   <span className="text-muted-foreground">
                     {market.creator.display_name || market.creator.username}
@@ -435,45 +437,61 @@ export function MarketDetailClient({
                 </div>
               </CardHeader>
 
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="space-y-3 md:space-y-4">
+                {/*  Reduced spacing and font sizes in odds display */}
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-green-600" />
-                      <span className="font-medium">YES</span>
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                      <TrendingUp className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
+                      <span className="text-sm md:font-medium">YES</span>
                     </div>
-                    <span className="text-lg font-bold text-green-600">{yesImpliedProbability.toFixed(1)}%</span>
+                    <span className="text-base md:text-lg font-bold text-green-600">{yesImpliedProbability.toFixed(1)}%</span>
                   </div>
 
-                  <Progress value={yesPercentage} className="h-3" />
+                  <Progress value={yesPercentage} className="h-2 md:h-3" />
 
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <TrendingDown className="w-5 h-5 text-red-600" />
-                      <span className="font-medium">NO</span>
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                      <TrendingDown className="w-4 h-4 md:w-5 md:h-5 text-red-600" />
+                      <span className="text-sm md:font-medium">NO</span>
                     </div>
-                    <span className="text-lg font-bold text-red-600">{noImpliedProbability.toFixed(1)}%</span>
+                    <span className="text-base md:text-lg font-bold text-red-600">{noImpliedProbability.toFixed(1)}%</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                  {/*  Reduced stats section padding and font sizes */}
+                  <div className="grid grid-cols-2 gap-3 md:gap-4 pt-3 md:pt-4 border-t">
                     <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-                        <DollarSign className="w-4 h-4" />
-                        <span className="text-sm">Total Volume</span>
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5 md:mb-1">
+                        <DollarSign className="w-3 h-3 md:w-4 md:h-4" />
+                        <span className="text-xs md:text-sm">Total Volume</span>
                       </div>
-                      <div className="text-lg font-semibold">
+                      <div className="text-base md:text-lg font-semibold">
                         ${Number.parseFloat(market.total_volume.toString()).toFixed(2)}
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-                        <Users className="w-4 h-4" />
-                        <span className="text-sm">End Date</span>
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5 md:mb-1">
+                        <Users className="w-3 h-3 md:w-4 md:h-4" />
+                        <span className="text-xs md:text-sm">End Date</span>
                       </div>
-                      <div className="text-lg font-semibold">{format(new Date(market.end_date), "MMM d, yyyy")}</div>
+                      <div className="text-base md:text-lg font-semibold">{format(new Date(market.end_date), "MMM d, yyyy")}</div>
                     </div>
                   </div>
                 </div>
+
+                {/*  Added "Propose Resolution" button for public markets only */}
+                {!market.is_private && market.status === "active" && !marketSettled && (
+                  <div className="pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs md:text-sm bg-transparent"
+                      disabled
+                    >
+                      Propose Resolution (Coming Soon)
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

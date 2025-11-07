@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { TrendingUp, TrendingDown, Clock, Users } from "lucide-react"
+import { TrendingUp, TrendingDown, Clock, Users } from 'lucide-react'
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { calculateLMSRProbability, calculateBFromLiquidity, DEFAULT_LIQUIDITY_AMOUNT } from "@/lib/lmsr"
 import { getMarketStatusDisplay, canTrade, getDaysUntilExpiration } from "@/lib/market-status"
 
@@ -83,55 +83,53 @@ export function MarketCard({ market }: MarketCardProps) {
       className={`h-full flex flex-col hover:shadow-lg transition-shadow duration-200 md:cursor-default cursor-pointer ${!tradingAllowed ? "opacity-75" : ""} ${market.is_private ? "border-2 border-gray-400 dark:border-gray-600" : ""}`}
       onClick={handleCardClick}
     >
-      <CardHeader className="pb-1.5 md:pb-3 px-4 py-3 md:p-6">
+      <CardHeader className="pb-1 md:pb-2 px-3 py-2 md:px-5 md:py-4">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base md:text-lg mb-2 md:mb-3 line-clamp-2 break-words">{market.title}</CardTitle>
+            <CardTitle className="text-sm md:text-base mb-1.5 md:mb-2 line-clamp-2 break-words">{market.title}</CardTitle>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="secondary" className="text-xs">
+        <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+          <Badge variant="secondary" className="text-[10px] md:text-xs px-1 py-0">
             {market.category}
           </Badge>
           {market.is_private && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-[10px] md:text-xs px-1 py-0">
               Private
             </Badge>
           )}
-          <Badge variant={statusInfo.color} className="text-xs flex items-center gap-1">
-            <Clock className="w-3 h-3" />
+          <Badge variant={statusInfo.color} className="text-[10px] md:text-xs flex items-center gap-0.5 px-1 py-0">
+            <Clock className="w-2.5 h-2.5 md:w-3 md:h-3" />
             {statusInfo.status === "active" ? `${daysLeft}d left` : statusInfo.label}
           </Badge>
         </div>
       </CardHeader>
 
-      <CardContent className="pt-0 px-4 pb-2 md:p-6 flex-1 flex flex-col">
-        {/* Prediction Percentages */}
-        <div className="space-y-1.5 md:space-y-3 mb-2 md:mb-4">
+      <CardContent className="pt-0 px-3 pb-2 md:px-5 md:pb-3 flex-1 flex flex-col">
+        <div className="space-y-1 md:space-y-2 mb-2 md:mb-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-medium">YES</span>
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <TrendingUp className="w-3 h-3 md:w-4 md:h-4 text-green-600" />
+              <span className="text-xs md:text-sm font-medium">YES</span>
             </div>
-            <span className="text-sm font-bold text-green-600">{yesPercentage.toFixed(1)}%</span>
+            <span className="text-xs md:text-sm font-bold text-green-600">{yesPercentage.toFixed(1)}%</span>
           </div>
 
-          <Progress value={yesPercentage} className="h-2" />
+          <Progress value={yesPercentage} className="h-1.5 md:h-2" />
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="w-4 h-4 text-red-600" />
-              <span className="text-sm font-medium">NO</span>
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <TrendingDown className="w-3 h-3 md:w-4 md:h-4 text-red-600" />
+              <span className="text-xs md:text-sm font-medium">NO</span>
             </div>
-            <span className="text-sm font-bold text-red-600">{noPercentage.toFixed(1)}%</span>
+            <span className="text-xs md:text-sm font-bold text-red-600">{noPercentage.toFixed(1)}%</span>
           </div>
         </div>
 
-        {/* Market Stats */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 md:mb-4">
-          <div className="flex items-center gap-1">
-            <Users className="w-3 h-3" />
+        <div className="flex items-center justify-between text-[10px] md:text-xs text-muted-foreground mb-2 md:mb-3">
+          <div className="flex items-center gap-0.5 md:gap-1">
+            <Users className="w-2.5 h-2.5 md:w-3 md:h-3" />
             <span>Volume: ${Number.parseFloat(market.total_volume.toString()).toFixed(2)}</span>
           </div>
           <span className="truncate ml-2">
@@ -139,8 +137,7 @@ export function MarketCard({ market }: MarketCardProps) {
           </span>
         </div>
 
-        {/* Action Button */}
-        <Button asChild className="hidden md:flex w-full text-xs md:text-sm mt-auto" disabled={!tradingAllowed}>
+        <Button asChild className="hidden md:flex w-full text-xs h-8 mt-auto" disabled={!tradingAllowed}>
           <Link href={`/market/${market.id}`}>
             {statusInfo.status === "settled"
               ? "View Results"

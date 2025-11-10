@@ -1,11 +1,11 @@
 require("@nomicfoundation/hardhat-toolbox")
-require("dotenv").config({ path: ".env.local" })
+require("dotenv").config({ path: "../.env.local" }) // Load .env.local from parent directory
 
 const getAccounts = () => {
-  const privateKey = process.env.PRIVATE_KEY
+  const privateKey = process.env.BLOCKCHAIN_PRIVATE_KEY
   // Check if private key exists and is a valid 64-character hex string (32 bytes)
   if (privateKey && privateKey.length === 64 && /^[0-9a-fA-F]{64}$/.test(privateKey)) {
-    return [privateKey]
+    return [`0x${privateKey}`] // Add 0x prefix if missing
   }
   // Check if it has 0x prefix and is 66 characters (0x + 64 hex chars)
   if (privateKey && privateKey.length === 66 && privateKey.startsWith("0x") && /^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
@@ -37,7 +37,7 @@ module.exports = {
       url: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
       accounts: getAccounts(),
       chainId: 80002,
-      gasPrice: 5000000000, // 5 gwei (reduced from 30 gwei)
+      gasPrice: 30000000000, // 30 gwei
     },
     polygon: {
       url: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",

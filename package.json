@@ -15,7 +15,10 @@
     "blockchain:compile": "cd blockchain && npx hardhat compile",
     "blockchain:export-abis": "node blockchain/scripts/export-abis.js",
     "blockchain:setup": "npm run blockchain:compile && npm run blockchain:export-abis",
-    "inspect:schema": "tsx --env-file=.env.local scripts/inspect-schema.ts"
+    "inspect:schema": "tsx --env-file=.env.local scripts/inspect-schema.ts",
+    "blockchain:deploy:amoy": "cd blockchain && npx hardhat run scripts/deploy-amoy.js --network amoy",
+    "blockchain:verify:amoy": "cd blockchain && npx hardhat verify --network amoy",
+    "wallet:generate": "tsx scripts/generate-wallet.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

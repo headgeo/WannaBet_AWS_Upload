@@ -32,8 +32,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     name: "Polygon Amoy Testnet",
     chainId: 80002,
     rpcUrl: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
-    usdcAddress: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582", // Mock USDC on Amoy
-    umaOracleAddress: "0x263351499f82C107e540B01F0Ca959843e22464a", // UMA OOv3 on Amoy (verify this)
+    usdcAddress: process.env.AMOY_MOCK_USDC_ADDRESS || "0xfBfB1b295fb11e73cfDbE3CF0e047aDC838fCE9b", // Updated with deployed MockUSDC address from Amoy testnet
+    umaOracleAddress: "0x263351499f82C107e540B01F0Ca959843e22464a", // UMA OOv3 on Amoy (verified)
     collateralVaultAddress: process.env.AMOY_COLLATERAL_VAULT_ADDRESS,
     umaAdapterAddress: process.env.AMOY_UMA_ADAPTER_ADDRESS,
     marketFactoryAddress: process.env.AMOY_MARKET_FACTORY_ADDRESS,

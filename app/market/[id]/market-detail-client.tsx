@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,11 +9,13 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from 'lucide-react'
+import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from "lucide-react"
 import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
 import { initiateSettlement, contestSettlement, submitVote, getSettlementStatus } from "@/app/actions/oracle-settlement"
+import { requestUMASettlement, openUMAOracleInterface } from "@/app/actions/blockchain-wrapper"
+import { BlockchainStatus } from "@/components/blockchain-status"
 import Link from "next/link"
 import {
   calculateSharesToBuyWithFee,
@@ -24,6 +26,7 @@ import {
 } from "@/lib/lmsr"
 import { FEE_PERCENTAGE } from "@/lib/fees"
 import { getMarketStatusDisplay, canTrade, isSettled } from "@/lib/market-status"
+import { shouldShowBlockchainUI } from "@/lib/blockchain/feature-flags"
 import type { Position } from "@/types/position"
 import { MarketPriceChart } from "@/components/market-price-chart"
 
@@ -54,6 +57,10 @@ interface Market {
   group_id?: string
   creator_settlement_outcome?: boolean
   contest_deadline?: string
+  blockchain_market_address?: string | null
+  blockchain_status?: string | null
+  uma_request_id?: string | null
+  uma_liveness_ends_at?: string | null
 }
 
 interface Group {
@@ -104,6 +111,7 @@ export function MarketDetailClient({
   const [selectedOutcome, setSelectedOutcome] = useState<boolean | null>(null)
   const [voteOutcome, setVoteOutcome] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isRequestingUMASettlement, setIsRequestingUMASettlement] = useState(false)
   const router = useRouter()
 
   const marketStatus = getMarketStatusDisplay(market)
@@ -321,6 +329,40 @@ export function MarketDetailClient({
     }
   }
 
+  const handleRequestUMASettlement = async () => {
+    setIsRequestingUMASettlement(true)
+    setError(null)
+
+    try {
+      const result = await requestUMASettlement(market.id, currentUserId)
+
+      if (!result.success) {
+        throw new Error(result.error || "Settlement request failed")
+      }
+
+      router.refresh()
+    } catch (error: any) {
+      console.error("[v0] UMA settlement request error:", error)
+      setError(error.message)
+    } finally {
+      setIsRequestingUMASettlement(false)
+    }
+  }
+
+  const handleOpenUMAOracle = async () => {
+    if (!market.blockchain_market_address) return
+
+    try {
+      const result = await openUMAOracleInterface(market.blockchain_market_address)
+      if (result.success && result.url) {
+        window.open(result.url, "_blank")
+      }
+    } catch (error: any) {
+      console.error("[v0] Failed to open UMA oracle:", error)
+      setError(error.message)
+    }
+  }
+
   const fetchSettlementStatus = async () => {
     try {
       const result = await getSettlementStatus(market.id)
@@ -376,6 +418,15 @@ export function MarketDetailClient({
   const yesPosition = userPositions.find((pos) => pos.side === true)
   const noPosition = userPositions.find((pos) => pos.side === false)
 
+  const canRequestUMASettlement =
+    !market.is_private &&
+    market.blockchain_market_address &&
+    !market.uma_request_id &&
+    market.status === "closed" &&
+    !marketSettled
+
+  const hasUMARequest = !market.is_private && market.uma_request_id
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
@@ -406,7 +457,10 @@ export function MarketDetailClient({
                     {market.category}
                   </Badge>
                   {marketStatus && (
-                    <Badge variant={marketStatus.color} className="flex items-center gap-1 flex-shrink-0 text-xs px-1.5 py-0">
+                    <Badge
+                      variant={marketStatus.color}
+                      className="flex items-center gap-1 flex-shrink-0 text-xs px-1.5 py-0"
+                    >
                       <Clock className="w-2.5 h-2.5 md:w-3 md:h-3" />
                       {marketStatus.label}
                     </Badge>
@@ -445,7 +499,9 @@ export function MarketDetailClient({
                       <TrendingUp className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
                       <span className="text-sm md:font-medium">YES</span>
                     </div>
-                    <span className="text-base md:text-lg font-bold text-green-600">{yesImpliedProbability.toFixed(1)}%</span>
+                    <span className="text-base md:text-lg font-bold text-green-600">
+                      {yesImpliedProbability.toFixed(1)}%
+                    </span>
                   </div>
 
                   <Progress value={yesPercentage} className="h-2 md:h-3" />
@@ -455,7 +511,9 @@ export function MarketDetailClient({
                       <TrendingDown className="w-4 h-4 md:w-5 md:h-5 text-red-600" />
                       <span className="text-sm md:font-medium">NO</span>
                     </div>
-                    <span className="text-base md:text-lg font-bold text-red-600">{noImpliedProbability.toFixed(1)}%</span>
+                    <span className="text-base md:text-lg font-bold text-red-600">
+                      {noImpliedProbability.toFixed(1)}%
+                    </span>
                   </div>
 
                   {/*  Reduced stats section padding and font sizes */}
@@ -474,24 +532,12 @@ export function MarketDetailClient({
                         <Users className="w-3 h-3 md:w-4 md:h-4" />
                         <span className="text-xs md:text-sm">End Date</span>
                       </div>
-                      <div className="text-base md:text-lg font-semibold">{format(new Date(market.end_date), "MMM d, yyyy")}</div>
+                      <div className="text-base md:text-lg font-semibold">
+                        {format(new Date(market.end_date), "MMM d, yyyy")}
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                {/*  Added "Propose Resolution" button for public markets only */}
-                {!market.is_private && market.status === "active" && !marketSettled && (
-                  <div className="pt-2 border-t">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs md:text-sm bg-transparent"
-                      disabled
-                    >
-                      Propose Resolution (Coming Soon)
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -845,6 +891,20 @@ export function MarketDetailClient({
                 </div>
               </CardContent>
             </Card>
+
+            {shouldShowBlockchainUI() && (
+              <BlockchainStatus
+                marketId={market.id}
+                blockchainAddress={market.blockchain_market_address}
+                blockchainStatus={market.blockchain_status}
+                umaRequestId={market.uma_request_id}
+                livenessEndsAt={market.uma_liveness_ends_at}
+                isPrivate={market.is_private}
+                onRequestSettlement={canRequestUMASettlement ? handleRequestUMASettlement : undefined}
+                onProposeOutcome={hasUMARequest ? handleOpenUMAOracle : undefined}
+                isRequestingSettlement={isRequestingUMASettlement}
+              />
+            )}
 
             {tradingAllowed && (
               <Card>

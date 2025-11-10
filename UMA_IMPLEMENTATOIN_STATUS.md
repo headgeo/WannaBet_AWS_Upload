@@ -81,130 +81,126 @@ This platform uses a **Polymarket-style hybrid architecture**:
 - `scripts/test-uma-flow.ts` - Complete E2E test
 - Successfully tested full lifecycle locally
 
-### Phase 5: Amoy Testnet Deployment Scripts ✓
+### Phase 5: Amoy Testnet Deployment ✓
 - Created deployment script for Polygon Amoy testnet
-- Added npm scripts for easy deployment and verification
-- Updated configuration with verified UMA OptimisticOracleV3 address on Amoy
+- Deployed all contracts to Amoy successfully
+- Updated configuration with Amoy contract addresses
 - Created comprehensive deployment guide
 - Updated environment variable examples
 
+**Deployed Contracts (Amoy):**
+- MockERC20 (USDC): `0xfBfB1b295fb11e73cfDbE3CF0e047aDC838fCE9b`
+- CollateralVault: `0x5Cc9e2925D383d26527D64f7c17de7a03a96Eb09`
+- UMAOracleAdapter: `0x2bC62134BD9c33da2044DF1fd0275FA743Deb8E7`
+- MarketFactory: `0x7C4568517b91556838112A8F44CDB20C93371e34`
+- UMA OptimisticOracleV3 (existing): Verified on Amoy testnet
+
 **Files:**
-- `blockchain/scripts/deploy-amoy.js` - Testnet deployment
-- `AMOY_DEPLOYMENT_GUIDE.md` - Step-by-step instructions
+- `blockchain/scripts/deploy-amoy.js`
+- `AMOY_DEPLOYMENT_GUIDE.md`
+- `lib/blockchain/config.ts` - Updated with Amoy addresses
 - `.env.local.example` - Updated with Amoy variables
-- `package.json` - Added deployment scripts
 
-**UMA Oracle Address (Amoy)**: `0x... (to be fetched from deployment)`
+### Phase 6: Feature Flag System ✓
+- Created feature flag system for controlling blockchain functionality
+- Implemented three independent flags: deployment, settlement, and UI visibility
+- Built safe wrapper functions that check flags before executing
+- Created comprehensive documentation for feature flags
+
+**Feature Flags:**
+- `NEXT_PUBLIC_ENABLE_BLOCKCHAIN_DEPLOYMENT` - Auto-deploy markets to blockchain
+- `NEXT_PUBLIC_ENABLE_UMA_SETTLEMENT` - Enable UMA settlement flow
+- `NEXT_PUBLIC_SHOW_BLOCKCHAIN_UI` - Show blockchain UI elements
+
+**Files:**
+- `lib/blockchain/feature-flags.ts` - Feature flag utilities
+- `app/actions/blockchain-wrapper.ts` - Safe wrapper functions
+- `BLOCKCHAIN_FEATURE_FLAGS.md` - Documentation
+
+### Phase 7: Blockchain UI Components ✓
+- Created BlockchainStatus component showing deployment and settlement status
+- Added blockchain status card to market detail pages
+- Implemented "Request UMA Settlement" button (feature-flagged)
+- Implemented "Propose Outcome on UMA Oracle" button with redirect (feature-flagged)
+- Shows blockchain address with PolygonScan link
+- Displays UMA settlement status and liveness period
+
+**Files:**
+- `components/blockchain-status.tsx` - Main status component
+- `app/market/[id]/market-detail-client.tsx` - Integrated into market page
 
 ---
 
-## 🚧 Current Phase: Amoy Testnet Testing
+## 🚧 Current Phase: Phase 2 (Auto-Deploy Markets) - READY FOR IMPLEMENTATION
 
-### Phase 6: Deploy to Amoy Testnet (IN PROGRESS)
+### Status: Infrastructure Complete, Feature Flags Enabled
 
-**Next Steps:**
-1. Get test MATIC from Polygon Amoy faucet
-2. Deploy contracts to Amoy using `npm run blockchain:deploy:amoy`
-3. Verify contracts on PolygonScan
-4. Update `.env.local` with deployed contract addresses
-5. Test deployment by creating a market on-chain
+All the infrastructure is in place and ready to go. The feature flag system allows you to:
+- **Currently**: UI is visible but blockchain operations are disabled
+- **When ready**: Flip `ENABLE_BLOCKCHAIN_DEPLOYMENT=true` to start auto-deploying markets
 
-**Resources:**
-- Faucet: https://faucet.polygon.technology/
-- Explorer: https://amoy.polygonscan.com/
-- RPC: https://rpc-amoy.polygon.technology
+**What's Already Built:**
+- ✅ Amoy testnet deployment complete
+- ✅ Feature flag system implemented
+- ✅ Blockchain UI components created
+- ✅ Safe wrapper functions for all blockchain operations
+- ✅ Database schema ready
+- ✅ All smart contracts tested and deployed
+
+**To Enable Auto-Deploy (When Ready):**
+1. Update `.env.local`: `NEXT_PUBLIC_ENABLE_BLOCKCHAIN_DEPLOYMENT=true`
+2. The system will automatically deploy public markets on creation
+3. All UI elements are already built and ready
 
 ---
 
-## 📋 Implementation Roadmap
+## 📋 Next Implementation Phases
 
-### Phase 7: Auto-Deploy Markets on Creation (TODO)
+### Phase 8: Auto-Deploy Markets on Creation (READY TO ENABLE)
+
+**Current Status:** Code is implemented with feature flags OFF
 
 When user creates a public market, automatically deploy on-chain version:
 
-**Implementation:**
-1. Update `app/actions/create-market.ts`
-   - After market creation succeeds
-   - Check if market is public
-   - Trigger `deployMarketToBlockchain(marketId)` asynchronously
-   - Don't block user flow (happens in background)
+**Already Implemented:**
+- `app/actions/markets.ts` - Has background deployment logic
+- Feature flag check before deployment
+- Database updates for blockchain_address
+- Error handling and logging
 
-2. Database updates:
-   - Mark market as `blockchain_pending` during deployment
-   - Update to `blockchain_deployed` when confirmed
-   - Store blockchain_address and transaction hash
+**To Activate:**
+1. Set `NEXT_PUBLIC_ENABLE_BLOCKCHAIN_DEPLOYMENT=true`
+2. Test with a public market creation
+3. Verify deployment transaction on PolygonScan
+4. Confirm database updated with blockchain_address
 
-**Edge Cases:**
-- Retry mechanism for failed deployments (3 attempts)
-- Queue system if blockchain is temporarily unavailable
-- Admin alert if deployment fails after retries
-- Private markets: NEVER deploy (only public markets)
-
-**Files to create/modify:**
-- `app/actions/create-market.ts` (add auto-deploy logic)
-- `app/actions/uma-settlement.ts` (ensure deployMarketToBlockchain works with Amoy)
+**Edge Cases to Test:**
+- Failed deployment (low gas, network issues)
+- Retry mechanism works correctly
+- Private markets don't deploy (only public)
+- Multiple markets created simultaneously
 
 ---
 
-### Phase 8: Settlement Request Flow (TODO)
+### Phase 9: Settlement Request Flow (TODO)
 
 Allow admin/creator to request UMA settlement when market closes:
 
 **Implementation:**
-1. Create `app/actions/request-uma-settlement.ts`
-   - Verify market is closed (past end_time)
-   - Get blockchain address from database
-   - Call `market.requestOracleResolution()` on-chain
-   - Update database status to `pending_settlement`
-   - Store UMA request timestamp
+1. Update `app/actions/blockchain-wrapper.ts`
+   - `requestUMASettlement()` function exists
+   - Enable feature flag when ready
+   - Verify market is closed before calling
 
 2. Database updates:
-   - Add `uma_request_tx_hash` column
+   - Store `uma_request_tx_hash`
    - Store `uma_requested_at` timestamp
    - Update status to `pending_settlement`
 
 **Access Control:**
-- Only market creator or platform admins can request settlement
-- Only works if market is closed
-- Only works if market has blockchain_address
-
-**Files to create:**
-- `app/actions/request-uma-settlement.ts`
-
----
-
-### Phase 9: UMA Oracle Redirect (TODO)
-
-Redirect users to UMA's official oracle interface for proposals:
-
-**UMA Oracle URL Format:**
-\`\`\`
-https://oracle.uma.xyz/propose/80002/<marketAddress>
-\`\`\`
-
-**Implementation:**
-1. Update `app/markets/[id]/page.tsx`
-   - Show "Propose Outcome on UMA Oracle" button
-   - Only visible when status is `pending_settlement`
-   - Button opens UMA URL in new tab
-   - Display helper text about bond requirements
-
-2. Create informational modal:
-   - Explain UMA Optimistic Oracle
-   - Explain USDC bond requirement (typically 1000 USDC)
-   - Show liveness period (2 hours)
-   - Link to UMA documentation
-   - Show that ANYONE can propose (not just platform users)
-
-**Important:**
-- This is OFF-PLATFORM - users interact directly with UMA
-- Platform does NOT handle proposals, disputes, or bonds
-- UMA's interface handles all of that
-- Platform just provides the link
-
-**Files to modify:**
-- `app/markets/[id]/page.tsx` (add redirect button)
-- Create: `components/uma-info-modal.tsx`
+- Only market creator or platform admins
+- Only if market is closed
+- Only if blockchain_address exists
 
 ---
 
@@ -252,189 +248,48 @@ For each market:
 
 ---
 
-### Phase 11: UI Updates (TODO)
+### Phase 11: UMA Oracle Interface URL Research (TODO)
 
-Add blockchain status display and UMA integration to market pages:
+Need to determine the correct UMA oracle interface URL for Amoy testnet:
 
-**Market Detail Page (`app/markets/[id]/page.tsx`):**
+**Research Tasks:**
+1. Find UMA's official oracle interface for testnets
+2. Determine URL structure: `https://oracle.uma.xyz/propose/{chainId}/{address}`
+3. Test URL opens correctly and shows market
+4. Add fallback if UMA doesn't have testnet interface yet
 
-1. **Blockchain Status Section**
-   - Show deployment status (pending/deployed/failed)
-   - Display blockchain address with PolygonScan link
-   - Show network (Localhost/Amoy/Polygon)
-
-2. **Settlement Timeline**
-   - Market lifecycle visualization
-   - Current stage highlighted
-   - Countdown timers for liveness period
-
-3. **Conditional Action Buttons**
-   - "Request UMA Settlement" (if closed, not yet requested)
-   - "Propose Outcome on UMA Oracle" (if settlement requested)
-   - "View on UMA Oracle" (if proposal exists)
-   - "Settlement in Progress" (if in liveness period)
-   - "Settlement Complete" (if resolved)
-
-**Admin Page Updates (`app/admin/page.tsx`):**
-- List of markets pending settlement
-- Blockchain transaction history
-- Failed deployments requiring attention
-- Gas cost tracking
-
-**Files to modify:**
-- `app/markets/[id]/page.tsx`
-- `app/admin/page.tsx`
-- Create: `components/blockchain-status.tsx`
-- Create: `components/settlement-timeline.tsx`
-- Create: `components/uma-settlement-panel.tsx`
+**Alternative:**
+- If no testnet UI exists, interact directly with contracts via PolygonScan
+- Document the manual process for proposing outcomes
 
 ---
 
-### Phase 12: Error Handling & Edge Cases (TODO)
-
-**1. Failed Blockchain Deployments**
-- Retry mechanism (3 attempts with exponential backoff)
-- Admin notification system
-- Manual retry button in UI
-- Fallback: Market works without blockchain (admin settles manually)
-
-**2. Network Issues**
-- Graceful RPC timeout handling
-- Queue settlements if blockchain unavailable
-- Display warning in UI if connection fails
-- Automatic reconnection attempts
-
-**3. Settlement Conflicts**
-- Always trust UMA outcome (never override)
-- Admin override only for extreme emergencies (with audit log)
-- Clear documentation on dispute process
-
-**4. Gas Price Spikes**
-- Monitor gas prices before deployment
-- Delay deployment if gas exceeds threshold
-- Set reasonable gas limits to prevent failures
-
-**5. User Education**
-- Modal explaining UMA oracle process
-- FAQ section about settlement
-- Links to UMA documentation
-- Expected timeline information (2+ hours)
-
----
-
-## 🔧 Environment Variables
-
-### Required for Amoy Testing:
-
-\`\`\`env
-# Network Selection
-BLOCKCHAIN_NETWORK=amoy
-
-# RPC URLs
-AMOY_RPC_URL=https://rpc-amoy.polygon.technology
-LOCALHOST_RPC_URL=http://127.0.0.1:8545
-
-# Private Key (for backend operations)
-AMOY_PRIVATE_KEY=your_testnet_wallet_private_key
-LOCALHOST_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-
-# Contract Addresses (update after deployment)
-AMOY_MARKET_FACTORY_ADDRESS=<from_deployment>
-AMOY_UMA_ADAPTER_ADDRESS=<from_deployment>
-AMOY_COLLATERAL_VAULT_ADDRESS=<from_deployment>
-AMOY_MOCK_USDC_ADDRESS=<from_deployment>
-
-# Localhost Addresses (from local testing)
-LOCALHOST_MARKET_FACTORY_ADDRESS=0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
-LOCALHOST_UMA_ADAPTER_ADDRESS=0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-LOCALHOST_COLLATERAL_VAULT_ADDRESS=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-LOCALHOST_MOCK_USDC_ADDRESS=<from_local_deployment>
-
-# Polygon Mainnet (future)
-POLYGON_RPC_URL=https://polygon-rpc.com
-POLYGON_PRIVATE_KEY=<production_key>
-POLYGON_MARKET_FACTORY_ADDRESS=<from_mainnet_deployment>
-POLYGON_UMA_ADAPTER_ADDRESS=<from_mainnet_deployment>
-POLYGON_COLLATERAL_VAULT_ADDRESS=<from_mainnet_deployment>
-\`\`\`
-
----
-
-## 🧪 Testing Plan
-
-### Localhost Testing ✅ COMPLETE
-- [x] Start Hardhat node
-- [x] Deploy contracts locally
-- [x] Create test market
-- [x] Deploy market to blockchain
-- [x] Execute trades (off-chain)
-- [x] Request UMA settlement
-- [x] Propose outcome (with USDC bond)
-- [x] Fast-forward time (2 hours)
-- [x] Finalize outcome
-- [x] Verify settlement executed
-- [x] Verify payouts distributed
+## 🎯 Testing Roadmap
 
 ### Amoy Testnet Testing (IN PROGRESS)
-- [ ] Get test MATIC from faucet
-- [ ] Deploy contracts to Amoy
-- [ ] Verify contracts on PolygonScan
+- [x] Get test MATIC from faucet
+- [x] Deploy contracts to Amoy
+- [x] Verify contracts on PolygonScan
+- [x] Update configuration with deployed addresses
+- [x] Build feature flag system
+- [x] Build blockchain UI components
+- [ ] Enable auto-deploy flag
 - [ ] Create public market on platform
 - [ ] Verify auto-deployment works
 - [ ] Execute test trades
 - [ ] Request UMA settlement
-- [ ] Redirect to UMA oracle (test URL)
-- [ ] Manually propose outcome on UMA's site
+- [ ] Research UMA oracle interface URL
+- [ ] Propose outcome (via UMA or PolygonScan)
 - [ ] Wait for real liveness period (2 hours)
-- [ ] Verify monitor detects resolution
-- [ ] Verify automatic settlement triggers
+- [ ] Build monitoring service
+- [ ] Test automatic settlement detection
 - [ ] Verify payouts distributed correctly
 
-### Polygon Mainnet Testing (FUTURE)
-- [ ] Deploy contracts to mainnet
-- [ ] Test with small market first
-- [ ] Monitor gas costs
-- [ ] Verify UMA integration works
-- [ ] Test full lifecycle with real users
-- [ ] Monitor settlement automation
-
 ---
 
-## 💰 Cost Analysis
+## 💡 Why This Architecture Works
 
-### Gas Costs (Estimated)
-
-**Polygon Amoy (Testnet):**
-- Deploy Market: ~0.5-1 test MATIC
-- Request Settlement: ~0.1-0.2 test MATIC
-- Mock USDC is free (we control it)
-
-**Polygon Mainnet:**
-- Deploy Market: ~$0.50 - $1.00 USD
-- Request Settlement: ~$0.10 - $0.20 USD
-- Total per market: ~$0.60 - $1.20 USD
-
-**Compare to Ethereum Mainnet:**
-- Would cost $50-100 per market
-- Polygon is 100x cheaper
-
-### UMA Bonds (Off-Platform):
-- Proposers need USDC bond (typically 1000 USDC)
-- Refunded if proposal is correct
-- Lost if proposal is incorrect and disputed
-- Platform does NOT manage bonds
-- Users handle bonds directly with UMA
-
-### Scalability:
-- 1,000 markets = ~$1,000 in gas costs on Polygon
-- vs. $100,000 on Ethereum
-- Trading remains free (off-chain)
-
----
-
-## 🎯 Key Architecture Decisions
-
-### Why This Approach is Better:
+### Advantages:
 
 1. **Simpler Integration**
    - No complex bond management in platform
@@ -455,174 +310,58 @@ POLYGON_COLLATERAL_VAULT_ADDRESS=<from_mainnet_deployment>
    - Aligns with crypto principles
 
 4. **Better UX for Crypto Users**
-   - Users familiar with UMA already know the interface
-   - Professional dispute resolution UI
+   - Users familiar with UMA know the interface
+   - Professional dispute resolution
    - Established trust in UMA's process
-   - Platform focuses on trading (its strength)
+   - Platform focuses on trading
 
-5. **Lower Development Cost**
-   - Don't build proposal UI
-   - Don't manage USDC deposits
-   - Don't handle disputes
-   - Focus on what platform does best
-
-### Trade-offs:
-
-- **Dependency**: Relies on UMA's UI being available (but UMA is decentralized, so low risk)
-- **User Friction**: Slight redirect experience (but unavoidable with any oracle)
-- **Education**: Users need to understand UMA (but we provide clear documentation)
-
----
-
-## 🔐 Security Considerations
-
-1. **Smart Contract Security**
-   - Contracts tested locally with full lifecycle
-   - Will audit before mainnet deployment
-   - Use OpenZeppelin standards where possible
-   - Proper access control (only owner can settle)
-
-2. **Private Key Management**
-   - Backend wallet for automated operations
-   - Keep private keys in environment variables
-   - Never commit to git
-   - Use different keys for testnet/mainnet
-
-3. **Settlement Integrity**
-   - Always trust UMA outcome (never override)
-   - Log all settlement attempts
-   - Audit trail in blockchain_transactions table
-   - Admin override only with explicit logging
-
-4. **Access Control**
-   - Only public markets deploy to blockchain
-   - Private markets use existing settlement
-   - Only creator/admin can request settlement
-   - Anyone can propose on UMA (by design)
-
----
-
-## 📊 How It Works (Detailed Flow)
-
-### For Public Markets:
-
-**1. Market Creation**
-\`\`\`
-User creates public market in UI
-  ↓
-Market saved to AWS RDS (status: 'active')
-  ↓
-Background job: Deploy Market contract to Polygon
-  ↓
-Database updated with blockchain_address
-  ↓
-Market is now live (trading on platform, settlement on-chain)
-\`\`\`
-
-**2. Trading Phase**
-\`\`\`
-Users trade on platform (AWS RDS)
-  ↓
-LMSR pricing calculates share prices
-  ↓
-All transactions stored in database
-  ↓
-NO blockchain interaction (fast & free)
-\`\`\`
-
-**3. Market Closes**
-\`\`\`
-Market reaches end_time
-  ↓
-Trading stops (status: 'closed')
-  ↓
-"Request UMA Settlement" button appears
-  ↓
-Creator/admin clicks button
-  ↓
-Platform calls market.requestOracleResolution() on-chain
-  ↓
-Database status: 'pending_settlement'
-  ↓
-UMA liveness period begins
-\`\`\`
-
-**4. Outcome Proposal (OFF-PLATFORM)**
-\`\`\`
-"Propose Outcome on UMA Oracle" button appears
-  ↓
-Users click → Redirected to oracle.uma.xyz
-  ↓
-User connects wallet on UMA's site
-  ↓
-User proposes outcome (YES or NO)
-  ↓
-UMA deducts bond (e.g., 1000 USDC)
-  ↓
-2-hour liveness period starts
-  ↓
-Anyone can dispute during liveness
-  ↓
-If no dispute → Outcome finalizes
-\`\`\`
-
-**5. Automatic Settlement**
-\`\`\`
-Monitor service runs every minute
-  ↓
-Checks: market.resolved() === true?
-  ↓
-If YES: Read outcome from blockchain
-  ↓
-Call settle_market(marketId, outcome) in database
-  ↓
-Existing settlement logic distributes winnings
-  ↓
-Market status: 'settled'
-  ↓
-Users see updated balances
-\`\`\`
-
-### For Private Markets:
-
-- NO blockchain interaction
-- Use existing bond-based settlement
-- Admin or voters settle manually
-- Settlement logic unchanged
+5. **Scalable & Cost-Effective**
+   - Trading is off-chain (free, fast)
+   - Only settlement touches blockchain (~$1 per market)
+   - Can handle thousands of trades without gas costs
+   - Polygon is 100x cheaper than Ethereum
 
 ---
 
 ## 📝 Current Status Summary
 
 **What's Working:**
-- Smart contracts fully developed and tested
-- Local testing complete (full E2E flow verified)
-- Database schema ready
-- Backend integration layer complete
-- Deployment scripts ready for Amoy
+- ✅ Smart contracts fully developed and tested locally
+- ✅ Amoy testnet deployment complete
+- ✅ Database schema ready
+- ✅ Backend integration layer complete
+- ✅ Feature flag system implemented
+- ✅ Blockchain UI components created
+- ✅ Safe wrapper functions for all operations
 
 **What's Next:**
-- Deploy to Amoy testnet
-- Build auto-deploy functionality
-- Create settlement monitoring service
-- Build UI components for UMA integration
+- Enable auto-deploy flag when ready to test
+- Build settlement monitoring service
+- Research UMA oracle interface URLs
+- Test full lifecycle on Amoy testnet
+- Polish UI and error handling
 
 **Timeline Estimate:**
-- Amoy deployment: 1-2 days
-- Auto-deploy implementation: 2-3 days
-- Monitoring service: 2-3 days
-- UI components: 3-5 days
-- Testing & polish: 3-5 days
-- **Total: 2-3 weeks to production-ready**
+- Enable and test auto-deploy: 1-2 days
+- Build monitoring service: 2-3 days
+- Research UMA interface: 1 day
+- Full Amoy testing: 3-5 days
+- Polish and edge cases: 2-3 days
+- **Total: 1-2 weeks to production-ready**
 
 ---
 
 ## 🔗 Useful Resources
 
 - UMA Documentation: https://docs.uma.xyz/
-- UMA Oracle Interface: https://oracle.uma.xyz/
+- UMA Oracle (Production): https://oracle.umaproject.org/
 - Polygon Amoy Faucet: https://faucet.polygon.technology/
 - Polygon Amoy Explorer: https://amoy.polygonscan.com/
 - Polygon RPC: https://rpc-amoy.polygon.technology
 - Hardhat Documentation: https://hardhat.org/docs
-</automated_v0_instructions_reminder>
+
+**Deployed Contracts:**
+- MarketFactory: https://amoy.polygonscan.com/address/0x7C4568517b91556838112A8F44CDB20C93371e34
+- UMAOracleAdapter: https://amoy.polygonscan.com/address/0x2bC62134BD9c33da2044DF1fd0275FA743Deb8E7
+- CollateralVault: https://amoy.polygonscan.com/address/0x5Cc9e2925D383d26527D64f7c17de7a03a96Eb09
+- MockUSDC: https://amoy.polygonscan.com/address/0xfBfB1b295fb11e73cfDbE3CF0e047aDC838fCE9b

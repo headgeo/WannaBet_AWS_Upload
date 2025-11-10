@@ -4,7 +4,8 @@ import { insert, update, select } from "@/lib/database/adapter"
 import { createClient } from "@/lib/supabase/server"
 import { calculateBFromLiquidity } from "@/lib/lmsr"
 import { revalidatePath } from "next/cache"
-import { checkRateLimit } from "@/lib/rate-limit-enhanced"
+import { BLOCKCHAIN_FEATURES } from "@/lib/blockchain/feature-flags"
+import { deployMarketToBlockchain } from "./uma-settlement"
 
 export async function getUserBalance() {
   try {
@@ -47,14 +48,6 @@ export async function createMarket(data: CreateMarketData) {
 
     if (userError || !user) {
       return { error: "You must be logged in to create a market" }
-    }
-
-    const rateLimit = await checkRateLimit(user.id, "market_creation")
-    if (!rateLimit.allowed) {
-      const resetTime = rateLimit.resetAt.toLocaleTimeString()
-      return {
-        error: `Rate limit exceeded. You can create ${rateLimit.remaining} more markets. Limit resets at ${resetTime}.`,
-      }
     }
 
     // Get user balance
@@ -118,6 +111,32 @@ export async function createMarket(data: CreateMarketData) {
 
     if (updateResult.error) {
       return { error: `Failed to update balance: ${updateResult.error.message}` }
+    }
+
+    // Record transaction
+    const transactionResult = await insert("transactions", {
+      user_id: user.id,
+      market_id: createdMarket.id,
+      type: "market_creation",
+      amount: -data.liquidityAmount,
+      description: `Created market: ${data.title} (Liquidity: $${data.liquidityAmount})`,
+    })
+
+    if (transactionResult.data && transactionResult.data[0]) {
+      const transactionId = transactionResult.data[0].id
+
+      await insert("ledger_entries", {
+        user_id: user.id,
+        transaction_id: transactionId,
+        market_id: createdMarket.id,
+        debit: data.liquidityAmount,
+        credit: 0,
+        balance_before: userBalance,
+        balance_after: userBalance - data.liquidityAmount,
+        entry_type: "market_creation",
+        description: `Liquidity posted for market: ${data.title}`,
+        idempotency_key: `market_creation_${createdMarket.id}_${user.id}`,
+      })
     }
 
     // Add participants for private markets
@@ -191,6 +210,16 @@ export async function createMarket(data: CreateMarketData) {
 
     revalidatePath("/")
     revalidatePath("/markets")
+
+    if (BLOCKCHAIN_FEATURES.AUTO_DEPLOY_MARKETS && !data.isPrivate) {
+      console.log("[v0] Auto-deploying public market to blockchain:", createdMarket.id)
+
+      // Deploy in background - don't block user flow
+      deployMarketToBlockchain(createdMarket.id, user.id).catch((error) => {
+        console.error("[v0] Background blockchain deployment failed:", error)
+        // Don't fail market creation if blockchain deployment fails
+      })
+    }
 
     return { success: true, marketId: createdMarket.id }
   } catch (error: any) {

@@ -18,7 +18,7 @@ export async function getMarketData(marketId: string) {
 
   const marketData = await select(
     "markets",
-    "*, settled_at, winning_side, settlement_status, settlement_initiated_at, contest_deadline, creator_settlement_outcome",
+    "*, settled_at, winning_side, settlement_status, settlement_initiated_at, contest_deadline, creator_settlement_outcome, blockchain_market_address, blockchain_status, uma_request_id, uma_liveness_ends_at",
     [{ column: "id", operator: "eq", value: marketId }],
   )
 

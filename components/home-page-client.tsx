@@ -4,7 +4,17 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, Plus, Shield, LogOut, Wallet, BarChart, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import {
+  TrendingUp,
+  Plus,
+  Shield,
+  LogOut,
+  Wallet,
+  BarChart,
+  DollarSign,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react"
 import Link from "next/link"
 import { NotificationBell } from "@/components/notifications"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -13,7 +23,7 @@ import { MobileHeader } from "@/components/mobile-header"
 import { useMarkets } from "@/lib/hooks/use-markets"
 import { initiateSettlement } from "@/app/actions/oracle-settlement"
 import { cancelPrivateMarket } from "@/app/actions/admin"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 
 interface HomePageProps {
   userId: string
@@ -130,9 +140,6 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
               </Button>
               <Button variant="ghost" asChild>
                 <Link href="/my-bets">My Bets</Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/wallet">Wallet</Link>
               </Button>
               {userIsAdmin && (
                 <Button variant="ghost" asChild className="text-blue-600 hover:text-blue-700">

@@ -14,7 +14,6 @@ import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
 import { initiateSettlement, contestSettlement, submitVote, getSettlementStatus } from "@/app/actions/oracle-settlement"
-import { requestUMASettlement, openUMAOracleInterface } from "@/app/actions/blockchain-wrapper"
 import { BlockchainStatus } from "@/components/blockchain-status"
 import Link from "next/link"
 import {
@@ -105,13 +104,11 @@ export function MarketDetailClient({
   const [isSettling, setIsSettling] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [settlementStatus, setSettlementStatus] = useState<any>(null)
-  const [isInitiatingSettlement, setIsInitiatingSettlement] = useState(false)
   const [isContesting, setIsContesting] = useState(false)
   const [isVoting, setIsVoting] = useState(false)
   const [selectedOutcome, setSelectedOutcome] = useState<boolean | null>(null)
   const [voteOutcome, setVoteOutcome] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isRequestingUMASettlement, setIsRequestingUMASettlement] = useState(false)
   const router = useRouter()
 
   const marketStatus = getMarketStatusDisplay(market)
@@ -329,40 +326,6 @@ export function MarketDetailClient({
     }
   }
 
-  const handleRequestUMASettlement = async () => {
-    setIsRequestingUMASettlement(true)
-    setError(null)
-
-    try {
-      const result = await requestUMASettlement(market.id, currentUserId)
-
-      if (!result.success) {
-        throw new Error(result.error || "Settlement request failed")
-      }
-
-      router.refresh()
-    } catch (error: any) {
-      console.error("[v0] UMA settlement request error:", error)
-      setError(error.message)
-    } finally {
-      setIsRequestingUMASettlement(false)
-    }
-  }
-
-  const handleOpenUMAOracle = async () => {
-    if (!market.blockchain_market_address) return
-
-    try {
-      const result = await openUMAOracleInterface(market.blockchain_market_address)
-      if (result.success && result.url) {
-        window.open(result.url, "_blank")
-      }
-    } catch (error: any) {
-      console.error("[v0] Failed to open UMA oracle:", error)
-      setError(error.message)
-    }
-  }
-
   const fetchSettlementStatus = async () => {
     try {
       const result = await getSettlementStatus(market.id)
@@ -417,13 +380,6 @@ export function MarketDetailClient({
 
   const yesPosition = userPositions.find((pos) => pos.side === true)
   const noPosition = userPositions.find((pos) => pos.side === false)
-
-  const canRequestUMASettlement =
-    !market.is_private &&
-    market.blockchain_market_address &&
-    !market.uma_request_id &&
-    market.status === "closed" &&
-    !marketSettled
 
   const hasUMARequest = !market.is_private && market.uma_request_id
 
@@ -757,9 +713,12 @@ export function MarketDetailClient({
 
             {!tradingAllowed && !marketSettled && market.status !== "suspended" && market.status !== "contested" && (
               <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/20">
+                <CardHeader>
+                  <CardTitle className="text-lg">Trading Closed</CardTitle>
+                </CardHeader>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
-                    <AlertTriangle className="w-5 h-5" />
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />
                     <span className="font-medium">Trading Closed</span>
                   </div>
                   <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
@@ -900,9 +859,6 @@ export function MarketDetailClient({
                 umaRequestId={market.uma_request_id}
                 livenessEndsAt={market.uma_liveness_ends_at}
                 isPrivate={market.is_private}
-                onRequestSettlement={canRequestUMASettlement ? handleRequestUMASettlement : undefined}
-                onProposeOutcome={hasUMARequest ? handleOpenUMAOracle : undefined}
-                isRequestingSettlement={isRequestingUMASettlement}
               />
             )}
 

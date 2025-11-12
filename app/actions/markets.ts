@@ -6,6 +6,7 @@ import { calculateBFromLiquidity } from "@/lib/lmsr"
 import { revalidatePath } from "next/cache"
 import { BLOCKCHAIN_FEATURES } from "@/lib/blockchain/feature-flags"
 import { deployMarketToBlockchain } from "./uma-settlement"
+import { recordMarketCreationReward } from "@/lib/platform-ledger"
 
 export async function getUserBalance() {
   try {
@@ -60,7 +61,33 @@ export async function createMarket(data: CreateMarketData) {
     }
 
     const endDateTime = new Date(data.endDate)
-    const calculatedB = calculateBFromLiquidity(data.liquidityAmount)
+
+    const UMA_COLLATERAL = 10 // $10 reserved for UMA proposal reward
+    const isPublicMarket = !data.isPrivate
+
+    let liquidityForPool = data.liquidityAmount // Amount that goes into liquidity_pool
+    let liquidityForReward = 0 // Amount set aside for UMA reward
+
+    if (isPublicMarket) {
+      // For public markets, deduct $10 for UMA reward
+      liquidityForReward = UMA_COLLATERAL
+      liquidityForPool = data.liquidityAmount - UMA_COLLATERAL
+
+      if (liquidityForPool < 10) {
+        return { error: "Public markets require at least $20 in liquidity ($10 for UMA, $10+ for trading)" }
+      }
+    }
+
+    // Calculate b-value using ONLY the pool liquidity (which is already reduced by $10)
+    const calculatedB = calculateBFromLiquidity(liquidityForPool)
+
+    console.log("[v0] Market liquidity split:", {
+      isPublic: isPublicMarket,
+      totalPosted: data.liquidityAmount,
+      liquidityForPool,
+      liquidityForReward,
+      calculatedB,
+    })
 
     const invitedGroups = data.invitedItems.filter((item) => item.type === "group")
     const groupId = data.isPrivate && invitedGroups.length > 0 ? invitedGroups[0].id : null
@@ -82,9 +109,11 @@ export async function createMarket(data: CreateMarketData) {
       no_shares: 0,
       qy: 0,
       qn: 0,
-      liquidity_pool: data.liquidityAmount,
-      b: calculatedB,
+      liquidity_pool: liquidityForPool, // Reduced by $10 for public markets
+      liquidity_posted_for_reward: liquidityForReward, // $10 for UMA, $0 for private
+      b: calculatedB, // b-value calculated from reduced liquidity
       group_id: groupId,
+      blockchain_status: "not_deployed", // Use blockchain_status instead of blockchain_deployment_status
     })
 
     if (market.error || !market.data || market.data.length === 0) {
@@ -102,6 +131,43 @@ export async function createMarket(data: CreateMarketData) {
       total_volume: 0,
     })
 
+    // Record transaction
+    const transactionResult = await insert("transactions", {
+      user_id: user.id,
+      market_id: createdMarket.id,
+      type: "market_creation",
+      amount: -data.liquidityAmount, // Full amount deducted from balance
+      description: `Created market: ${data.title} (Liquidity: $${data.liquidityAmount}${isPublicMarket ? `, $${liquidityForReward} for UMA reward` : ""})`,
+    })
+
+    console.log("[v0] Transaction result:", transactionResult)
+
+    if (transactionResult.data && transactionResult.data[0]) {
+      const transactionId = transactionResult.data[0].id
+
+      console.log("[v0] Inserting ledger entry for market creation, transaction_id:", transactionId)
+
+      const ledgerResult = await insert("ledger_entries", {
+        user_id: user.id,
+        transaction_id: transactionId,
+        market_id: createdMarket.id,
+        debit: data.liquidityAmount, // Full amount in ledger
+        credit: 0,
+        balance_after: userBalance - data.liquidityAmount,
+        entry_type: "market_creation",
+        description: `Liquidity posted for market: ${data.title}${isPublicMarket ? ` ($${liquidityForPool} trading, $${liquidityForReward} UMA)` : ""}`,
+        idempotency_key: `market_creation_${createdMarket.id}_${user.id}`,
+      })
+
+      console.log("[v0] Ledger entry result:", ledgerResult)
+
+      if (ledgerResult.error) {
+        console.error("[v0] Failed to insert ledger entry:", ledgerResult.error)
+      }
+    } else {
+      console.error("[v0] No transaction ID returned, cannot create ledger entry")
+    }
+
     // Update user balance
     const updateResult = await update(
       "profiles",
@@ -111,32 +177,6 @@ export async function createMarket(data: CreateMarketData) {
 
     if (updateResult.error) {
       return { error: `Failed to update balance: ${updateResult.error.message}` }
-    }
-
-    // Record transaction
-    const transactionResult = await insert("transactions", {
-      user_id: user.id,
-      market_id: createdMarket.id,
-      type: "market_creation",
-      amount: -data.liquidityAmount,
-      description: `Created market: ${data.title} (Liquidity: $${data.liquidityAmount})`,
-    })
-
-    if (transactionResult.data && transactionResult.data[0]) {
-      const transactionId = transactionResult.data[0].id
-
-      await insert("ledger_entries", {
-        user_id: user.id,
-        transaction_id: transactionId,
-        market_id: createdMarket.id,
-        debit: data.liquidityAmount,
-        credit: 0,
-        balance_before: userBalance,
-        balance_after: userBalance - data.liquidityAmount,
-        entry_type: "market_creation",
-        description: `Liquidity posted for market: ${data.title}`,
-        idempotency_key: `market_creation_${createdMarket.id}_${user.id}`,
-      })
     }
 
     // Add participants for private markets
@@ -199,26 +239,45 @@ export async function createMarket(data: CreateMarketData) {
       }
     }
 
-    // Record transaction
-    await insert("transactions", {
-      user_id: user.id,
-      market_id: createdMarket.id,
-      type: "market_creation",
-      amount: -data.liquidityAmount,
-      description: `Created market: ${data.title} (Liquidity: $${data.liquidityAmount})`,
-    })
-
     revalidatePath("/")
     revalidatePath("/markets")
+
+    if (isPublicMarket && liquidityForReward > 0) {
+      console.log("[v0] Recording platform ledger entry for market creation reward")
+      await recordMarketCreationReward(createdMarket.id, user.id, liquidityForReward)
+    }
 
     if (BLOCKCHAIN_FEATURES.AUTO_DEPLOY_MARKETS && !data.isPrivate) {
       console.log("[v0] Auto-deploying public market to blockchain:", createdMarket.id)
 
-      // Deploy in background - don't block user flow
-      deployMarketToBlockchain(createdMarket.id, user.id).catch((error) => {
-        console.error("[v0] Background blockchain deployment failed:", error)
-        // Don't fail market creation if blockchain deployment fails
-      })
+      // Deploy in background with better error handling
+      deployMarketToBlockchain(createdMarket.id, user.id)
+        .then(async (result) => {
+          if (result.success) {
+            console.log("[v0] Blockchain deployment succeeded:", result.data)
+          } else {
+            console.error("[v0] Blockchain deployment failed:", result.error)
+
+            await update(
+              "markets",
+              { blockchain_status: "not_deployed" },
+              { column: "id", operator: "eq", value: createdMarket.id },
+            )
+          }
+        })
+        .catch(async (error) => {
+          console.error("[v0] Blockchain deployment error:", error)
+
+          try {
+            await update(
+              "markets",
+              { blockchain_status: "not_deployed" },
+              { column: "id", operator: "eq", value: createdMarket.id },
+            )
+          } catch (dbError) {
+            console.error("[v0] Failed to update deployment status:", dbError)
+          }
+        })
     }
 
     return { success: true, marketId: createdMarket.id }

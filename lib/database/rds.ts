@@ -61,25 +61,14 @@ export function getRDSPool(): Pool {
       ssl: {
         rejectUnauthorized: false, // Set to false for AWS RDS connections
       },
-      max: 50, // Increased from 20 to 50 for better concurrency
-      min: 5, // Keep 5 connections warm
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 5000, // Reduced from 10s to 5s for faster failure
-      statement_timeout: 30000, // 30 second query timeout
-      query_timeout: 30000, // 30 second query timeout
+      max: 5, // Reduced from 20 to 5 to prevent connection exhaustion
+      idleTimeoutMillis: 10000, // Reduced from 30s to 10s to release connections faster
+      connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection cannot be established
     })
 
     // Handle pool errors
     pool.on("error", (err) => {
       console.error("[RDS Pool] Unexpected error on idle client", err)
-    })
-
-    pool.on("connect", () => {
-      console.log("[RDS Pool] New client connected")
-    })
-
-    pool.on("remove", () => {
-      console.log("[RDS Pool] Client removed from pool")
     })
 
     pool
@@ -92,21 +81,14 @@ export function getRDSPool(): Pool {
 }
 
 /**
- * Execute a query with automatic connection management and timeout protection
+ * Execute a query with automatic connection management
  */
 export async function query<T = any>(text: string, params?: any[]): Promise<{ rows: T[]; rowCount: number }> {
   const pool = getRDSPool()
   const start = Date.now()
 
   try {
-    // Add statement timeout to prevent long-running queries
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Query timeout after 30 seconds")), 30000)
-    })
-
-    const queryPromise = pool.query(text, params)
-    const result = await Promise.race([queryPromise, timeoutPromise])
-
+    const result = await pool.query(text, params)
     const duration = Date.now() - start
 
     // Log slow queries (over 1 second)
@@ -119,10 +101,8 @@ export async function query<T = any>(text: string, params?: any[]): Promise<{ ro
 
     return result
   } catch (error) {
-    const duration = Date.now() - start
     console.error("[RDS] Query error:", {
       error,
-      duration: `${duration}ms`,
       query: text.substring(0, 100),
     })
     throw error

@@ -1,6 +1,6 @@
 /**
  * UMA Oracle Settlement Actions
- * Server actions for UMA-based settlement (completely separate from internal oracle)
+ * Server actions for UMA-based settlement using OptimisticOracleV3 directly
  * Handles blockchain interactions for public markets using UMA oracle
  */
 
@@ -8,6 +8,7 @@
 import { getUMAClient } from "@/lib/blockchain/client"
 import { insert, update, select, rpc } from "@/lib/database/adapter"
 import { revalidatePath } from "next/cache"
+import { recordSettlementLeftover, recordUMARewardPayout } from "@/lib/platform-ledger"
 
 // ============================================================================
 // PHASE 1: Market Deployment to Blockchain
@@ -15,6 +16,8 @@ import { revalidatePath } from "next/cache"
 
 export async function deployMarketToBlockchain(marketId: string, userId?: string) {
   try {
+    console.log("[v0] Starting blockchain deployment for market:", marketId)
+
     if (!userId) {
       return { success: false, error: "User ID required" }
     }
@@ -28,6 +31,14 @@ export async function deployMarketToBlockchain(marketId: string, userId?: string
 
     const market = markets[0]
 
+    console.log("[v0] Market details:", {
+      id: marketId,
+      title: market.title,
+      end_date: market.end_date,
+      liquidity_pool: market.liquidity_pool,
+      liquidity_posted_for_reward: market.liquidity_posted_for_reward,
+    })
+
     // Check if already deployed
     if (market.blockchain_market_address) {
       return {
@@ -37,20 +48,41 @@ export async function deployMarketToBlockchain(marketId: string, userId?: string
       }
     }
 
+    await update("markets", { blockchain_status: "not_deployed" }, { column: "id", operator: "eq", value: marketId })
+
     // Deploy to blockchain
     const client = getUMAClient()
     const expiryTimestamp = Math.floor(new Date(market.end_date).getTime() / 1000)
+    const rewardAmount = market.liquidity_posted_for_reward?.toString() || "10"
 
-    console.log("[UMA Settlement] Deploying market to blockchain:", {
+    console.log("[v0] Deploying market to blockchain:", {
       marketId,
       title: market.title,
       expiryTimestamp,
+      expiryDate: new Date(expiryTimestamp * 1000).toISOString(),
+      rewardAmount,
     })
 
-    const deployment = await client.deployMarket(marketId, market.title, expiryTimestamp)
+    let deployment
+    try {
+      deployment = await client.deployMarket(marketId, market.title, expiryTimestamp, rewardAmount)
+      console.log("[v0] Deployment result:", deployment)
+    } catch (deployError: any) {
+      console.error("[v0] Blockchain deployment failed:", {
+        error: deployError.message,
+        code: deployError.code,
+        reason: deployError.reason,
+      })
 
-    // Update database with blockchain address
-    await update(
+      await update("markets", { blockchain_status: "not_deployed" }, { column: "id", operator: "eq", value: marketId })
+
+      return {
+        success: false,
+        error: `Deployment failed: ${deployError.reason || deployError.message}`,
+      }
+    }
+
+    const updateResult = await update(
       "markets",
       {
         blockchain_market_address: deployment.marketAddress,
@@ -59,21 +91,15 @@ export async function deployMarketToBlockchain(marketId: string, userId?: string
       { column: "id", operator: "eq", value: marketId },
     )
 
-    // Log transaction
-    await insert("blockchain_transactions", {
-      market_id: marketId,
-      transaction_type: "deploy_market",
-      transaction_hash: deployment.transactionHash,
-      from_address: userId, // Use userId instead of signer address
-      status: "confirmed",
-    })
+    console.log("[v0] Database update result:", updateResult)
+    console.log("[v0] Market marked as blockchain-ready:", deployment.marketAddress)
 
-    console.log("[UMA Settlement] Market deployed successfully:", deployment.marketAddress)
+    console.log("[v0] Market deployment completed successfully")
 
     try {
       revalidatePath(`/market/${marketId}`)
     } catch (e) {
-      // Ignore revalidation errors in non-Next.js contexts
+      console.log("[v0] Revalidation skipped (not in request context)")
     }
 
     return {
@@ -84,16 +110,23 @@ export async function deployMarketToBlockchain(marketId: string, userId?: string
       },
     }
   } catch (error: any) {
-    console.error("[UMA Settlement] Deployment error:", error)
+    console.error("[v0] Deployment error:", error)
+
+    try {
+      await update("markets", { blockchain_status: "not_deployed" }, { column: "id", operator: "eq", value: marketId })
+    } catch (dbError) {
+      console.error("[v0] Failed to update deployment status:", dbError)
+    }
+
     return { success: false, error: error.message }
   }
 }
 
 // ============================================================================
-// PHASE 2: Initiate UMA Settlement
+// PHASE 2: Propose Outcome (Direct assertTruth call)
 // ============================================================================
 
-export async function initiateUMASettlement(marketId: string, userId?: string) {
+export async function proposeUMAOutcome(marketId: string, outcome: boolean, userId?: string) {
   try {
     if (!userId) {
       return { success: false, error: "User ID required" }
@@ -108,53 +141,60 @@ export async function initiateUMASettlement(marketId: string, userId?: string) {
 
     const market = markets[0]
 
-    // Validate market is eligible for UMA settlement
+    // Validate
     if (!market.blockchain_market_address) {
       return { success: false, error: "Market not deployed to blockchain" }
-    }
-
-    if (market.blockchain_status === "resolution_requested") {
-      return { success: false, error: "Resolution already requested" }
     }
 
     if (market.status === "settled") {
       return { success: false, error: "Market already settled" }
     }
 
-    // Check if market has expired
     const now = new Date()
     const endDate = new Date(market.end_date)
-    const isExpired = endDate < now
-
-    if (!isExpired) {
-      // Allow early settlement only by creator
-      if (market.creator_id !== userId) {
-        // Use userId parameter
-        return { success: false, error: "Only creator can request early settlement" }
+    if (endDate > now) {
+      return {
+        success: false,
+        error: "Market has not expired yet. Wait until after the closing date to propose outcome.",
       }
     }
 
-    // Request resolution on blockchain
     const client = getUMAClient()
-    const resolution = await client.requestResolution(market.blockchain_market_address, marketId)
+    const expiryTimestamp = Math.floor(new Date(market.end_date).getTime() / 1000)
 
-    // Update database
+    console.log("[v0] Proposing outcome:", { marketId, outcome, expiryTimestamp })
+
+    const proposal = await client.proposeOutcome(marketId, market.title, outcome, expiryTimestamp)
+
+    const newProposalCount = (market.uma_proposal_count || 0) + 1
     await update(
       "markets",
       {
-        blockchain_status: "resolution_requested",
-        uma_request_id: resolution.requestId,
-        status: "suspended",
+        uma_request_id: proposal.assertionId, // Store assertion ID
+        uma_proposal_count: newProposalCount,
+        uma_liveness_ends_at: new Date(proposal.livenessEndsAt * 1000).toISOString(),
+        blockchain_status: "proposal_pending",
       },
       { column: "id", operator: "eq", value: marketId },
     )
 
+    await insert("uma_proposals", {
+      market_id: marketId,
+      proposer_address: userId,
+      outcome,
+      bond_amount: 500, // $500 bond for proposals
+      proposal_timestamp: new Date().toISOString(),
+      is_early_settlement: false,
+      liveness_ends_at: new Date(proposal.livenessEndsAt * 1000).toISOString(),
+      status: "pending",
+    })
+
     // Log transaction
     await insert("blockchain_transactions", {
       market_id: marketId,
-      transaction_type: "request_resolution",
-      transaction_hash: resolution.transactionHash,
-      from_address: userId, // Use userId parameter
+      transaction_type: "propose_outcome",
+      transaction_hash: proposal.transactionHash,
+      from_address: userId,
       status: "confirmed",
     })
 
@@ -170,8 +210,8 @@ export async function initiateUMASettlement(marketId: string, userId?: string) {
           user_id: p.user_id,
           market_id: marketId,
           type: "settlement_initiated",
-          title: "UMA Settlement Requested",
-          message: `Settlement has been requested for "${market.title}". You can now propose an outcome.`,
+          title: "Outcome Proposed",
+          message: `An outcome (${outcome ? "YES" : "NO"}) has been proposed for "${market.title}". Challenge period: 2 hours.`,
         }))
 
       if (notifications.length > 0) {
@@ -179,147 +219,31 @@ export async function initiateUMASettlement(marketId: string, userId?: string) {
       }
     }
 
-    console.log("[UMA Settlement] Resolution requested:", resolution.requestId)
+    console.log("[v0] Outcome proposed successfully:", { assertionId: proposal.assertionId, outcome })
 
     try {
       revalidatePath(`/market/${marketId}`)
     } catch (e) {
-      // Ignore revalidation errors in non-Next.js contexts
+      console.log("[v0] Revalidation skipped")
     }
 
     return {
       success: true,
       data: {
-        requestId: resolution.requestId,
-        transactionHash: resolution.transactionHash,
-      },
-    }
-  } catch (error: any) {
-    console.error("[UMA Settlement] Initiation error:", error)
-    return { success: false, error: error.message }
-  }
-}
-
-// ============================================================================
-// PHASE 3: Propose Outcome
-// ============================================================================
-
-export async function proposeUMAOutcome(marketId: string, outcome: boolean, proposerAddress: string, userId?: string) {
-  try {
-    if (!userId) {
-      return { success: false, error: "User ID required" }
-    }
-
-    // Fetch market
-    const markets = await select("markets", "*", [{ column: "id", operator: "eq", value: marketId }])
-
-    if (!markets || markets.length === 0) {
-      return { success: false, error: "Market not found" }
-    }
-
-    const market = markets[0]
-
-    // Validate
-    if (market.blockchain_status !== "resolution_requested") {
-      return { success: false, error: "Resolution not requested yet" }
-    }
-
-    if (market.uma_proposal_count >= 2) {
-      return { success: false, error: "Maximum 2 proposals already submitted" }
-    }
-
-    const client = getUMAClient()
-    const network = process.env.BLOCKCHAIN_NETWORK || "amoy"
-
-    if (network !== "localhost") {
-      const approval = await client.checkUSDCApproval(proposerAddress, market.blockchain_market_address)
-
-      if (!approval.hasEnough) {
-        return {
-          success: false,
-          error: `Insufficient USDC. Need 1000 USDC approved. Balance: ${approval.balance}, Allowance: ${approval.allowance}`,
-        }
-      }
-    } else {
-      console.log("[UMA Settlement] Skipping USDC check for localhost network")
-    }
-
-    // Submit proposal to blockchain
-    const proposal = await client.proposeOutcome(market.blockchain_market_address, outcome, proposerAddress)
-
-    // Update database
-    const newProposalCount = (market.uma_proposal_count || 0) + 1
-    await update(
-      "markets",
-      {
-        uma_proposal_count: newProposalCount,
-        uma_liveness_ends_at: new Date(proposal.livenessEndsAt * 1000).toISOString(),
-      },
-      { column: "id", operator: "eq", value: marketId },
-    )
-
-    // Record proposal
-    await insert("uma_proposals", {
-      market_id: marketId,
-      proposer_address: proposerAddress,
-      outcome,
-      bond_amount: 1000,
-      proposal_timestamp: new Date().toISOString(),
-      is_early_settlement: false,
-      liveness_ends_at: new Date(proposal.livenessEndsAt * 1000).toISOString(),
-      status: "pending",
-    })
-
-    // Log transaction
-    await insert("blockchain_transactions", {
-      market_id: marketId,
-      transaction_type: "propose_outcome",
-      transaction_hash: proposal.transactionHash,
-      from_address: proposerAddress,
-      status: "confirmed",
-    })
-
-    // Notify participants
-    const participants = await select("positions", "DISTINCT user_id", [
-      { column: "market_id", operator: "eq", value: marketId },
-    ])
-
-    if (participants && participants.length > 0) {
-      const notifications = participants.map((p) => ({
-        user_id: p.user_id,
-        market_id: marketId,
-        type: "settlement_initiated",
-        title: "Outcome Proposed",
-        message: `An outcome (${outcome ? "YES" : "NO"}) has been proposed for "${market.title}". Liveness period: 2 hours.`,
-      }))
-
-      await insert("notifications", notifications)
-    }
-
-    console.log("[UMA Settlement] Outcome proposed:", { outcome, proposerAddress })
-
-    try {
-      revalidatePath(`/market/${marketId}`)
-    } catch (e) {
-      // Ignore revalidation errors in non-Next.js contexts
-    }
-
-    return {
-      success: true,
-      data: {
+        assertionId: proposal.assertionId,
         transactionHash: proposal.transactionHash,
         livenessEndsAt: proposal.livenessEndsAt,
         proposalCount: newProposalCount,
       },
     }
   } catch (error: any) {
-    console.error("[UMA Settlement] Proposal error:", error)
+    console.error("[v0] Proposal error:", error)
     return { success: false, error: error.message }
   }
 }
 
 // ============================================================================
-// PHASE 4: Finalize Settlement
+// PHASE 3: Finalize Settlement (settleAssertion)
 // ============================================================================
 
 export async function finalizeUMASettlement(marketId: string) {
@@ -335,38 +259,39 @@ export async function finalizeUMASettlement(marketId: string) {
 
     // Validate
     if (!market.uma_request_id) {
-      return { success: false, error: "No UMA request found" }
+      return { success: false, error: "No assertion found for this market" }
     }
 
     if (market.status === "settled") {
       return { success: false, error: "Market already settled" }
     }
 
-    // Check if liveness period has expired
     const client = getUMAClient()
-    const status = await client.getMarketStatus(market.blockchain_market_address)
+    const assertionStatus = await client.getAssertionStatus(market.uma_request_id)
 
-    if (!status.canSettle) {
+    if (!assertionStatus.canSettle) {
       return {
         success: false,
-        error: `Liveness period not expired. Time remaining: ${status.timeRemaining} seconds`,
+        error: `Challenge period not expired. Time remaining: ${Math.ceil(assertionStatus.timeRemaining / 60)} minutes`,
       }
     }
 
-    // Get the final outcome from proposals
-    const proposals = await select("uma_proposals", "*", [{ column: "market_id", operator: "eq", value: marketId }])
+    // Get the proposed outcome from proposals
+    const proposals = await select("uma_proposals", "*", [{ column: "market_id", operator: "eq", value: marketId }], {
+      column: "proposal_timestamp",
+      direction: "desc",
+    })
 
     if (!proposals || proposals.length === 0) {
       return { success: false, error: "No proposals found" }
     }
 
-    // Use the last proposal's outcome
-    const finalOutcome = proposals[proposals.length - 1].outcome
+    const finalOutcome = proposals[0].outcome
 
-    // Settle on blockchain
-    const settlement = await client.settleMarket(market.uma_request_id, finalOutcome)
+    const settlement = await client.settleAssertion(market.uma_request_id)
 
-    // Update market in database
+    console.log("[v0] Settlement result:", settlement)
+
     await update(
       "markets",
       {
@@ -380,15 +305,36 @@ export async function finalizeUMASettlement(marketId: string) {
     )
 
     // Distribute payouts using existing RPC function
-    // This reuses the internal oracle's payout logic
     const payoutResult = await rpc("settle_market", {
       p_market_id: marketId,
       p_outcome: finalOutcome,
-      p_admin_user_id: "00000000-0000-0000-0000-000000000000", // System user for UMA settlements
+      p_admin_user_id: "00000000-0000-0000-0000-000000000000",
     })
 
     if (payoutResult.error) {
-      console.error("[UMA Settlement] Payout distribution failed:", payoutResult.error)
+      console.error("[v0] Payout distribution failed:", payoutResult.error)
+    } else {
+      console.log("[v0] Payouts distributed successfully")
+    }
+
+    const marketsAfterSettlement = await select("markets", "liquidity_pool", [
+      { column: "id", operator: "eq", value: marketId },
+    ])
+
+    if (marketsAfterSettlement && marketsAfterSettlement.length > 0) {
+      const leftoverLiquidity = Number(marketsAfterSettlement[0].liquidity_pool || 0)
+
+      if (leftoverLiquidity > 0) {
+        console.log("[v0] Recording leftover liquidity in platform ledger:", leftoverLiquidity)
+        await recordSettlementLeftover(marketId, leftoverLiquidity)
+      }
+    }
+
+    // The $10 reward goes to the person who proposed the outcome
+    if (proposals && proposals.length > 0) {
+      const proposerId = proposals[0].proposer_address
+      console.log("[v0] Recording UMA reward payout to proposer:", proposerId)
+      await recordUMARewardPayout(marketId, proposerId, 10)
     }
 
     // Log transaction
@@ -403,13 +349,13 @@ export async function finalizeUMASettlement(marketId: string) {
     // Update proposal statuses
     await update("uma_proposals", { status: "settled" }, { column: "market_id", operator: "eq", value: marketId })
 
-    console.log("[UMA Settlement] Market settled:", { marketId, outcome: finalOutcome })
+    console.log("[v0] Market settled successfully:", { marketId, outcome: finalOutcome })
 
     try {
       revalidatePath(`/market/${marketId}`)
       revalidatePath("/")
     } catch (e) {
-      // Ignore revalidation errors in non-Next.js contexts
+      console.log("[v0] Revalidation skipped")
     }
 
     return {
@@ -420,7 +366,7 @@ export async function finalizeUMASettlement(marketId: string) {
       },
     }
   } catch (error: any) {
-    console.error("[UMA Settlement] Finalization error:", error)
+    console.error("[v0] Finalization error:", error)
     return { success: false, error: error.message }
   }
 }
@@ -449,9 +395,11 @@ export async function getUMASettlementStatus(marketId: string) {
       }
     }
 
-    // Get blockchain status
-    const client = getUMAClient()
-    const blockchainStatus = await client.getMarketStatus(market.blockchain_market_address)
+    let blockchainStatus = null
+    if (market.uma_request_id) {
+      const client = getUMAClient()
+      blockchainStatus = await client.getAssertionStatus(market.uma_request_id)
+    }
 
     // Get proposals
     const proposals = await select("uma_proposals", "*", [{ column: "market_id", operator: "eq", value: marketId }])
@@ -461,16 +409,17 @@ export async function getUMASettlementStatus(marketId: string) {
       data: {
         isDeployed: true,
         blockchainStatus: market.blockchain_status,
-        requestId: market.uma_request_id,
+        assertionId: market.uma_request_id,
         proposalCount: market.uma_proposal_count || 0,
         livenessEndsAt: market.uma_liveness_ends_at,
-        canSettle: blockchainStatus.canSettle,
-        timeRemaining: blockchainStatus.timeRemaining,
+        canSettle: blockchainStatus?.canSettle || false,
+        timeRemaining: blockchainStatus?.timeRemaining || 0,
+        isSettled: blockchainStatus?.isSettled || false,
         proposals: proposals || [],
       },
     }
   } catch (error: any) {
-    console.error("[UMA Settlement] Status check error:", error)
+    console.error("[v0] Status check error:", error)
     return { success: false, error: error.message }
   }
 }

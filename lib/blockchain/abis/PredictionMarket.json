@@ -1,0 +1,42 @@
+[
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_optimisticOracleV3", "type": "address" },
+      { "internalType": "address", "name": "_usdc", "type": "address" },
+      { "internalType": "string", "name": "_marketId", "type": "string" },
+      { "internalType": "string", "name": "_question", "type": "string" },
+      { "internalType": "uint256", "name": "_expiryTimestamp", "type": "uint256" },
+      { "internalType": "uint256", "name": "_rewardAmount", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "marketId",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "question",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "expiryTimestamp",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "rewardAmount",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

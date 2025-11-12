@@ -6,8 +6,9 @@ import type { FeeRecord } from "@/lib/fees"
 import { canTrade, getMarketStatus } from "@/lib/market-status"
 import { revalidatePath } from "next/cache"
 import { checkTradeRateLimit } from "@/lib/rate-limit"
+import { recordPlatformFee } from "@/lib/platform-ledger"
 
-async function recordFee(feeRecord: FeeRecord, marketCreatorId: string) {
+async function recordFee(feeRecord: FeeRecord, marketCreatorId: string, marketId: string) {
   try {
     console.log("[v0] Calling split_trading_fees_secure with:", {
       p_market_id: feeRecord.market_id,
@@ -28,6 +29,23 @@ async function recordFee(feeRecord: FeeRecord, marketCreatorId: string) {
       throw new Error(`Fee recording failed: ${error.message}`)
     } else {
       console.log("[v0] Split fees recorded successfully")
+
+      const platformFeeAmount = feeRecord.fee_amount / 2
+
+      const supabase = await createSupabaseClient()
+      const { data: platformFeeData } = await supabase
+        .from("fees")
+        .select("id")
+        .eq("market_id", marketId)
+        .eq("fee_type", "site_fee")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single()
+
+      if (platformFeeData?.id) {
+        console.log("[v0] Recording platform fee in platform ledger:", platformFeeAmount)
+        await recordPlatformFee(platformFeeData.id, platformFeeAmount, marketId)
+      }
     }
   } catch (error) {
     console.error("[v0] Fee recording error:", error)
@@ -114,10 +132,19 @@ export async function executeTrade(
       )
     }
 
+    console.log("[v0] Trade amounts:", {
+      betAmount, // Should be gross amount (e.g., $10)
+      feeAmount, // Should be fee (e.g., $0.10)
+      netAmount, // Should be net after fee (e.g., $9.90)
+      calculatedShares, // Shares user will receive
+    })
+
     const { data: tradeResult, error: rpcError } = await rpc("execute_trade_lmsr", {
       p_market_id: marketId,
       p_user_id: userId,
-      p_bet_amount: netAmount, // Use net amount (after fees)
+      p_bet_amount: betAmount, // Gross amount (original) - changed from netAmount
+      p_fee_amount: feeAmount, // Fee amount to deduct separately
+      p_net_amount: netAmount, // Net amount for market calculations
       p_bet_side: betSide.toLowerCase(),
       p_qy: newQy,
       p_qn: newQn,
@@ -129,8 +156,11 @@ export async function executeTrade(
     })
 
     if (rpcError) {
+      console.error("[v0] Trade RPC error:", rpcError)
       throw new Error(`Trade execution failed: ${rpcError.message}`)
     }
+
+    console.log("[v0] Trade executed successfully:", tradeResult)
 
     await recordFee(
       {
@@ -143,6 +173,7 @@ export async function executeTrade(
         net_amount: netAmount,
       },
       marketData.creator_id,
+      marketId,
     )
 
     revalidatePath(`/market/${marketId}`)
@@ -266,6 +297,7 @@ export async function sellShares(
         net_amount: netValue,
       },
       marketData.creator_id,
+      marketId,
     )
 
     revalidatePath(`/market/${marketId}`)

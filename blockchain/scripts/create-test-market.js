@@ -34,7 +34,7 @@ async function main() {
   console.log("  Category:", category)
 
   const tx = await factory.createMarket(question, expiryDate, category)
-  console.log("\n⏳ Transaction sent:", tx.hash)
+  console.log("\n��� Transaction sent:", tx.hash)
   console.log("   Waiting for confirmation...")
 
   const receipt = await tx.wait()

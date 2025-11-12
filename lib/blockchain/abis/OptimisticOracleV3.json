@@ -1,0 +1,36 @@
+[
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "assertionId", "type": "bytes32" },
+      { "internalType": "bytes", "name": "claim", "type": "bytes" }
+    ],
+    "name": "disputeAssertion",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "bytes32", "name": "assertionId", "type": "bytes32" }],
+    "name": "settleAssertion",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "bytes32", "name": "assertionId", "type": "bytes32" }],
+    "name": "getAssertion",
+    "outputs": [
+      {
+        "components": [
+          { "internalType": "bool", "name": "settled", "type": "bool" },
+          { "internalType": "uint64", "name": "expirationTime", "type": "uint64" }
+        ],
+        "internalType": "struct OptimisticOracleV3.Assertion",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

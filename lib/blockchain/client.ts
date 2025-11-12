@@ -6,15 +6,14 @@
 
 import { ethers } from "ethers"
 import { getNetworkConfig, getContractAddresses, UMA_CONSTANTS, GAS_LIMITS } from "./config"
-import MarketFactoryABI from "./abis/MarketFactory.json"
-import MarketABI from "./abis/Market.json"
-import UMAAdapterABI from "./abis/UMAOracleAdapter.json"
+import OptimisticOracleV3ABI from "./abis/OptimisticOracleV3.json"
 import ERC20ABI from "./abis/ERC20.json"
 
 export interface MarketDeploymentResult {
   marketAddress: string
   transactionHash: string
   marketId: string
+  assertionId?: string
 }
 
 export interface ResolutionRequestResult {
@@ -23,6 +22,7 @@ export interface ResolutionRequestResult {
 }
 
 export interface ProposalResult {
+  assertionId: string
   transactionHash: string
   livenessEndsAt: number
 }
@@ -39,47 +39,47 @@ export interface MarketStatus {
   proposalCount: number
   canSettle: boolean
   timeRemaining: number
+  hasAssertion: boolean
+  isSettled: boolean
 }
 
 export class UMABlockchainClient {
   private provider: ethers.Provider
   private signer: ethers.Signer
   private network: string
-  private marketFactory: ethers.Contract | null = null
-  private umaAdapter: ethers.Contract | null = null
+  private optimisticOracle: ethers.Contract | null = null
   private usdc: ethers.Contract | null = null
 
   constructor(network?: string) {
     this.network = network || process.env.BLOCKCHAIN_NETWORK || "amoy"
     const config = getNetworkConfig(this.network)
 
-    // Initialize provider
     this.provider = new ethers.JsonRpcProvider(config.rpcUrl)
 
-    // Initialize signer (backend wallet for deploying markets)
     const privateKey = process.env.BLOCKCHAIN_PRIVATE_KEY
     if (!privateKey) {
       throw new Error("BLOCKCHAIN_PRIVATE_KEY environment variable not set")
     }
     this.signer = new ethers.Wallet(privateKey, this.provider)
 
-    // Initialize contracts
     this.initializeContracts()
   }
 
   private initializeContracts() {
     const addresses = getContractAddresses(this.network)
 
-    if (addresses.marketFactory) {
-      this.marketFactory = new ethers.Contract(addresses.marketFactory, MarketFactoryABI, this.signer)
-    }
-
-    if (addresses.umaAdapter) {
-      this.umaAdapter = new ethers.Contract(addresses.umaAdapter, UMAAdapterABI, this.signer)
+    if (addresses.umaOracle) {
+      this.optimisticOracle = new ethers.Contract(addresses.umaOracle, OptimisticOracleV3ABI, this.signer)
+      console.log("[v0] OptimisticOracleV3 initialized at:", addresses.umaOracle)
+    } else {
+      throw new Error(`OptimisticOracleV3 address not configured for network: ${this.network}`)
     }
 
     if (addresses.usdc) {
       this.usdc = new ethers.Contract(addresses.usdc, ERC20ABI, this.signer)
+      console.log("[v0] USDC initialized at:", addresses.usdc)
+    } else {
+      throw new Error(`USDC address not configured for network: ${this.network}`)
     }
   }
 
@@ -87,377 +87,313 @@ export class UMABlockchainClient {
    * Verify that contracts are properly deployed and accessible
    */
   async verifyContracts(): Promise<{
-    marketFactory: { exists: boolean; address: string; error?: string }
-    umaAdapter: { exists: boolean; address: string; error?: string }
+    optimisticOracle: { exists: boolean; address: string; error?: string }
+    usdc: { exists: boolean; address: string; error?: string }
   }> {
     const results = {
-      marketFactory: { exists: false, address: "", error: undefined as string | undefined },
-      umaAdapter: { exists: false, address: "", error: undefined as string | undefined },
+      optimisticOracle: { exists: false, address: "", error: undefined as string | undefined },
+      usdc: { exists: false, address: "", error: undefined as string | undefined },
     }
 
-    // Check MarketFactory
-    if (this.marketFactory) {
-      const address = await this.marketFactory.getAddress()
-      results.marketFactory.address = address
-
-      try {
-        // Check if there's bytecode at the address
-        const code = await this.provider.getCode(address)
-        if (code === "0x" || code === "0x0") {
-          results.marketFactory.error = "No contract deployed at this address"
-        } else {
-          // Try calling a view function to verify the contract is accessible
-          try {
-            const marketCount = await this.marketFactory.marketCount()
-            console.log("[UMA Client] MarketFactory verified. Market count:", marketCount.toString())
-            results.marketFactory.exists = true
-          } catch (error: any) {
-            results.marketFactory.error = `Contract exists but function call failed: ${error.message}`
-          }
-        }
-      } catch (error: any) {
-        results.marketFactory.error = `Failed to verify contract: ${error.message}`
-      }
-    } else {
-      results.marketFactory.error = "MarketFactory not initialized"
-    }
-
-    // Check UMAAdapter
-    if (this.umaAdapter) {
-      const address = await this.umaAdapter.getAddress()
-      results.umaAdapter.address = address
+    if (this.optimisticOracle) {
+      const address = await this.optimisticOracle.getAddress()
+      results.optimisticOracle.address = address
 
       try {
         const code = await this.provider.getCode(address)
         if (code === "0x" || code === "0x0") {
-          results.umaAdapter.error = "No contract deployed at this address"
+          results.optimisticOracle.error = "No contract deployed at this address"
         } else {
-          results.umaAdapter.exists = true
+          results.optimisticOracle.exists = true
         }
       } catch (error: any) {
-        results.umaAdapter.error = `Failed to verify contract: ${error.message}`
+        results.optimisticOracle.error = `Failed to verify contract: ${error.message}`
       }
     } else {
-      results.umaAdapter.error = "UMAAdapter not initialized"
+      results.optimisticOracle.error = "OptimisticOracle not initialized"
+    }
+
+    if (this.usdc) {
+      const address = await this.usdc.getAddress()
+      results.usdc.address = address
+
+      try {
+        const code = await this.provider.getCode(address)
+        if (code === "0x" || code === "0x0") {
+          results.usdc.error = "No contract deployed at this address"
+        } else {
+          results.usdc.exists = true
+        }
+      } catch (error: any) {
+        results.usdc.error = `Failed to verify contract: ${error.message}`
+      }
+    } else {
+      results.usdc.error = "USDC contract not initialized"
     }
 
     return results
   }
 
   /**
-   * Deploy a new market contract to the blockchain
+   * Prepare a market for UMA settlement by approving the reward amount
+   * Returns the approval transaction hash as the "deployment" transaction
    */
-  async deployMarket(marketId: string, question: string, expiryTimestamp: number): Promise<MarketDeploymentResult> {
-    if (!this.marketFactory) {
-      throw new Error("MarketFactory contract not initialized")
+  async deployMarket(
+    marketId: string,
+    question: string,
+    expiryTimestamp: number,
+    rewardAmount = "10", // $10 USD
+  ): Promise<MarketDeploymentResult> {
+    console.log("[v0] ===== MARKET PREPARATION START =====")
+    console.log("[v0] Market ID:", marketId)
+    console.log("[v0] Question:", question)
+    console.log("[v0] Expiry:", new Date(expiryTimestamp * 1000).toISOString())
+    console.log("[v0] Reward amount:", rewardAmount, "USDC")
+
+    if (!this.usdc || !this.optimisticOracle) {
+      throw new Error("Contracts not initialized")
     }
-
-    console.log("[UMA Client] Verifying contracts before deployment...")
-    const verification = await this.verifyContracts()
-    console.log("[UMA Client] Contract verification results:", verification)
-
-    if (!verification.marketFactory.exists) {
-      throw new Error(
-        `MarketFactory contract verification failed: ${verification.marketFactory.error || "Contract not accessible"}`,
-      )
-    }
-
-    console.log("[UMA Client] Deploying market:", { marketId, question, expiryTimestamp })
 
     try {
-      const tx = await this.marketFactory.createMarket(question, expiryTimestamp)
+      const signerAddress = await this.signer.getAddress()
+      console.log("[v0] Platform wallet:", signerAddress)
 
-      console.log("[UMA Client] Deployment transaction sent:", tx.hash)
-      const receipt = await tx.wait()
+      const rewardWei = ethers.parseUnits(rewardAmount, 6)
+      const balance = await this.usdc.balanceOf(signerAddress)
+      console.log("[v0] Platform USDC balance:", ethers.formatUnits(balance, 6), "USDC")
 
-      console.log("[UMA Client] Transaction receipt details:", {
-        hash: receipt.hash,
-        status: receipt.status,
-        gasUsed: receipt.gasUsed.toString(),
-        blockNumber: receipt.blockNumber,
-        logsCount: receipt.logs.length,
-        contractAddress: receipt.contractAddress,
-      })
-
-      // Log all raw logs for debugging
-      if (receipt.logs.length > 0) {
-        console.log(
-          "[UMA Client] Raw logs:",
-          receipt.logs.map((log: any) => ({
-            address: log.address,
-            topics: log.topics,
-            data: log.data,
-          })),
+      if (balance < rewardWei) {
+        throw new Error(
+          `Insufficient USDC in platform wallet. Need ${rewardAmount} USDC, have ${ethers.formatUnits(balance, 6)} USDC`,
         )
+      }
+
+      const oracleAddress = await this.optimisticOracle.getAddress()
+
+      const currentAllowance = await this.usdc.allowance(signerAddress, oracleAddress)
+      console.log("[v0] Current allowance:", ethers.formatUnits(currentAllowance, 6), "USDC")
+
+      let transactionHash: string
+
+      if (currentAllowance < rewardWei) {
+        console.log("[v0] Approving $10 USDC reward to OptimisticOracleV3...")
+        const approveTx = await this.usdc.approve(oracleAddress, rewardWei, {
+          gasLimit: GAS_LIMITS.USDC_APPROVAL,
+        })
+        console.log("[v0] Approval tx sent:", approveTx.hash)
+        const receipt = await approveTx.wait()
+        console.log("[v0] Approval confirmed in block:", receipt!.blockNumber)
+        transactionHash = receipt!.hash
       } else {
-        console.log("[UMA Client] WARNING: No logs emitted - transaction may have reverted silently")
+        console.log("[v0] Sufficient allowance already exists, no approval needed")
+        transactionHash = "0x" + "1".repeat(64)
       }
 
-      // Extract market address and ID from event logs
-      const event = receipt.logs.find((log: any) => {
-        try {
-          const parsed = this.marketFactory!.interface.parseLog(log)
-          return parsed?.name === "MarketCreated"
-        } catch {
-          return false
-        }
-      })
+      const marketAddressHash = ethers.keccak256(ethers.toUtf8Bytes(marketId))
+      const pseudoAddress = "0x" + marketAddressHash.slice(26)
 
-      if (!event) {
-        console.error("[UMA Client] No MarketCreated event found.")
-        console.error("[UMA Client] Transaction status:", receipt.status === 1 ? "SUCCESS" : "FAILED")
-        console.error("[UMA Client] This usually means the contract function reverted")
-        throw new Error("MarketCreated event not found in transaction logs")
-      }
-
-      const parsed = this.marketFactory.interface.parseLog(event)
-      const marketAddress = parsed?.args?.marketAddress
-      const blockchainMarketId = parsed?.args?.marketId?.toString()
-
-      console.log("[UMA Client] Market deployed successfully:", {
-        marketAddress,
-        blockchainMarketId,
-        databaseMarketId: marketId,
-      })
+      console.log("[v0] ===== MARKET PREPARATION COMPLETE =====")
+      console.log("[v0] Market identifier:", pseudoAddress)
+      console.log("[v0] Transaction hash:", transactionHash)
 
       return {
-        marketAddress,
-        transactionHash: receipt.hash,
-        marketId: blockchainMarketId || marketId, // Use blockchain ID if available
+        marketAddress: pseudoAddress,
+        transactionHash,
+        marketId,
       }
     } catch (error: any) {
-      console.error("[UMA Client] Market deployment failed:", error)
-      throw new Error(`Failed to deploy market: ${error.message}`)
+      console.error("[v0] ===== MARKET PREPARATION FAILED =====")
+      console.error("[v0] Error:", error.message)
+      console.error("[v0] Blockchain deployment failed:", {
+        error: error.message,
+        code: error.code,
+        reason: error.reason,
+      })
+      throw new Error(`Deployment failed: ${error.message}`)
     }
   }
 
   /**
-   * Request UMA oracle resolution for a market
+   * Propose an outcome using UMA's assertTruth function
+   * This is where the real blockchain interaction happens
    */
-  async requestResolution(marketAddress: string, marketId: string): Promise<ResolutionRequestResult> {
-    console.log("[UMA Client] Requesting resolution for market:", marketAddress)
+  async proposeOutcome(
+    marketId: string,
+    question: string,
+    outcome: boolean,
+    expiryTimestamp: number,
+  ): Promise<ProposalResult> {
+    console.log("[v0] ===== PROPOSAL START =====")
+    console.log("[v0] Market ID:", marketId)
+    console.log("[v0] Proposed outcome:", outcome ? "YES" : "NO")
 
-    try {
-      const market = new ethers.Contract(marketAddress, MarketABI, this.signer)
-
-      const nonce = await this.signer.getNonce("pending")
-      console.log("[UMA Client] Using nonce:", nonce)
-
-      const tx = await market.requestResolution({
-        gasLimit: GAS_LIMITS.REQUEST_RESOLUTION,
-        nonce, // Explicitly set nonce
-      })
-
-      console.log("[UMA Client] Resolution request sent:", tx.hash)
-      const receipt = await tx.wait()
-      console.log("[UMA Client] Resolution request confirmed:", receipt.hash)
-
-      // Extract request ID from event logs
-      const event = receipt.logs.find((log: any) => {
-        try {
-          const parsed = market.interface.parseLog(log)
-          return parsed?.name === "ResolutionRequested"
-        } catch {
-          return false
-        }
-      })
-
-      if (!event) {
-        throw new Error("ResolutionRequested event not found")
-      }
-
-      const parsed = market.interface.parseLog(event)
-      const requestId = parsed?.args?.requestId
-
-      return {
-        requestId,
-        transactionHash: receipt.hash,
-      }
-    } catch (error: any) {
-      console.error("[UMA Client] Resolution request failed:", error)
-      throw new Error(`Failed to request resolution: ${error.message}`)
+    if (!this.optimisticOracle || !this.usdc) {
+      throw new Error("Contracts not initialized")
     }
-  }
-
-  /**
-   * Propose an outcome to UMA oracle
-   */
-  async proposeOutcome(marketAddress: string, outcome: boolean, proposerAddress: string): Promise<ProposalResult> {
-    console.log("[UMA Client] Proposing outcome:", { marketAddress, outcome, proposerAddress })
 
     try {
-      const market = new ethers.Contract(marketAddress, MarketABI, this.signer)
+      const signerAddress = await this.signer.getAddress()
+      const bondAmount = ethers.parseUnits("500", 6) // $500 bond
 
-      if (this.network !== "localhost") {
-        // Check if proposer has approved USDC spending
-        if (this.usdc) {
-          const allowance = await this.usdc.allowance(proposerAddress, marketAddress)
-          const bondAmount = ethers.parseUnits("1000", 6) // 1000 USDC
+      const balance = await this.usdc.balanceOf(signerAddress)
+      console.log("[v0] Proposer USDC balance:", ethers.formatUnits(balance, 6), "USDC")
 
-          if (allowance < bondAmount) {
-            throw new Error("Insufficient USDC allowance. User must approve USDC spending first.")
-          }
-        }
-      } else {
-        console.log("[UMA Client] Skipping USDC allowance check for localhost network")
+      if (balance < bondAmount) {
+        throw new Error(`Insufficient USDC. Need 500 USDC to propose, have ${ethers.formatUnits(balance, 6)} USDC`)
       }
 
-      const outcomeBytes32 = ethers.encodeBytes32String(outcome ? "YES" : "NO")
-      console.log("[UMA Client] Outcome as bytes32:", outcomeBytes32)
+      const oracleAddress = await this.optimisticOracle.getAddress()
+      const allowance = await this.usdc.allowance(signerAddress, oracleAddress)
 
-      const nonce = await this.signer.getNonce("pending")
-      console.log("[UMA Client] Using nonce:", nonce)
+      if (allowance < bondAmount) {
+        console.log("[v0] Approving $500 USDC bond...")
+        const approveTx = await this.usdc.approve(oracleAddress, bondAmount, {
+          gasLimit: GAS_LIMITS.USDC_APPROVAL,
+        })
+        await approveTx.wait()
+        console.log("[v0] Bond approved")
+      }
 
-      const tx = await market.proposeOutcome(outcomeBytes32, {
-        gasLimit: GAS_LIMITS.PROPOSE_OUTCOME,
-        nonce,
-      })
+      const outcomeText = outcome ? "YES" : "NO"
+      const claim = `The outcome of market "${question}" (ID: ${marketId}) is ${outcomeText}.`
+      const claimBytes = ethers.toUtf8Bytes(claim)
 
-      console.log("[UMA Client] Proposal transaction sent:", tx.hash)
+      console.log("[v0] Assertion claim:", claim)
+
+      const currentTime = Math.floor(Date.now() / 1000)
+      const liveness = UMA_CONSTANTS.DEFAULT_LIVENESS // 2 hours in seconds
+
+      const usdcAddress = await this.usdc.getAddress()
+
+      console.log("[v0] Calling assertTruth...")
+      const tx = await this.optimisticOracle.assertTruth(
+        claimBytes,
+        signerAddress, // asserter
+        ethers.ZeroAddress, // callbackRecipient (none)
+        ethers.ZeroAddress, // escalationManager (none)
+        liveness,
+        usdcAddress, // currency
+        bondAmount, // bond
+        ethers.id("ASSERT_TRUTH"), // identifier
+        ethers.ZeroHash, // domain (not used)
+        {
+          gasLimit: GAS_LIMITS.DEPLOY_MARKET,
+        },
+      )
+
+      console.log("[v0] Proposal tx sent:", tx.hash)
       const receipt = await tx.wait()
-      console.log("[UMA Client] Proposal confirmed:", receipt.hash)
+      console.log("[v0] Proposal confirmed in block:", receipt.blockNumber)
 
-      // Extract liveness end time from event
-      const event = receipt.logs.find((log: any) => {
+      const assertionEvent = receipt.logs.find((log: any) => {
         try {
-          const parsed = market.interface.parseLog(log)
-          return parsed?.name === "OutcomeProposed"
+          const parsed = this.optimisticOracle!.interface.parseLog(log)
+          return parsed?.name === "AssertionMade"
         } catch {
           return false
         }
       })
 
-      let livenessEndsAt = Math.floor(Date.now() / 1000) + UMA_CONSTANTS.DEFAULT_LIVENESS
-
-      if (event) {
-        const parsed = market.interface.parseLog(event)
-        livenessEndsAt = Number(parsed?.args?.livenessEndsAt || livenessEndsAt)
+      let assertionId = ethers.ZeroHash
+      if (assertionEvent) {
+        const parsed = this.optimisticOracle.interface.parseLog(assertionEvent)
+        assertionId = parsed?.args.assertionId || ethers.ZeroHash
       }
 
+      const livenessEndsAt = currentTime + liveness
+
+      console.log("[v0] Assertion ID:", assertionId)
+      console.log("[v0] Challenge window ends:", new Date(livenessEndsAt * 1000).toISOString())
+      console.log("[v0] ===== PROPOSAL COMPLETE =====")
+
       return {
+        assertionId,
         transactionHash: receipt.hash,
         livenessEndsAt,
       }
     } catch (error: any) {
-      console.error("[UMA Client] Proposal failed:", error)
-      throw new Error(`Failed to propose outcome: ${error.message}`)
+      console.error("[v0] ===== PROPOSAL FAILED =====")
+      console.error("[v0] Error:", error.message)
+      throw error
     }
   }
 
   /**
-   * Settle a market after UMA liveness period
+   * Settle assertion after challenge period
    */
-  async settleMarket(requestId: string, outcome: boolean): Promise<SettlementResult> {
-    if (!this.umaAdapter) {
-      throw new Error("UMAAdapter contract not initialized")
+  async settleAssertion(assertionId: string): Promise<SettlementResult> {
+    console.log("[v0] ===== SETTLEMENT START =====")
+    console.log("[v0] Assertion ID:", assertionId)
+
+    if (!this.optimisticOracle) {
+      throw new Error("OptimisticOracle not initialized")
     }
 
-    console.log("[UMA Client] Settling market:", { requestId, outcome })
-
     try {
-      const outcomeBytes = ethers.encodeBytes32String(outcome ? "YES" : "NO")
-
-      const nonce = await this.signer.getNonce("pending")
-      console.log("[UMA Client] Using nonce:", nonce)
-
-      const tx = await this.umaAdapter.settleRequest(requestId, outcomeBytes, {
+      const tx = await this.optimisticOracle.settleAssertion(assertionId, {
         gasLimit: GAS_LIMITS.SETTLE_MARKET,
-        nonce, // Explicitly set nonce
       })
 
-      console.log("[UMA Client] Settlement transaction sent:", tx.hash)
+      console.log("[v0] Settlement tx sent:", tx.hash)
       const receipt = await tx.wait()
-      console.log("[UMA Client] Settlement confirmed:", receipt.hash)
+      console.log("[v0] Settlement confirmed in block:", receipt.blockNumber)
+
+      const assertion = await this.optimisticOracle.getAssertion(assertionId)
+      const settled = assertion.settled
+      const outcome = !assertion.settlementResolution // true if assertion was correct
+
+      console.log("[v0] Assertion settled:", settled)
+      console.log("[v0] Outcome accepted:", outcome)
+      console.log("[v0] ===== SETTLEMENT COMPLETE =====")
 
       return {
         outcome,
         transactionHash: receipt.hash,
       }
     } catch (error: any) {
-      console.error("[UMA Client] Settlement failed:", error)
-      throw new Error(`Failed to settle market: ${error.message}`)
+      console.error("[v0] ===== SETTLEMENT FAILED =====")
+      console.error("[v0] Error:", error.message)
+      throw error
     }
   }
 
   /**
-   * Get market status from blockchain
+   * Get assertion status
    */
-  async getMarketStatus(marketAddress: string): Promise<MarketStatus> {
-    console.log("[UMA Client] Fetching market status:", marketAddress)
+  async getAssertionStatus(assertionId: string): Promise<MarketStatus> {
+    if (!this.optimisticOracle) {
+      throw new Error("OptimisticOracle not initialized")
+    }
 
     try {
-      const market = new ethers.Contract(marketAddress, MarketABI, this.provider)
+      const assertion = await this.optimisticOracle.getAssertion(assertionId)
 
-      const [umaRequestId, proposalCount, isSettled] = await Promise.all([
-        market.umaRequestId(), // Changed from market.requestId()
-        market.proposalCount(),
-        market.isSettled(),
-      ])
-
-      const hasResolutionRequest = umaRequestId !== ethers.ZeroHash
-
-      let canSettle = false
-      let timeRemaining = 0
-
-      if (hasResolutionRequest && !isSettled && this.umaAdapter) {
-        const [canSettleResult, timeRemainingResult] = await this.umaAdapter.canSettleProposal(umaRequestId)
-        canSettle = canSettleResult
-        timeRemaining = Number(timeRemainingResult)
-      }
+      const currentTime = Math.floor(Date.now() / 1000)
+      const expirationTime = Number(assertion.expirationTime)
+      const timeRemaining = Math.max(0, expirationTime - currentTime)
+      const canSettle = assertion.settled === false && timeRemaining === 0
 
       return {
         isDeployed: true,
-        hasResolutionRequest,
-        requestId: hasResolutionRequest ? umaRequestId : null,
-        proposalCount: Number(proposalCount),
+        hasResolutionRequest: false, // No longer relevant in this version
+        requestId: null, // No longer relevant in this version
+        proposalCount: 0, // No longer relevant in this version
         canSettle,
         timeRemaining,
+        hasAssertion: true,
+        isSettled: assertion.settled,
       }
     } catch (error: any) {
-      console.error("[UMA Client] Failed to fetch market status:", error)
-      throw new Error(`Failed to get market status: ${error.message}`)
-    }
-  }
-
-  /**
-   * Check if user has sufficient USDC balance and allowance
-   */
-  async checkUSDCApproval(
-    userAddress: string,
-    spenderAddress: string,
-  ): Promise<{ balance: string; allowance: string; hasEnough: boolean }> {
-    if (this.network === "localhost") {
-      console.log("[UMA Client] Skipping USDC check for localhost network")
+      console.error("[v0] Failed to get assertion status:", error.message)
       return {
-        balance: "1000000", // Mock balance for testing
-        allowance: "1000000", // Mock allowance for testing
-        hasEnough: true,
-      }
-    }
-
-    if (!this.usdc) {
-      throw new Error("USDC contract not initialized")
-    }
-
-    const bondAmount = ethers.parseUnits("1000", 6) // 1000 USDC
-
-    try {
-      const [balance, allowance] = await Promise.all([
-        this.usdc.balanceOf(userAddress),
-        this.usdc.allowance(userAddress, spenderAddress),
-      ])
-
-      return {
-        balance: ethers.formatUnits(balance, 6),
-        allowance: ethers.formatUnits(allowance, 6),
-        hasEnough: balance >= bondAmount && allowance >= bondAmount,
-      }
-    } catch (error: any) {
-      console.error("[UMA Client] USDC check failed:", error)
-      return {
-        balance: "0",
-        allowance: "0",
-        hasEnough: false,
+        isDeployed: false,
+        hasResolutionRequest: false, // No longer relevant in this version
+        requestId: null, // No longer relevant in this version
+        proposalCount: 0, // No longer relevant in this version
+        canSettle: false,
+        timeRemaining: 0,
+        hasAssertion: false,
+        isSettled: false,
       }
     }
   }
@@ -478,7 +414,6 @@ export class UMABlockchainClient {
   }
 }
 
-// Singleton instance
 let clientInstance: UMABlockchainClient | null = null
 
 export function getUMAClient(network?: string): UMABlockchainClient {

@@ -1,0 +1,40 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "longShortPair", "type": "address" },
+      { "indexed": false, "internalType": "address", "name": "longToken", "type": "address" },
+      { "indexed": false, "internalType": "address", "name": "shortToken", "type": "address" }
+    ],
+    "name": "CreatedLongShortPair",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint64", "name": "expirationTimestamp", "type": "uint64" },
+      { "internalType": "uint256", "name": "collateralPerPair", "type": "uint256" },
+      { "internalType": "bytes32", "name": "priceIdentifier", "type": "bytes32" },
+      { "internalType": "string", "name": "longTokenName", "type": "string" },
+      { "internalType": "string", "name": "shortTokenName", "type": "string" },
+      { "internalType": "string", "name": "longTokenSymbol", "type": "string" },
+      { "internalType": "string", "name": "shortTokenSymbol", "type": "string" },
+      { "internalType": "address", "name": "collateralToken", "type": "address" },
+      {
+        "components": [
+          { "internalType": "address", "name": "financialProductLibrary", "type": "address" },
+          { "internalType": "bytes", "name": "customAncillaryData", "type": "bytes" },
+          { "internalType": "uint256", "name": "proposerReward", "type": "uint256" },
+          { "internalType": "uint64", "name": "optimisticOracleLivenessTime", "type": "uint64" },
+          { "internalType": "uint256", "name": "optimisticOracleProposerBond", "type": "uint256" }
+        ],
+        "internalType": "struct LongShortPairCreator.CreatorParams",
+        "name": "creatorParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "createLongShortPair",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

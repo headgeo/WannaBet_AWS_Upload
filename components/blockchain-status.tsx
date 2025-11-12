@@ -27,7 +27,6 @@ export function BlockchainStatus({
   isPrivate,
   onRequestSettlement,
   onProposeOutcome,
-  isRequestingSettlement,
 }: BlockchainStatusProps) {
   // Don't show for private markets
   if (isPrivate) {
@@ -95,14 +94,15 @@ export function BlockchainStatus({
     return `${baseUrl}/address/${blockchainAddress}`
   }
 
-  const getUMAOracleUrl = () => {
-    // UMA's oracle interface URL structure
-    // This may need to be updated based on UMA's actual testnet interface
+  const getProposalUrl = () => {
     const network = process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "amoy"
-    const chainId = network === "polygon" ? "137" : "80002"
 
-    // UMA may have different URLs - this is a placeholder structure
-    return `https://oracle.umaproject.org/?chainId=${chainId}&address=${blockchainAddress}`
+    if (network === "amoy") {
+      const oracleAddress = "0x9923D42eF695B5dd9911D05Ac944d4cAca3c4EAB"
+      return `https://amoy.polygonscan.com/address/${oracleAddress}#writeContract`
+    }
+
+    return `https://oracle.uma.xyz`
   }
 
   return (
@@ -127,7 +127,9 @@ export function BlockchainStatus({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Network:</span>
-                <span className="font-medium">Polygon Amoy</span>
+                <span className="font-medium">
+                  {process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK === "polygon" ? "Polygon" : "Amoy Testnet"}
+                </span>
               </div>
               <div className="flex justify-between items-center gap-2">
                 <span className="text-muted-foreground">Address:</span>
@@ -147,6 +149,26 @@ export function BlockchainStatus({
               </div>
             </div>
 
+            <div className="space-y-2 pt-2 border-t">
+              {blockchainAddress && (
+                <Button
+                  onClick={() => window.open(getProposalUrl(), "_blank")}
+                  variant="default"
+                  size="sm"
+                  className="w-full text-xs md:text-sm"
+                >
+                  Propose Resolution
+                  <ExternalLink className="w-3 h-3 ml-2" />
+                </Button>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                {process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK === "amoy"
+                  ? "View contract on PolygonScan to interact (testnet)"
+                  : "Propose outcome through UMA Oracle. Requires $500 USDC bond."}
+              </p>
+            </div>
+
             {umaRequestId && livenessEndsAt && (
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
                 <div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">UMA Settlement Active</div>
@@ -155,40 +177,6 @@ export function BlockchainStatus({
                 </div>
               </div>
             )}
-
-            <div className="space-y-2 pt-2 border-t">
-              {!umaRequestId && onRequestSettlement && (
-                <Button
-                  onClick={onRequestSettlement}
-                  disabled={isRequestingSettlement}
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs md:text-sm bg-transparent"
-                >
-                  {isRequestingSettlement ? (
-                    <>
-                      <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-                      Requesting Settlement...
-                    </>
-                  ) : (
-                    "Request UMA Settlement"
-                  )}
-                </Button>
-              )}
-
-              {umaRequestId && onProposeOutcome && (
-                <Button onClick={onProposeOutcome} variant="default" size="sm" className="w-full text-xs md:text-sm">
-                  Propose Outcome on UMA Oracle
-                  <ExternalLink className="w-3 h-3 ml-2" />
-                </Button>
-              )}
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              {!umaRequestId
-                ? "Settlement uses UMA&apos;s Optimistic Oracle for decentralized resolution."
-                : "Anyone can propose an outcome on UMA&apos;s oracle. Requires USDC bond."}
-            </p>
           </>
         )}
       </CardContent>

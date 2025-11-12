@@ -4,6 +4,8 @@
  * Completely separate from internal oracle system
  */
 
+import { ethers } from "ethers"
+
 export interface NetworkConfig {
   name: string
   chainId: number
@@ -33,7 +35,7 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     chainId: 80002,
     rpcUrl: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
     usdcAddress: process.env.AMOY_MOCK_USDC_ADDRESS || "0xfBfB1b295fb11e73cfDbE3CF0e047aDC838fCE9b", // Updated with deployed MockUSDC address from Amoy testnet
-    umaOracleAddress: "0x263351499f82C107e540B01F0Ca959843e22464a", // UMA OOv3 on Amoy (verified)
+    umaOracleAddress: "0xd8866E76441df243fc98B892362Fc6264dC3ca80", // UMA OOv3 on Amoy (verified from UMA docs)
     collateralVaultAddress: process.env.AMOY_COLLATERAL_VAULT_ADDRESS,
     umaAdapterAddress: process.env.AMOY_UMA_ADAPTER_ADDRESS,
     marketFactoryAddress: process.env.AMOY_MARKET_FACTORY_ADDRESS,
@@ -81,10 +83,11 @@ export function getContractAddresses(network?: string) {
 
 // UMA Oracle Constants
 export const UMA_CONSTANTS = {
-  DEFAULT_BOND: "1000000000", // 1000 USDC (6 decimals)
-  DEFAULT_LIVENESS: 7200, // 2 hours in seconds
-  MAX_PROPOSALS: 2,
-  ASSERTION_IDENTIFIER: "YES_OR_NO_QUERY",
+  PROPOSAL_BOND: "500000000", // $500 USDC (6 decimals)
+  PROPOSAL_REWARD: process.env.UMA_PROPOSAL_REWARD || "10000000", // $10 USDC (6 decimals) - configurable
+  DEFAULT_LIVENESS: Number(process.env.UMA_CHALLENGE_WINDOW_SECONDS) || 7200, // 2 hours default, configurable
+  PRICE_IDENTIFIER: ethers.encodeBytes32String("YES_OR_NO_QUERY"), // Convert to bytes32
+  COLLATERAL_AMOUNT: process.env.UMA_COLLATERAL_AMOUNT || "10000000", // $10 USDC (6 decimals) - configurable
 }
 
 // Gas limits for different operations

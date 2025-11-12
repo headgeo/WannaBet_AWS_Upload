@@ -4,8 +4,6 @@ import { insert, update, select } from "@/lib/database/adapter"
 import { createClient } from "@/lib/supabase/server"
 import { calculateBFromLiquidity } from "@/lib/lmsr"
 import { revalidatePath } from "next/cache"
-import { BLOCKCHAIN_FEATURES } from "@/lib/blockchain/feature-flags"
-import { deployMarketToBlockchain } from "./uma-settlement"
 import { recordMarketCreationReward } from "@/lib/platform-ledger"
 
 export async function getUserBalance() {
@@ -109,11 +107,11 @@ export async function createMarket(data: CreateMarketData) {
       no_shares: 0,
       qy: 0,
       qn: 0,
-      liquidity_pool: liquidityForPool, // Reduced by $10 for public markets
-      liquidity_posted_for_reward: liquidityForReward, // $10 for UMA, $0 for private
-      b: calculatedB, // b-value calculated from reduced liquidity
+      liquidity_pool: liquidityForPool,
+      liquidity_posted_for_reward: liquidityForReward,
+      b: calculatedB,
       group_id: groupId,
-      blockchain_status: "not_deployed", // Use blockchain_status instead of blockchain_deployment_status
+      blockchain_status: isPublicMarket ? "not_deployed" : null, // Public markets show as not_deployed
     })
 
     if (market.error || !market.data || market.data.length === 0) {
@@ -242,42 +240,10 @@ export async function createMarket(data: CreateMarketData) {
     revalidatePath("/")
     revalidatePath("/markets")
 
+    // Record platform ledger entry for market creation reward (not deployed yet)
     if (isPublicMarket && liquidityForReward > 0) {
-      console.log("[v0] Recording platform ledger entry for market creation reward")
+      console.log("[v0] Recording platform ledger entry for market creation reward (not deployed yet)")
       await recordMarketCreationReward(createdMarket.id, user.id, liquidityForReward)
-    }
-
-    if (BLOCKCHAIN_FEATURES.AUTO_DEPLOY_MARKETS && !data.isPrivate) {
-      console.log("[v0] Auto-deploying public market to blockchain:", createdMarket.id)
-
-      // Deploy in background with better error handling
-      deployMarketToBlockchain(createdMarket.id, user.id)
-        .then(async (result) => {
-          if (result.success) {
-            console.log("[v0] Blockchain deployment succeeded:", result.data)
-          } else {
-            console.error("[v0] Blockchain deployment failed:", result.error)
-
-            await update(
-              "markets",
-              { blockchain_status: "not_deployed" },
-              { column: "id", operator: "eq", value: createdMarket.id },
-            )
-          }
-        })
-        .catch(async (error) => {
-          console.error("[v0] Blockchain deployment error:", error)
-
-          try {
-            await update(
-              "markets",
-              { blockchain_status: "not_deployed" },
-              { column: "id", operator: "eq", value: createdMarket.id },
-            )
-          } catch (dbError) {
-            console.error("[v0] Failed to update deployment status:", dbError)
-          }
-        })
     }
 
     return { success: true, marketId: createdMarket.id }

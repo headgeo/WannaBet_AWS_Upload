@@ -14,6 +14,7 @@ import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
 import { initiateSettlement, contestSettlement, submitVote, getSettlementStatus } from "@/app/actions/oracle-settlement"
+import { proposeUMAOutcome } from "@/app/actions/uma-settlement"
 import { BlockchainStatus } from "@/components/blockchain-status"
 import Link from "next/link"
 import {
@@ -103,6 +104,7 @@ export function MarketDetailClient({
   const [isTrading, setIsTrading] = useState(false)
   const [isSettling, setIsSettling] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [isRequestingSettlement, setIsRequestingSettlement] = useState(false)
   const [settlementStatus, setSettlementStatus] = useState<any>(null)
   const [isContesting, setIsContesting] = useState(false)
   const [isVoting, setIsVoting] = useState(false)
@@ -337,6 +339,42 @@ export function MarketDetailClient({
     }
   }
 
+  const handleProposeOutcome = async () => {
+    if (!currentUserId) {
+      setError("Please log in to propose an outcome")
+      return
+    }
+
+    const now = new Date()
+    const endDate = new Date(market.end_date)
+    if (endDate > now) {
+      setError("You can only propose outcomes after the market closes")
+      return
+    }
+
+    const outcomeChoice = window.confirm(
+      "Choose outcome:\n\nClick OK for YES\nClick Cancel for NO\n\nThis will post a $500 USDC bond from your wallet.",
+    )
+
+    setIsRequestingSettlement(true)
+    setError(null)
+
+    try {
+      const result = await proposeUMAOutcome(market.id, outcomeChoice, currentUserId)
+
+      if (result.success) {
+        router.refresh()
+      } else {
+        setError(result.error || "Failed to propose outcome")
+      }
+    } catch (error: any) {
+      console.error("[v0] Proposal error:", error)
+      setError(error.message || "An unexpected error occurred")
+    } finally {
+      setIsRequestingSettlement(false)
+    }
+  }
+
   useEffect(() => {
     if (market.is_private) {
       fetchSettlementStatus()
@@ -401,13 +439,11 @@ export function MarketDetailClient({
               <CardHeader className="pb-3 md:pb-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    {/*  Reduced title size from text-xl to text-lg, reduced margin */}
                     <CardTitle className="text-base md:text-lg mb-1 md:mb-2">{market.title}</CardTitle>
                     <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-4">{market.description}</p>
                   </div>
                 </div>
 
-                {/*  Made badges smaller with tighter spacing */}
                 <div className="flex items-center gap-1.5 md:gap-2 flex-wrap max-w-full overflow-hidden">
                   <Badge variant="secondary" className="flex-shrink-0 text-xs px-1.5 py-0">
                     {market.category}
@@ -448,7 +484,6 @@ export function MarketDetailClient({
               </CardHeader>
 
               <CardContent className="space-y-3 md:space-y-4">
-                {/*  Reduced spacing and font sizes in odds display */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 md:gap-2">
@@ -472,7 +507,6 @@ export function MarketDetailClient({
                     </span>
                   </div>
 
-                  {/*  Reduced stats section padding and font sizes */}
                   <div className="grid grid-cols-2 gap-3 md:gap-4 pt-3 md:pt-4 border-t">
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5 md:mb-1">
@@ -859,6 +893,8 @@ export function MarketDetailClient({
                 umaRequestId={market.uma_request_id}
                 livenessEndsAt={market.uma_liveness_ends_at}
                 isPrivate={market.is_private}
+                onProposeOutcome={handleProposeOutcome}
+                isRequestingSettlement={isRequestingSettlement}
               />
             )}
 

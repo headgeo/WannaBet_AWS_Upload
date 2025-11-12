@@ -351,7 +351,7 @@ This platform uses UMA's **OptimisticOracleV3 (OOv3)** for decentralized market 
 
 ---
 
-## 📝 Known Issues & Limitations
+## 📝 Known Issues & Limitation
 
 1. **No Dedicated Market Contracts**
    - Market "address" is computed, not real

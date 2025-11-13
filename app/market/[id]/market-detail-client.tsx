@@ -29,6 +29,7 @@ import { getMarketStatusDisplay, canTrade, isSettled } from "@/lib/market-status
 import { shouldShowBlockchainUI } from "@/lib/blockchain/feature-flags"
 import type { Position } from "@/types/position"
 import { MarketPriceChart } from "@/components/market-price-chart"
+import { ProposeOutcomeDialog } from "@/components/propose-outcome-dialog"
 
 interface Market {
   id: string
@@ -112,6 +113,7 @@ export function MarketDetailClient({
   const [voteOutcome, setVoteOutcome] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const [showProposeDialog, setShowProposeDialog] = useState(false)
 
   const marketStatus = getMarketStatusDisplay(market)
 
@@ -340,31 +342,39 @@ export function MarketDetailClient({
   }
 
   const handleProposeOutcome = async () => {
+    console.log("[v0] Propose outcome button clicked", { currentUserId, marketId: market.id })
+
     if (!currentUserId) {
       setError("Please log in to propose an outcome")
       return
     }
 
-    const now = new Date()
-    const endDate = new Date(market.end_date)
-    if (endDate > now) {
-      setError("You can only propose outcomes after the market closes")
-      return
-    }
+    setShowProposeDialog(true)
+  }
 
-    const outcomeChoice = window.confirm(
-      "Choose outcome:\n\nClick OK for YES\nClick Cancel for NO\n\nThis will post a $500 USDC bond from your wallet.",
-    )
+  const handleConfirmProposal = async (outcomeChoice: boolean) => {
+    console.log("[v0] User confirmed outcome:", outcomeChoice ? "YES" : "NO")
 
     setIsRequestingSettlement(true)
     setError(null)
 
     try {
+      console.log("[v0] Calling proposeUMAOutcome...", {
+        marketId: market.id,
+        outcome: outcomeChoice,
+        userId: currentUserId,
+      })
+
       const result = await proposeUMAOutcome(market.id, outcomeChoice, currentUserId)
 
+      console.log("[v0] proposeUMAOutcome result:", result)
+
       if (result.success) {
+        console.log("[v0] Proposal successful, closing dialog and refreshing page")
+        setShowProposeDialog(false)
         router.refresh()
       } else {
+        console.error("[v0] Proposal failed:", result.error)
         setError(result.error || "Failed to propose outcome")
       }
     } catch (error: any) {
@@ -991,6 +1001,13 @@ export function MarketDetailClient({
           </div>
         </div>
       </div>
+      <ProposeOutcomeDialog
+        open={showProposeDialog}
+        onOpenChange={setShowProposeDialog}
+        onConfirm={handleConfirmProposal}
+        isLoading={isRequestingSettlement}
+        marketTitle={market.title}
+      />
     </div>
   )
 }

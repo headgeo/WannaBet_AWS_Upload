@@ -100,11 +100,7 @@ export function BlockchainStatus({
         {blockchainStatus === "not_deployed" && !umaRequestId ? (
           <div className="space-y-3">
             <div className="text-sm text-muted-foreground">
-              <p className="mb-2">This market uses UMA&apos;s Optimistic Oracle for decentralized settlement.</p>
-              <p className="text-xs">
-                Once the market expires, anyone can propose an outcome by posting a $500 USDC bond. After a 2-hour
-                challenge period, the outcome is finalized.
-              </p>
+              <p>This market uses UMA&apos;s Optimistic Oracle for decentralized settlement.</p>
             </div>
 
             <Button
@@ -120,14 +116,9 @@ export function BlockchainStatus({
                   Proposing Outcome...
                 </>
               ) : (
-                <>Propose Outcome ($500 Bond Required)</>
+                <>Propose Outcome</>
               )}
             </Button>
-
-            <p className="text-xs text-muted-foreground">
-              Clicking this will create an on-chain assertion using $10 from the platform reward pool and $500 from your
-              wallet as bond. You&apos;ll receive the $500 bond back plus the $10 reward after 2 hours if not disputed.
-            </p>
           </div>
         ) : (
           <>

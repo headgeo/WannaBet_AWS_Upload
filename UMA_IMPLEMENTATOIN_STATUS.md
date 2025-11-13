@@ -2,110 +2,150 @@
 
 Last Updated: January 2025
 
-## Current Implementation: Simple Assertion Model (Option 1)
+## Current Architecture: Client-Side Wallet Proposals (Proper UMA Pattern)
 
-We're using UMA's OptimisticOracleV3 directly without deploying individual market contracts. This is UMA's recommended approach for simple binary markets.
+We're using UMA's OptimisticOracleV3 with **user-initiated wallet transactions** for proposals. This is the correct implementation pattern.
 
-## Architecture
+## How It Works
 
-### On Market Creation
+### Step 1: Market Creation (Database Only)
 - ✅ Market created in database with `blockchain_status: 'not_deployed'`
 - ✅ $10 USDC from creator's balance allocated for reward (tracked in `liquidity_posted_for_reward`)
 - ✅ Platform ledger records $10 as platform inflow
-- ❌ **NO blockchain transaction yet** - just database records
+- ❌ **NO blockchain transaction** - just database records
+- ❌ **NO wallet interaction** - server-side only
 
-### On Propose Outcome (User-Initiated)
-- ✅ User clicks "Propose Outcome" button after market expires
-- ✅ System calls `proposeUMAOutcome()` which calls `assertTruth()` on OptimisticOracleV3:
-  - Approves $10 USDC reward from platform wallet
-  - User posts $500 USDC bond from their wallet
-  - Creates assertion with 2-hour challenge period
-- ✅ Stores `assertionId` in `uma_request_id` column
-- ✅ Sets `blockchain_status: 'proposal_pending'`
-- ✅ Transaction hash visible on PolygonScan
+### Step 2: Trading Period (Normal Trading)
+- ✅ Users trade with platform money (not blockchain)
+- ✅ LMSR pricing updates automatically
+- ✅ All transactions recorded in database
 
-### During Challenge Period (2 Hours)
-- ⏳ Anyone can dispute the assertion on-chain
-- ⏳ If disputed, UMA's DVM resolves the dispute
+### Step 3: Market Expiry (Just Time Passing)
+- ⏰ Market reaches end_date
+- ⏰ Trading automatically closes
+- ⏰ "Propose Outcome" button appears in Blockchain UI
+
+### Step 4: Outcome Proposal (**USER'S WALLET - NOT PLATFORM**)
+**Current Status: ⚠️ NEEDS WALLET INTEGRATION**
+
+**What Should Happen:**
+1. User clicks "Propose Outcome" button
+2. User connects MetaMask/wallet to the app
+3. User selects YES or NO in modal
+4. **Client-side transaction happens:**
+   - User's wallet approves $500 USDC to OptimisticOracleV3
+   - User's wallet calls `assertTruth()` with their claim
+   - Platform contributes $10 reward (from platform wallet via backend)
+   - Transaction hash stored in database
+5. Market status → `proposal_pending`
+6. 2-hour challenge period starts
+
+**What Currently Happens (WRONG):**
+- ❌ Server-side call with platform wallet
+- ❌ Platform pays $500 bond (should be user)
+- ❌ No wallet connection for users
+- ❌ Not decentralized
+
+### Step 5: Challenge Period (2 Hours)
+- ⏳ Anyone can dispute on-chain
+- ⏳ If disputed, UMA's DVM resolves
 - ⏳ If not disputed, assertion becomes truth
 
-### On Settlement Finalization
-- ✅ Anyone calls `finalizeUMASettlement()` after 2 hours
-- ✅ Calls `settleAssertion()` on OptimisticOracleV3
-- ✅ Proposer receives:
-  - $500 bond returned
-  - $10 reward from platform
-- ✅ System reads outcome and settles market in database
-- ✅ Winner payouts distributed via `settle_market` SQL function
-- ✅ Leftover liquidity goes to platform ledger
+### Step 6: Settlement (After 2 Hours)
+- ✅ Anyone calls `settleAssertion()` on-chain
+- ✅ Proposer receives $500 bond back + $10 reward
+- ✅ App reads outcome and settles market in database
+- ✅ Winners get payouts
+- ✅ Leftover liquidity → platform ledger
 
 ## Current Status
 
 ### ✅ Completed
 
 1. **Database Schema**
-   - `blockchain_status` column (not_deployed/proposal_pending/settled)
-   - `uma_request_id` for storing assertionId
-   - `uma_liveness_ends_at` for challenge period tracking
-   - `liquidity_posted_for_reward` for $10 reward tracking
+   - All UMA tracking columns in place
+   - Platform ledger system working
+   - Settlement flow implemented
 
-2. **Platform Ledger System**
-   - Tracks platform-owned money
-   - Records $10 inflows on market creation
-   - Records settlement leftovers
-   - Records $10 reward payouts to proposers
-   - Files: `lib/platform-ledger.ts`, `scripts/016_create_platform_ledger.sql`
+2. **UI Components**
+   - Blockchain status card with "Propose Outcome" button
+   - Proposal modal with YES/NO selection
+   - Clear explanation of $500 bond requirement
 
-3. **Blockchain Integration**
-   - OptimisticOracleV3 client configured for Amoy testnet
-   - `proposeUMAOutcome()` action calls `assertTruth()`
-   - `finalizeUMASettlement()` calls `settleAssertion()`
-   - Transaction hashes tracked in database
+3. **Server Actions (Platform Wallet)**
+   - `proposeUMAOutcome()` - Calls assertTruth (currently from server, WRONG)
+   - `finalizeUMASettlement()` - Calls settleAssertion
+   - Platform ledger tracking
 
-4. **UI Components**
-   - BlockchainStatus component shows deployment state
-   - "Propose Outcome" button for expired markets (not_deployed status)
-   - Challenge period countdown display
-   - Links to PolygonScan for verification
+4. **Trading & Settlement**
+   - LMSR trading working
+   - Notifications working
+   - Settlement distribution working
 
-5. **Trade & Settlement**
-   - Fixed trade function (deducts full amount including fees)
-   - Notifications for trades
-   - Settlement distribution with leftover tracking
-   - Platform ledger integration for both public and private markets
+### ⚠️ CRITICAL MISSING: Wallet Integration
 
-### 🚧 In Progress / Testing
+**What's Needed:**
+1. **Add wagmi/viem for Web3**
+   \`\`\`bash
+   npm install wagmi viem @rainbow-me/rainbowkit
+   \`\`\`
 
-1. **Amoy Testnet Testing**
-   - Need to test full flow: create → expire → propose → settle
-   - Verify $10 reward and $500 bond mechanism
-   - Verify challenge period enforcement
-   - Test end-to-end with real Amoy transactions
+2. **Wallet Connection Provider**
+   - Wrap app in WagmiConfig
+   - Add "Connect Wallet" button
+   - Show connected wallet address
 
-2. **Environment Variables**
-   - ✅ `BLOCKCHAIN_PRIVATE_KEY` - Platform wallet private key
-   - ✅ `BLOCKCHAIN_NETWORK` - Set to 'amoy' for testing
-   - ❌ Need to verify these work in Vercel deployment
+3. **Client-Side Proposal Function**
+   - Replace server-side `proposeUMAOutcome()`
+   - User signs transaction in their wallet
+   - Frontend calls blockchain directly
+   - Backend only contributes $10 reward
 
-### ⏸️ Future Enhancements
+4. **Environment Split**
+   - Platform wallet (backend) - Only for $10 reward
+   - User wallet (frontend) - For $500 bond and assertTruth call
 
-1. **Proposal UX**
-   - Better outcome selection UI (modal instead of confirm dialog)
-   - Show bond requirements upfront with balance check
-   - Connect wallet integration for MetaMask/WalletConnect
-   - Real-time bond balance verification
+### 🚧 Next Steps (Pre-Wallet Integration)
 
-2. **Monitoring & Automation**
-   - Background service to monitor assertions
-   - Auto-settle after liveness period
-   - Alert system for disputes
-   - Handle disputed outcomes
+**Code Structure Changes Made:**
+- ✅ Proposal dialog clearly shows $500 comes from user
+- ✅ UI indicates wallet connection will be needed
+- ✅ Backend code marked for future wallet integration
+- ✅ Placeholder comments where wallet logic goes
 
-3. **Mainnet Deployment**
-   - Switch to Polygon mainnet
-   - Update contract addresses
-   - Link to UMA's oracle interface (oracle.uma.xyz)
-   - Real USDC instead of test tokens
+**Ready for Wallet Integration:**
+- Frontend UI prepared
+- Modal explains bond requirements clearly
+- Error handling in place
+- Transaction flow mapped out
+
+### ⏸️ Parked Until Wallet Integration
+
+1. **Test Full Proposal Flow**
+   - Can't test without user wallets
+   - Need MetaMask integration
+   - Need client-side Web3 calls
+
+2. **Mainnet Deployment**
+   - Wallet integration required first
+   - Then test on Amoy with real wallets
+   - Finally deploy to Polygon mainnet
+
+## Payment Flow (Final Architecture)
+
+### Market Creation
+- ✅ Platform: Approve $10 USDC for future reward (backend)
+- ✅ Cost: ~$0.10-0.50 gas
+
+### Outcome Proposal
+- ✅ User: Approve $500 USDC to OOv3 (frontend wallet)
+- ✅ User: Call assertTruth() with claim (frontend wallet)
+- ✅ Platform: Contribute $10 reward (backend)
+- ✅ Cost: $500 bond + gas (user pays)
+
+### After 2 Hours
+- ✅ User gets: $500 bond back + $10 reward
+- ✅ Platform pays: Just $10 per market (sustainable!)
 
 ## Network Configuration
 
@@ -114,7 +154,6 @@ We're using UMA's OptimisticOracleV3 directly without deploying individual marke
 - Chain ID: 80002
 - OptimisticOracleV3: `0x9923D42eF695B5dd9911D05Ac944d4cAca3c4EAB`
 - USDC (Mock): `0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582`
-- RPC: Public Amoy RPC
 - Explorer: https://amoy.polygonscan.com
 
 ### Polygon Mainnet (Future)
@@ -122,52 +161,39 @@ We're using UMA's OptimisticOracleV3 directly without deploying individual marke
 - Chain ID: 137
 - OptimisticOracleV3: `0xfb55F43fB9F48F63f9269DB7Dde3BbBe1ebDC0dE`
 - USDC: `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
-- RPC: Polygon mainnet RPC
 - Explorer: https://polygonscan.com
 
-## Key Differences from Previous Approach
-
-### What Changed
-- ❌ Removed MarketFactory contract deployment
-- ❌ Removed UMAAdapter contract
-- ❌ Removed individual PredictionMarket contracts
-- ✅ Now using OptimisticOracleV3 directly
-- ✅ Simpler, cheaper, follows UMA's design
-- ✅ No blockchain transaction on market creation
-- ✅ First transaction happens when user proposes outcome
-
-### Why This is Better
-1. **Lower Initial Cost**: No approval transaction on market creation
-2. **Simpler**: Direct oracle interaction, no custom contracts
-3. **Standard**: Follows UMA's recommended pattern
-4. **Flexible**: Easy to upgrade without contract migrations
-5. **User-Initiated**: Users control when blockchain costs occur
-
-## Testing Checklist
+## Testing Checklist (Post-Wallet Integration)
 
 ### Amoy Testnet
-- [ ] Create public market with $20 liquidity
-- [ ] Verify market shows "Not Deployed" in UI
-- [ ] Place trades and verify trading works
-- [ ] Wait for market to expire
-- [ ] Click "Propose Outcome" button
-- [ ] Verify assertion transaction on PolygonScan
-- [ ] Wait 2 hours (or test with shorter liveness)
-- [ ] Call `finalizeUMASettlement()` and verify settlement
-- [ ] Check winner payouts and platform ledger entries
+- [ ] Install wagmi/viem/RainbowKit
+- [ ] Add wallet connection to app
+- [ ] Create public market
+- [ ] Connect user wallet
+- [ ] User proposes outcome (pays $500 from wallet)
+- [ ] Verify assertion on PolygonScan
+- [ ] Wait 2 hours
+- [ ] Settle and verify user receives $510 ($500 + $10)
 
-### Production Readiness
-- [ ] Test with real USDC on Polygon mainnet
-- [ ] Verify $500 bond mechanism
-- [ ] Test dispute handling
-- [ ] Monitor gas costs
-- [ ] Set up proper error handling and retries
-- [ ] Add monitoring for stuck assertions
+## Key Architecture Decisions
 
-## Notes
-- Platform wallet needs sufficient POL for gas fees
-- Platform wallet needs $10 USDC per public market for rewards
-- Proposers need $500 USDC + gas to propose outcomes
-- Challenge period is 2 hours (7200 seconds)
-- Test network may have shorter liveness periods
-- Platform ledger tracks all platform-owned money flows
+### Why Client-Side Proposals?
+1. **Decentralization** - Users participate directly on-chain
+2. **Scalability** - Platform doesn't need $500 per market
+3. **Security** - User controls their own bond
+4. **Incentives** - Users earn rewards for honest proposals
+
+### Why $10 From Platform?
+- Small cost to subsidize decentralized settlement
+- Incentivizes users to propose outcomes
+- Much cheaper than hiring oracle admins
+- Scales to millions of markets
+
+### Why Not Deploy Market Contracts?
+- UMA's OOv3 is designed for direct assertions
+- No need for custom contracts
+- Lower gas costs
+- Simpler architecture
+- Easy to upgrade
+</output>
+</result>

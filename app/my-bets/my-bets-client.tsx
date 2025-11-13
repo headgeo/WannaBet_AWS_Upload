@@ -1,25 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  TrendingUp,
-  TrendingDown,
-  History,
-  Activity,
-  Users,
-  Building2,
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
-  Receipt,
-  DollarSign,
-  ArrowLeft,
-} from "lucide-react"
+import { TrendingUp, TrendingDown, History, Activity, Users, Building2, AlertTriangle, ChevronDown, ChevronUp, Receipt, DollarSign, ArrowLeft } from 'lucide-react'
 import Link from "next/link"
 import { SellSharesDialog } from "@/components/sell-shares-dialog"
 import { sellShares } from "@/app/actions/trade"
@@ -256,7 +243,7 @@ export default function MyBetsClient({
                       <div className="flex items-center gap-3">
                         <div className="text-right">
                           <div className="text-xs text-muted-foreground">P&L</div>
-                          <div className={`font-semibold ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          <div className={`font-semibold text-base ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
                             {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                           </div>
                         </div>
@@ -416,7 +403,7 @@ export default function MyBetsClient({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 pt-2 md:pt-4 border-t">
                   <div>
                     <div className="text-xs md:text-sm text-muted-foreground">Invested</div>
-                    <div className="font-semibold text-xs md:text-base">
+                    <div className="font-semibold text-base">
                       ${Number.parseFloat(position.amount_invested.toString()).toFixed(2)}
                     </div>
                   </div>
@@ -424,33 +411,33 @@ export default function MyBetsClient({
                     <>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">Refund</div>
-                        <div className="font-semibold text-xs md:text-base text-blue-600">
+                        <div className="font-semibold text-base text-blue-600">
                           ${refundAmount.toFixed(2)}
                         </div>
                       </div>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">Status</div>
-                        <div className="font-semibold text-xs md:text-base text-gray-600">Refunded</div>
+                        <div className="font-semibold text-base text-gray-600">Refunded</div>
                       </div>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">Net</div>
-                        <div className="font-semibold text-xs md:text-base text-gray-600">$0.00</div>
+                        <div className="font-semibold text-base text-gray-600">$0.00</div>
                       </div>
                     </>
                   ) : (
                     <>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">Price</div>
-                        <div className="font-semibold text-xs md:text-base">${currentSharePrice.toFixed(3)}</div>
+                        <div className="font-semibold text-base">${currentSharePrice.toFixed(3)}</div>
                       </div>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">Value</div>
-                        <div className="font-semibold text-xs md:text-base">${currentValue.toFixed(2)}</div>
+                        <div className="font-semibold text-base">${currentValue.toFixed(2)}</div>
                       </div>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">P&L</div>
                         <div
-                          className={`font-semibold text-xs md:text-base ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}
+                          className={`font-semibold text-base ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}
                         >
                           {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                         </div>
@@ -965,18 +952,6 @@ export default function MyBetsClient({
                           </div>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xs text-muted-foreground mb-1">Market P&L</div>
-                        <div
-                          className={`text-2xl font-bold ${
-                            marketTotalPnL >= 0
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-red-600 dark:text-red-400"
-                          }`}
-                        >
-                          {marketTotalPnL >= 0 ? "+" : ""}${marketTotalPnL.toFixed(2)}
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -985,6 +960,9 @@ export default function MyBetsClient({
                       const isExpanded = expandedPnlId === pnl.id
                       const isWin = pnl.realized_pnl > 0
                       const isBreakEven = Math.abs(pnl.realized_pnl) < 0.01
+                      const isLoss = pnl.realized_pnl < -0.01
+
+                      const displayPricePerShare = pnl.price_per_share
 
                       return (
                         <div
@@ -1004,17 +982,17 @@ export default function MyBetsClient({
                                   </Badge>
                                   <div className="flex-1 min-w-0">
                                     <div className="text-sm font-medium">
-                                      {pnl.shares.toFixed(2)} shares @ ${pnl.price_per_share.toFixed(3)}
+                                      {pnl.shares.toFixed(2)} shares @ ${displayPricePerShare.toFixed(3)}
                                     </div>
                                     <div className="text-xs text-muted-foreground">
-                                      Cost basis: ${pnl.cost_basis.toFixed(3)}/share
+                                      Cost basis: ${(pnl.cost_basis * pnl.shares).toFixed(2)}
                                     </div>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">
                                   <div className="text-right">
                                     <div
-                                      className={`text-lg font-bold ${
+                                      className={`text-base font-bold ${
                                         isWin
                                           ? "text-green-600 dark:text-green-400"
                                           : isBreakEven
@@ -1065,21 +1043,21 @@ export default function MyBetsClient({
                                   <div className="grid grid-cols-2 gap-4">
                                     <div>
                                       <div className="text-xs font-medium text-muted-foreground mb-1">Shares Sold</div>
-                                      <div className="text-lg font-bold">{pnl.shares.toFixed(2)}</div>
+                                      <div className="text-base font-bold">{pnl.shares.toFixed(2)}</div>
                                     </div>
                                     <div>
                                       <div className="text-xs font-medium text-muted-foreground mb-1">Sale Price</div>
-                                      <div className="text-lg font-bold">${pnl.price_per_share.toFixed(3)}</div>
+                                      <div className="text-base font-bold">${displayPricePerShare.toFixed(3)}</div>
                                     </div>
                                     <div>
                                       <div className="text-xs font-medium text-muted-foreground mb-1">Cost Basis</div>
-                                      <div className="text-lg font-bold">${pnl.cost_basis.toFixed(3)}</div>
+                                      <div className="text-base font-bold">${(pnl.cost_basis * pnl.shares).toFixed(2)}</div>
                                     </div>
                                     <div>
                                       <div className="text-xs font-medium text-muted-foreground mb-1">
                                         Total Received
                                       </div>
-                                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                                      <div className="text-base font-bold text-blue-600 dark:text-blue-400">
                                         ${pnl.total_amount.toFixed(2)}
                                       </div>
                                     </div>
@@ -1100,7 +1078,7 @@ export default function MyBetsClient({
                                       Realized Profit/Loss
                                     </div>
                                     <div
-                                      className={`text-4xl font-bold ${
+                                      className={`text-2xl font-bold ${
                                         isWin
                                           ? "text-green-600 dark:text-green-400"
                                           : isBreakEven
@@ -1197,7 +1175,7 @@ export default function MyBetsClient({
                         <p className="text-xs text-muted-foreground">Your bond is locked until the market settles</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
+                        <div className="text-base font-bold text-orange-700 dark:text-orange-300">
                           ${bond.bond_amount.toFixed(2)}
                         </div>
                         <div className="text-xs text-muted-foreground">Locked</div>
@@ -1287,12 +1265,12 @@ export default function MyBetsClient({
                       <div className="grid grid-cols-3 gap-3 pt-3 border-t">
                         <div>
                           <div className="text-xs text-muted-foreground">Bond Posted</div>
-                          <div className="text-sm font-semibold">${bond.bond_amount.toFixed(2)}</div>
+                          <div className="text-base font-semibold">${bond.bond_amount.toFixed(2)}</div>
                         </div>
                         <div>
                           <div className="text-xs text-muted-foreground">Returned</div>
                           <div
-                            className={`text-sm font-bold ${isProfitable ? "text-green-600 dark:text-green-400" : isLoss ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
+                            className={`text-base font-bold ${isProfitable ? "text-green-600 dark:text-green-400" : isLoss ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
                           >
                             ${payout.toFixed(2)}
                           </div>
@@ -1300,7 +1278,7 @@ export default function MyBetsClient({
                         <div>
                           <div className="text-xs text-muted-foreground">P&L</div>
                           <div
-                            className={`text-sm font-bold ${
+                            className={`text-base font-bold ${
                               isBreakEven
                                 ? "text-foreground"
                                 : isProfitable

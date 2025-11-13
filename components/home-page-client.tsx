@@ -4,17 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  TrendingUp,
-  Plus,
-  Shield,
-  LogOut,
-  Wallet,
-  BarChart,
-  DollarSign,
-  AlertTriangle,
-  CheckCircle2,
-} from "lucide-react"
+import { TrendingUp, Plus, Shield, LogOut, Wallet, BarChart, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import Link from "next/link"
 import { NotificationBell } from "@/components/notifications"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -23,7 +13,7 @@ import { MobileHeader } from "@/components/mobile-header"
 import { useMarkets } from "@/lib/hooks/use-markets"
 import { initiateSettlement } from "@/app/actions/oracle-settlement"
 import { cancelPrivateMarket } from "@/app/actions/admin"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 
 interface HomePageProps {
   userId: string
@@ -331,7 +321,6 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                                     {isSettled && (
                                       <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
                                         <CheckCircle2 className="w-4 h-4" />
-                                        <span className="text-xs font-medium">Settled</span>
                                       </div>
                                     )}
                                   </div>
@@ -345,14 +334,7 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                                     >
                                       {market.category}
                                     </Badge>
-                                    {isSettled ? (
-                                      <Badge
-                                        variant="default"
-                                        className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5 bg-green-600"
-                                      >
-                                        Settled - {market.outcome ? "YES" : "NO"} Won
-                                      </Badge>
-                                    ) : (
+                                    {!isSettled && (
                                       <Badge
                                         variant={market.status === "active" ? "default" : "secondary"}
                                         className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"

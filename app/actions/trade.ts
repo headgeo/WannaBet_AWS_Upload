@@ -2,56 +2,9 @@
 
 import { rpc, selectWithJoin } from "@/lib/database/adapter"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
-import type { FeeRecord } from "@/lib/fees"
 import { canTrade, getMarketStatus } from "@/lib/market-status"
 import { revalidatePath } from "next/cache"
 import { checkTradeRateLimit } from "@/lib/rate-limit"
-import { recordPlatformFee } from "@/lib/platform-ledger"
-
-async function recordFee(feeRecord: FeeRecord, marketCreatorId: string, marketId: string) {
-  try {
-    console.log("[v0] Calling split_trading_fees_secure with:", {
-      p_market_id: feeRecord.market_id,
-      p_trader_id: feeRecord.user_id,
-      p_creator_id: marketCreatorId,
-      p_total_fee: feeRecord.fee_amount,
-    })
-
-    const { error } = await rpc("split_trading_fees_secure", {
-      p_market_id: feeRecord.market_id,
-      p_trader_id: feeRecord.user_id,
-      p_creator_id: marketCreatorId,
-      p_total_fee: feeRecord.fee_amount,
-    })
-
-    if (error) {
-      console.error("[v0] Failed to record split fees:", error)
-      throw new Error(`Fee recording failed: ${error.message}`)
-    } else {
-      console.log("[v0] Split fees recorded successfully")
-
-      const platformFeeAmount = feeRecord.fee_amount / 2
-
-      const supabase = await createSupabaseClient()
-      const { data: platformFeeData } = await supabase
-        .from("fees")
-        .select("id")
-        .eq("market_id", marketId)
-        .eq("fee_type", "site_fee")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single()
-
-      if (platformFeeData?.id) {
-        console.log("[v0] Recording platform fee in platform ledger:", platformFeeAmount)
-        await recordPlatformFee(platformFeeData.id, platformFeeAmount, marketId)
-      }
-    }
-  } catch (error) {
-    console.error("[v0] Fee recording error:", error)
-    throw error
-  }
-}
 
 export async function executeTrade(
   marketId: string,
@@ -67,8 +20,8 @@ export async function executeTrade(
   newLiquidityPool: number,
   feeAmount: number,
   netAmount: number,
-  maxSlippagePercent = 5, // Default 5% max slippage
-  expectedPrice: number, // Price per share user saw when initiating trade
+  maxSlippagePercent = 5,
+  expectedPrice: number,
 ) {
   try {
     const supabase = await createSupabaseClient()
@@ -133,18 +86,18 @@ export async function executeTrade(
     }
 
     console.log("[v0] Trade amounts:", {
-      betAmount, // Should be gross amount (e.g., $10)
-      feeAmount, // Should be fee (e.g., $0.10)
-      netAmount, // Should be net after fee (e.g., $9.90)
-      calculatedShares, // Shares user will receive
+      betAmount,
+      feeAmount,
+      netAmount,
+      calculatedShares,
     })
 
     const { data: tradeResult, error: rpcError } = await rpc("execute_trade_lmsr", {
       p_market_id: marketId,
       p_user_id: userId,
-      p_bet_amount: betAmount, // Gross amount (original) - changed from netAmount
-      p_fee_amount: feeAmount, // Fee amount to deduct separately
-      p_net_amount: netAmount, // Net amount for market calculations
+      p_bet_amount: betAmount,
+      p_fee_amount: feeAmount,
+      p_net_amount: netAmount,
       p_bet_side: betSide.toLowerCase(),
       p_qy: newQy,
       p_qn: newQn,
@@ -161,20 +114,6 @@ export async function executeTrade(
     }
 
     console.log("[v0] Trade executed successfully:", tradeResult)
-
-    await recordFee(
-      {
-        user_id: userId,
-        market_id: marketId,
-        transaction_type: "buy",
-        original_amount: betAmount,
-        fee_amount: feeAmount,
-        fee_percentage: 0.01,
-        net_amount: netAmount,
-      },
-      marketData.creator_id,
-      marketId,
-    )
 
     revalidatePath(`/market/${marketId}`)
     revalidatePath("/")
@@ -285,20 +224,6 @@ export async function sellShares(
     if (rpcError) {
       throw new Error(`Sell execution failed: ${rpcError.message}`)
     }
-
-    await recordFee(
-      {
-        user_id: userId,
-        market_id: marketId,
-        transaction_type: "sell",
-        original_amount: expectedValue,
-        fee_amount: feeAmount,
-        fee_percentage: 0.01,
-        net_amount: netValue,
-      },
-      marketData.creator_id,
-      marketId,
-    )
 
     revalidatePath(`/market/${marketId}`)
     revalidatePath("/")

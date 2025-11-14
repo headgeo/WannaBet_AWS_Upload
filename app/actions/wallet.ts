@@ -38,7 +38,7 @@ export async function depositFunds() {
       amount: DEPOSIT_AMOUNT,
       balance_before: balanceBefore,
       balance_after: balanceAfter,
-      metadata: { method: "manual_deposit" },
+      metadata: JSON.stringify({ method: "manual_deposit" }),
     })
 
     // Create notification
@@ -47,7 +47,7 @@ export async function depositFunds() {
       type: "deposit",
       title: "Deposit Successful",
       message: `$${DEPOSIT_AMOUNT.toFixed(2)} has been deposited to your account`,
-      read: false,
+      is_read: false,
     })
 
     revalidatePath("/wallet")
@@ -94,7 +94,7 @@ export async function withdrawFunds() {
       amount: WITHDRAW_AMOUNT,
       balance_before: balanceBefore,
       balance_after: balanceAfter,
-      metadata: { method: "manual_withdraw" },
+      metadata: JSON.stringify({ method: "manual_withdraw" }),
     })
 
     // Create notification
@@ -103,7 +103,7 @@ export async function withdrawFunds() {
       type: "withdraw",
       title: "Withdrawal Successful",
       message: `$${WITHDRAW_AMOUNT.toFixed(2)} has been withdrawn from your account`,
-      read: false,
+      is_read: false,
     })
 
     revalidatePath("/wallet")

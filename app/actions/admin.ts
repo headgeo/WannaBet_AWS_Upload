@@ -293,56 +293,55 @@ export async function getFeesAndLiquiditySummary() {
   try {
     await requireAdmin()
 
-    const { data: allFeesDebug, error: debugError } = await selectWithJoin("fees", {
-      select: "fee_type, fee_amount",
-      limit: 100,
+    const { data: platformLedger, error: ledgerError } = await selectWithJoin("platform_ledger", {
+      select: "transaction_type, amount",
     })
 
-    console.log("[v0] All fees (debug):", allFeesDebug)
-    console.log(
-      "[v0] Unique fee types:",
-      Array.isArray(allFeesDebug) ? [...new Set(allFeesDebug.map((f: any) => f.fee_type))] : [],
-    )
-
-    const { data: feesData, error: feesError } = await selectWithJoin("fees", {
-      select: "fee_amount, fee_type",
-      where: [{ column: "fee_type", operator: "IN", value: ["sit_fee", "site_fee"] }],
-    })
-
-    console.log("[v0] Fees data:", feesData)
-    console.log("[v0] Fees error:", feesError)
-
-    if (feesError) {
-      throw new Error(`Failed to fetch fees: ${feesError.message}`)
+    if (ledgerError) {
+      throw new Error(`Failed to fetch platform ledger: ${ledgerError.message}`)
     }
 
-    const totalSitFees = Array.isArray(feesData)
-      ? feesData.reduce((sum: number, fee: any) => sum + Number(fee.fee_amount || 0), 0)
+    const siteFees = Array.isArray(platformLedger)
+      ? platformLedger
+          .filter((entry: any) => entry.transaction_type === "platform_fee")
+          .reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0)
       : 0
-    console.log("[v0] Total sit fees calculated:", totalSitFees)
 
-    const { data: marketsData, error: marketsError } = await selectWithJoin("markets", {
-      select: "liquidity_pool",
-      where: [{ column: "status", operator: "IN", value: ["settled", "cancelled"] }],
-    })
+    const settledLiquidity = Array.isArray(platformLedger)
+      ? platformLedger
+          .filter((entry: any) => entry.transaction_type === "settlement_leftover")
+          .reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0)
+      : 0
 
-    if (marketsError) {
-      throw new Error(`Failed to fetch settled markets: ${marketsError.message}`)
-    }
+    const creatorFeeIn = Array.isArray(platformLedger)
+      ? platformLedger
+          .filter((entry: any) => entry.transaction_type === "market_creation_reward")
+          .reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0)
+      : 0
 
-    const totalSettledLiquidity = Array.isArray(marketsData)
-      ? marketsData.reduce((sum: number, market: any) => sum + Number(market.liquidity_pool || 0), 0)
+    const creatorFeeOut = Array.isArray(platformLedger)
+      ? platformLedger
+          .filter((entry: any) => entry.transaction_type === "creator_fee_payout")
+          .reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0)
+      : 0
+
+    const creatorRewardBalance = creatorFeeIn - creatorFeeOut
+
+    const totalPosition = Array.isArray(platformLedger)
+      ? platformLedger.reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0)
       : 0
 
     return {
       success: true,
       data: {
-        totalSitFees,
-        totalSettledLiquidity,
+        siteFees,
+        settledLiquidity,
+        creatorRewardBalance,
+        totalPosition,
       },
     }
   } catch (error) {
-    console.error("Error fetching fees and liquidity summary:", error)
+    console.error("Error fetching platform summary:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -439,6 +438,33 @@ export async function cancelPrivateMarket(marketId: string) {
     return { success: true, data: result }
   } catch (error) {
     console.error("Private market cancellation error:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+}
+
+export async function runBalanceReconciliation() {
+  try {
+    await requireAdmin()
+
+    console.log("[v0] Starting balance reconciliation...")
+
+    const { data: result, error } = await rpc("run_balance_reconciliation", {})
+
+    if (error) {
+      throw new Error(`Reconciliation failed: ${error.message}`)
+    }
+
+    console.log("[v0] Reconciliation complete:", result)
+
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+    const reconciliationData = parsedResult?.run_balance_reconciliation || parsedResult
+
+    return { success: true, data: reconciliationData }
+  } catch (error) {
+    console.error("Balance reconciliation error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

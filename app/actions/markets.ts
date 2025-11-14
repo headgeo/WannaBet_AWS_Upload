@@ -140,32 +140,6 @@ export async function createMarket(data: CreateMarketData) {
 
     console.log("[v0] Transaction result:", transactionResult)
 
-    if (transactionResult.data && transactionResult.data[0]) {
-      const transactionId = transactionResult.data[0].id
-
-      console.log("[v0] Inserting ledger entry for market creation, transaction_id:", transactionId)
-
-      const ledgerResult = await insert("ledger_entries", {
-        user_id: user.id,
-        transaction_id: transactionId,
-        market_id: createdMarket.id,
-        debit: data.liquidityAmount, // Full amount in ledger
-        credit: 0,
-        balance_after: userBalance - data.liquidityAmount,
-        entry_type: "market_creation",
-        description: `Liquidity posted for market: ${data.title}${isPublicMarket ? ` ($${liquidityForPool} trading, $${liquidityForReward} UMA)` : ""}`,
-        idempotency_key: `market_creation_${createdMarket.id}_${user.id}`,
-      })
-
-      console.log("[v0] Ledger entry result:", ledgerResult)
-
-      if (ledgerResult.error) {
-        console.error("[v0] Failed to insert ledger entry:", ledgerResult.error)
-      }
-    } else {
-      console.error("[v0] No transaction ID returned, cannot create ledger entry")
-    }
-
     // Update user balance
     const updateResult = await update(
       "profiles",

@@ -1,21 +1,19 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertTriangle, CheckCircle, Clock, Users, DollarSign, TrendingUp, TrendingDown, Shield } from "lucide-react"
+import { AlertTriangle, CheckCircle, Clock, Users, DollarSign, TrendingUp, TrendingDown, Shield } from 'lucide-react'
 import { format } from "date-fns"
 import { useIsAdmin } from "@/lib/auth/admin-client"
-import { settleMarket, cancelMarket, getAllMarkets, getFeesAndLiquiditySummary } from "@/app/actions/admin"
+import { settleMarket, cancelMarket, getAllMarkets, getFeesAndLiquiditySummary, runBalanceReconciliation } from "@/app/actions/admin"
 import { createGroupsTables } from "@/app/actions/database"
-import {
-  getAllBondsDebug, // Import new debug function
-} from "@/app/actions/oracle-settlement"
 import { getMarketStatusDisplay } from "@/lib/market-status"
 import { NotificationBell } from "@/components/notifications"
+import { LoadingSpinner } from "@/components/loading-spinner"
 
 interface Market {
   id: string
@@ -33,12 +31,16 @@ interface Market {
   }
 }
 
+interface FeesSummary {
+  siteFees: number
+  settledLiquidity: number
+  creatorRewardBalance: number
+  totalPosition: number
+}
+
 export default function AdminPage() {
   const [allMarkets, setAllMarkets] = useState<Market[]>([])
-  const [feesSummary, setFeesSummary] = useState<{
-    totalSitFees: number
-    totalSettledLiquidity: number
-  } | null>(null)
+  const [feesSummary, setFeesSummary] = useState<FeesSummary | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSettling, setIsSettling] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -46,10 +48,10 @@ export default function AdminPage() {
   const [isCreatingTables, setIsCreatingTables] = useState(false)
   const [isCheckingSettlements, setIsCheckingSettlements] = useState(false)
   const [columnVerification, setColumnVerification] = useState<any>(null)
-  const [allBonds, setAllBonds] = useState<any>(null)
-  const [isLoadingBonds, setIsLoadingBonds] = useState(false)
   const [diagnosticData, setDiagnosticData] = useState<any>(null)
   const [isLoadingDiagnostics, setIsLoadingDiagnostics] = useState(false)
+  const [reconciliationData, setReconciliationData] = useState<any>(null)
+  const [isRunningReconciliation, setIsRunningReconciliation] = useState(false)
 
   const { isAdmin, isLoading: adminLoading } = useIsAdmin()
   const router = useRouter()
@@ -186,21 +188,22 @@ export default function AdminPage() {
   }
 
   const loadAllBondsDebug = async () => {
-    setIsLoadingBonds(true)
-    try {
-      console.log("[v0] Admin: Loading all bonds from database...")
-      const result = await getAllBondsDebug()
-      if (result.success) {
-        setAllBonds(result.data)
-        console.log("[v0] Admin: Loaded bonds:", result.data)
-      } else {
-        console.error("[v0] Admin: Failed to load bonds:", result.error)
-      }
-    } catch (error: any) {
-      console.error("[v0] Admin: Error loading bonds:", error)
-    } finally {
-      setIsLoadingBonds(false)
-    }
+    // This function is no longer directly used but kept for reference if needed in future updates
+    // setIsLoadingBonds(true)
+    // try {
+    //   console.log("[v0] Admin: Loading all bonds from database...")
+    //   const result = await getAllBondsDebug()
+    //   if (result.success) {
+    //     setAllBonds(result.data)
+    //     console.log("[v0] Admin: Loaded bonds:", result.data)
+    //   } else {
+    //     console.error("[v0] Admin: Failed to load bonds:", result.error)
+    //   }
+    // } catch (error: any) {
+    //   console.error("[v0] Admin: Error loading bonds:", error)
+    // } finally {
+    //   setIsLoadingBonds(false)
+    // }
   }
 
   const loadComprehensiveDiagnostics = async () => {
@@ -226,13 +229,38 @@ export default function AdminPage() {
     }
   }
 
+  const handleRunReconciliation = async () => {
+    setIsRunningReconciliation(true)
+    setError(null)
+    setSuccessMessage(null)
+    setReconciliationData(null)
+
+    try {
+      const result = await runBalanceReconciliation()
+
+      if (!result.success) {
+        throw new Error(result.error)
+      }
+
+      setReconciliationData(result.data)
+
+      const totalIssues = result.data?.summary?.total_issues || 0
+      if (totalIssues === 0) {
+        setSuccessMessage("All balances reconciled successfully! No discrepancies found.")
+      } else {
+        setError(`Found ${totalIssues} discrepancy(ies). Review details below.`)
+      }
+    } catch (error: any) {
+      setError(`Reconciliation failed: ${error.message}`)
+    } finally {
+      setIsRunningReconciliation(false)
+    }
+  }
+
   if (adminLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p>Loading admin panel...</p>
-        </div>
+        <LoadingSpinner message="Loading admin panel..." />
       </div>
     )
   }
@@ -674,6 +702,185 @@ export default function AdminPage() {
           </TabsContent>
 
           <TabsContent value="summary" className="space-y-6">
+            <Card className="border-2 border-blue-200 bg-blue-50/50 dark:bg-blue-900/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-blue-500" />
+                  Balance Reconciliation
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Audit user balances and market states against ledger entries and transaction history.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button
+                  onClick={handleRunReconciliation}
+                  disabled={isRunningReconciliation}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isRunningReconciliation ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Running Audit...
+                    </>
+                  ) : (
+                    "Run Balance Audit"
+                  )}
+                </Button>
+
+                {reconciliationData && (
+                  <div className="space-y-4 mt-4">
+                    {/* Summary Card */}
+                    <Card className={reconciliationData.summary?.status === 'PASS' ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}>
+                      <CardHeader>
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          {reconciliationData.summary?.status === 'PASS' ? (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-amber-500" />
+                          )}
+                          Audit Summary
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <div className="font-medium text-muted-foreground">Status</div>
+                            <Badge variant={reconciliationData.summary?.status === 'PASS' ? 'default' : 'destructive'} className="mt-1">
+                              {reconciliationData.summary?.status || 'UNKNOWN'}
+                            </Badge>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">User Issues</div>
+                            <div className="text-2xl font-bold text-amber-600">
+                              {reconciliationData.summary?.user_balance_issues || 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">Market Issues</div>
+                            <div className="text-2xl font-bold text-amber-600">
+                              {reconciliationData.summary?.market_state_issues || 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">Total Issues</div>
+                            <div className="text-2xl font-bold text-red-600">
+                              {reconciliationData.summary?.total_issues || 0}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-3">
+                          Last run: {reconciliationData.summary?.timestamp ? format(new Date(reconciliationData.summary.timestamp), "MMM d, yyyy 'at' HH:mm:ss") : 'Unknown'}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* User Balance Discrepancies */}
+                    {reconciliationData.user_discrepancies && reconciliationData.user_discrepancies.length > 0 && (
+                      <Card className="border-red-200">
+                        <CardHeader>
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            User Balance Discrepancies ({reconciliationData.user_discrepancies.length})
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {reconciliationData.user_discrepancies.map((issue: any) => (
+                              <Card key={issue.user_id} className="border-red-100 bg-red-50/30">
+                                <CardContent className="pt-4 text-xs">
+                                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                    <div>
+                                      <span className="font-medium">Username:</span> {issue.username}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Stored Balance:</span> ${Number(issue.stored_balance).toFixed(2)}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Ledger Balance:</span> ${Number(issue.ledger_balance).toFixed(2)}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Discrepancy:</span>{' '}
+                                      <span className="text-red-600 font-semibold">${Number(issue.discrepancy).toFixed(2)}</span>
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground">
+                                      {issue.user_id}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Market State Discrepancies */}
+                    {reconciliationData.market_discrepancies && reconciliationData.market_discrepancies.length > 0 && (
+                      <Card className="border-red-200">
+                        <CardHeader>
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            Market State Discrepancies ({reconciliationData.market_discrepancies.length})
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {reconciliationData.market_discrepancies.map((issue: any) => (
+                              <Card key={issue.market_id} className="border-red-100 bg-red-50/30">
+                                <CardContent className="pt-4 text-xs">
+                                  <h4 className="font-semibold text-sm mb-2">{issue.market_title}</h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                      <div className="font-medium mb-1">Liquidity Pool:</div>
+                                      <div className="pl-2 space-y-1">
+                                        <div>Stored: ${Number(issue.liquidity_pool.stored).toFixed(2)}</div>
+                                        <div>Audited: ${Number(issue.liquidity_pool.audited).toFixed(2)}</div>
+                                        <div className="text-red-600 font-semibold">
+                                          Diff: ${Number(issue.liquidity_pool.discrepancy).toFixed(2)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="font-medium mb-1">YES Shares (qy):</div>
+                                      <div className="pl-2 space-y-1">
+                                        <div>Stored: {Number(issue.qy.stored).toFixed(2)}</div>
+                                        <div>Audited: {Number(issue.qy.audited).toFixed(2)}</div>
+                                        <div className="text-red-600 font-semibold">
+                                          Diff: {Number(issue.qy.discrepancy).toFixed(2)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="font-medium mb-1">NO Shares (qn):</div>
+                                      <div className="pl-2 space-y-1">
+                                        <div>Stored: {Number(issue.qn.stored).toFixed(2)}</div>
+                                        <div>Audited: {Number(issue.qn.audited).toFixed(2)}</div>
+                                        <div className="text-red-600 font-semibold">
+                                          Diff: {Number(issue.qn.discrepancy).toFixed(2)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {!reconciliationData && !isRunningReconciliation && (
+                  <p className="text-sm text-muted-foreground">
+                    Click the button above to run a comprehensive audit of all user balances and market states against
+                    the ledger and transaction history.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="border-2 border-purple-200 bg-purple-50/50 dark:bg-purple-900/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -777,7 +984,7 @@ export default function AdminPage() {
                                           </Badge>
                                         </div>
                                         <div>
-                                          <span className="font-medium">Minutes Past Deadline:</span>{" "}
+                                          <span className="font-medium">Minutes Since Deadline:</span>{" "}
                                           {market.minutes_since_deadline || "N/A"}
                                         </div>
                                         <div>
@@ -925,8 +1132,6 @@ export default function AdminPage() {
               </CardContent>
             </Card>
 
-            {/* Removed Database Schema Verification card */}
-
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -938,117 +1143,10 @@ export default function AdminPage() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button onClick={loadAllBondsDebug} disabled={isLoadingBonds} variant="outline">
-                  {isLoadingBonds ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                      Loading...
-                    </>
-                  ) : (
-                    "Load All Bonds"
-                  )}
-                </Button>
-
-                {allBonds && (
-                  <div className="space-y-4 mt-4">
-                    <div className="grid grid-cols-3 gap-4">
-                      <Card className="border-green-200">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm">Settlement Bonds</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-2xl font-bold">{allBonds.settlementBonds?.length || 0}</div>
-                        </CardContent>
-                      </Card>
-                      <Card className="border-amber-200">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm">Contest Bonds</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-2xl font-bold">{allBonds.contestBonds?.length || 0}</div>
-                        </CardContent>
-                      </Card>
-                      <Card className="border-blue-200">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm">Vote Bonds</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-2xl font-bold">{allBonds.voteBonds?.length || 0}</div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {allBonds.settlementBonds && allBonds.settlementBonds.length > 0 && (
-                      <div>
-                        <h4 className="font-semibold mb-2">Settlement Bonds:</h4>
-                        <div className="space-y-2">
-                          {allBonds.settlementBonds.map((bond: any) => (
-                            <Card key={bond.id} className="border-green-200 bg-green-50/50">
-                              <CardContent className="pt-4 text-xs">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <span className="font-medium">Market:</span> {bond.market_title}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">User ID:</span> {bond.user_id}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Amount:</span> ${bond.bond_amount}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Status:</span> {bond.status}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Created:</span>{" "}
-                                    {format(new Date(bond.created_at), "MMM d, HH:mm")}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Market Status:</span> {bond.market_status}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {allBonds.contestBonds && allBonds.contestBonds.length > 0 && (
-                      <div>
-                        <h4 className="font-semibold mb-2">Contest Bonds:</h4>
-                        <div className="space-y-2">
-                          {allBonds.contestBonds.map((bond: any) => (
-                            <Card key={bond.id} className="border-amber-200 bg-amber-50/50">
-                              <CardContent className="pt-4 text-xs">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <span className="font-medium">Market:</span> {bond.market_title}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Contestant ID:</span> {bond.contestant_id}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Bond Amount:</span> ${bond.contest_bond_amount}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Status:</span> {bond.status}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Created:</span>{" "}
-                                    {format(new Date(bond.created_at), "MMM d, HH:mm")}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Market Status:</span> {bond.market_status}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Button and logic for loading bonds were removed as per updates */}
+                <p className="text-sm text-muted-foreground">
+                  Bond diagnostic functionality has been updated. Please refer to the Balance Reconciliation section for related checks.
+                </p>
               </CardContent>
             </Card>
 
@@ -1119,39 +1217,69 @@ export default function AdminPage() {
                   Platform Summary
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Overview of platform fees earned and liquidity in settled markets.
+                  Overview of platform fees, settled liquidity, and creator rewards.
                 </p>
               </CardHeader>
               <CardContent>
                 {feesSummary ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Card className="border-2 border-green-200 bg-green-50/50 dark:bg-green-900/10">
-                      <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5 text-green-600" />
-                          Total Platform Fees
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-green-600" />
+                          Site Fees
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-4xl font-bold text-green-600 mb-2">
-                          ${feesSummary.totalSitFees.toFixed(2)}
+                        <div className="text-2xl font-bold text-green-600 mb-1">
+                          ${feesSummary.siteFees.toFixed(2)}
                         </div>
-                        <p className="text-sm text-muted-foreground">Total sit_fee collected from all transactions</p>
+                        <p className="text-xs text-muted-foreground">From platform_ledger</p>
                       </CardContent>
                     </Card>
 
                     <Card className="border-2 border-blue-200 bg-blue-50/50 dark:bg-blue-900/10">
-                      <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <DollarSign className="w-5 h-5 text-blue-600" />
-                          Settled Market Liquidity
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-blue-600" />
+                          Settled Liquidity
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-4xl font-bold text-blue-600 mb-2">
-                          ${feesSummary.totalSettledLiquidity.toFixed(2)}
+                        <div className="text-2xl font-bold text-blue-600 mb-1">
+                          ${feesSummary.settledLiquidity.toFixed(2)}
                         </div>
-                        <p className="text-sm text-muted-foreground">Total liquidity remaining in settled markets</p>
+                        <p className="text-xs text-muted-foreground">Leftover from settlements</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-2 border-amber-200 bg-amber-50/50 dark:bg-amber-900/10">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Users className="w-4 h-4 text-amber-600" />
+                          Creator Rewards Owing
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`text-2xl font-bold mb-1 ${feesSummary.creatorRewardBalance >= 0 ? 'text-amber-600' : 'text-red-600'}`}>
+                          ${feesSummary.creatorRewardBalance.toFixed(2)}
+                        </div>
+                        <p className="text-xs text-muted-foreground">$10 per market created</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-2 border-purple-200 bg-purple-50/50 dark:bg-purple-900/10">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-purple-600" />
+                          Total Position
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`text-2xl font-bold mb-1 ${feesSummary.totalPosition >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                          ${feesSummary.totalPosition.toFixed(2)}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Platform ledger balance</p>
                       </CardContent>
                     </Card>
                   </div>

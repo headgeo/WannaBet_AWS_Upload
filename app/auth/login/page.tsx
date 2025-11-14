@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { useState } from "react"
 
 export default function Page() {
@@ -44,7 +44,7 @@ export default function Page() {
             id: data.user.id,
             username: data.user.email?.split("@")[0] || "user",
             display_name: data.user.email?.split("@")[0] || "User",
-            balance: 1000.0,
+            balance: 0.0,
             role: "user",
           })
 

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+import { redirect } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -29,7 +29,7 @@ export default async function ProfileSetupPage() {
     const supabase = await createClient()
     const username = formData.get("username") as string
     const displayName = formData.get("displayName") as string
-    const startingBalance = Number.parseFloat(formData.get("startingBalance") as string) || 1000
+    const startingBalance = Number.parseFloat(formData.get("startingBalance") as string) || 0
 
     const { error } = await insert("profiles", {
       id: user!.id,
@@ -82,8 +82,8 @@ export default async function ProfileSetupPage() {
                 type="number"
                 step="0.01"
                 min="0"
-                defaultValue="1000"
-                placeholder="1000.00"
+                defaultValue="0"
+                placeholder="0.00"
               />
             </div>
             <Button type="submit" className="w-full">

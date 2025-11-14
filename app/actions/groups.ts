@@ -151,23 +151,24 @@ export async function leaveGroup(groupId: string) {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser()
+    
     if (userError || !user) {
       return { success: false, error: "Authentication required" }
     }
 
-    const { error } = await deleteRows("user_groups", {
+    const result = await deleteRows("user_groups", {
       user_id: user.id,
       group_id: groupId,
     })
 
-    if (error) {
-      return { success: false, error: error.message }
+    if (result.rowCount === 0) {
+      return { success: false, error: "You are not a member of this group" }
     }
 
     revalidatePath("/profile")
     return { success: true }
   } catch (error) {
-    console.error("Leave group error:", error)
+    console.error("[v0] Leave group error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

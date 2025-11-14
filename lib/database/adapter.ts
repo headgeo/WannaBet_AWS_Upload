@@ -105,14 +105,40 @@ export async function update<T = any>(
  */
 export async function deleteRows<T = any>(
   table: string,
-  where: { column: string; value: any },
+  where: { column: string; value: any } | Record<string, any>,
 ): Promise<QueryResult<T>> {
+  console.log('[v0] deleteRows called with:', { table, where })
+  
+  // Handle both old format { column, value } and new format { col1: val1, col2: val2 }
+  let whereClause: string
+  let values: any[]
+  
+  if ('column' in where && 'value' in where) {
+    // Old format: { column: string, value: any }
+    console.log('[v0] Using old format (column/value)')
+    whereClause = `${where.column} = $1`
+    values = [where.value]
+  } else {
+    // New format: { col1: val1, col2: val2, ... }
+    console.log('[v0] Using new format (multiple key-value pairs)')
+    const keys = Object.keys(where)
+    console.log('[v0] Keys found:', keys)
+    whereClause = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ')
+    values = keys.map(key => where[key])
+    console.log('[v0] Generated WHERE clause:', whereClause)
+    console.log('[v0] Values:', values)
+  }
+  
   const sql = `
     DELETE FROM ${table}
-    WHERE ${where.column} = $1
+    WHERE ${whereClause}
     RETURNING *
   `
-  return await rdsQuery(sql, [where.value])
+  
+  console.log('[v0] Final SQL:', sql)
+  console.log('[v0] Final values:', values)
+  
+  return await rdsQuery(sql, values)
 }
 
 /**
@@ -267,7 +293,6 @@ export async function rpc<T = any>(
       resolve_contested_settlement: ["p_market_id"],
       check_pending_settlements: [],
       settle_market: ["p_market_id", "p_outcome", "p_admin_user_id"],
-      cancel_market: ["p_market_id", "p_admin_user_id"],
     }
 
     const expectedOrder = functionParamOrder[functionName]

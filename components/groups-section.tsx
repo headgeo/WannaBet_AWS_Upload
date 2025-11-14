@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Users, Plus, X } from "lucide-react"
+import { Users, Plus, X } from 'lucide-react'
 import { toast } from "@/hooks/use-toast"
 import GroupAutocomplete from "./group-autocomplete"
 import { createGroup, joinGroup, leaveGroup, getUserGroups } from "@/app/actions/groups"
@@ -175,10 +175,10 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
     } catch (error) {
       console.error("[v0] GroupsSection: Error creating group:", error)
       toast({
-        title: "Error",
-        description: "Failed to create group",
-        variant: "destructive",
-      })
+          title: "Error",
+          description: "Failed to create group",
+          variant: "destructive",
+        })
     } finally {
       setIsCreating(false)
     }
@@ -196,6 +196,7 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
           description: `You've left "${groupName}"`,
         })
       } else {
+        console.error("[v0] Failed to leave group:", result.error)
         toast({
           title: "Error",
           description: result.error || "Failed to leave group",
@@ -203,12 +204,12 @@ export default function GroupsSection({ userId }: GroupsSectionProps) {
         })
       }
     } catch (error) {
-      console.error("Error leaving group:", error)
+      console.error("[v0] Error leaving group:", error)
       toast({
-        title: "Error",
-        description: "Failed to leave group",
-        variant: "destructive",
-      })
+          title: "Error",
+          description: "Failed to leave group",
+          variant: "destructive",
+        })
     }
   }
 

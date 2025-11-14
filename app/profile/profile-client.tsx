@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { User, DollarSign, TrendingUp, LogOut, ArrowLeft } from "lucide-react"
+import { User, DollarSign, TrendingUp, LogOut, ArrowLeft } from 'lucide-react'
 import GroupsSection from "@/components/groups-section"
 import Link from "next/link"
 import { MobileHeader } from "@/components/mobile-header"
@@ -248,10 +248,6 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total Bets</span>
                     <span className="font-semibold">{stats.totalBets}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Volume Traded</span>
-                    <span className="font-semibold">${Number.parseFloat(stats.totalVolume.toString()).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Markets Created</span>

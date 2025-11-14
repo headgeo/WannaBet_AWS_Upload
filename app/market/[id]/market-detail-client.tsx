@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from "lucide-react"
+import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
@@ -30,6 +30,7 @@ import { shouldShowBlockchainUI } from "@/lib/blockchain/feature-flags"
 import type { Position } from "@/types/position"
 import { MarketPriceChart } from "@/components/market-price-chart"
 import { ProposeOutcomeDialog } from "@/components/propose-outcome-dialog"
+import { BLOCKCHAIN_FEATURES } from "@/lib/blockchain/feature-flags"
 
 interface Market {
   id: string
@@ -390,6 +391,15 @@ export function MarketDetailClient({
       fetchSettlementStatus()
     }
   }, [market])
+
+  useEffect(() => {
+    const showUI = shouldShowBlockchainUI()
+    console.log("[v0] Blockchain UI visibility check:", {
+      shouldShow: showUI,
+      blockchainFeatures: BLOCKCHAIN_FEATURES,
+      isPrivate: market.is_private,
+    })
+  }, [market.is_private])
 
   const odds = getCurrentOdds(market.qy, market.qn, market.b)
   const yesPercentage = odds.yesPercent

@@ -3,7 +3,6 @@
 import { createServerClient } from "@/lib/supabase/server"
 import { rpc, select } from "@/lib/database/adapter"
 import { revalidatePath } from "next/cache"
-import { checkRateLimit } from "@/lib/rate-limit-enhanced"
 
 export type SettlementStatus = "pending_contest" | "contested" | "resolved" | null
 
@@ -65,15 +64,6 @@ export async function initiateSettlement(marketId: string, outcome: boolean) {
     if (authError || !user) {
       console.log("[v0] initiateSettlement: Auth error:", authError)
       return { success: false, error: "Not authenticated" }
-    }
-
-    const rateLimit = await checkRateLimit(user.id, "settlement")
-    if (!rateLimit.allowed) {
-      const resetTime = rateLimit.resetAt.toLocaleTimeString()
-      return {
-        success: false,
-        error: `Rate limit exceeded. You can initiate ${rateLimit.remaining} more settlements. Limit resets at ${resetTime}.`,
-      }
     }
 
     console.log("[v0] initiateSettlement: User authenticated:", user.id)
@@ -142,15 +132,6 @@ export async function contestSettlement(marketId: string) {
       return { success: false, error: "Not authenticated" }
     }
 
-    const rateLimit = await checkRateLimit(user.id, "contest")
-    if (!rateLimit.allowed) {
-      const resetTime = rateLimit.resetAt.toLocaleTimeString()
-      return {
-        success: false,
-        error: `Rate limit exceeded. You can create ${rateLimit.remaining} more contests. Limit resets at ${resetTime}.`,
-      }
-    }
-
     console.log("[v0] contestSettlement: User authenticated:", user.id)
     console.log("[v0] contestSettlement: Calling RPC with params:", {
       p_market_id: marketId,
@@ -165,7 +146,10 @@ export async function contestSettlement(marketId: string) {
     if (error) {
       console.error("[v0] contestSettlement: RPC error:", error)
       console.error("[v0] contestSettlement: Error details:", JSON.stringify(error, null, 2))
-      return { success: false, error: error.message }
+      if (error.message?.includes('Insufficient balance')) {
+        return { success: false, error: "Insufficient balance. Please deposit at least $50 to contest this settlement." }
+      }
+      return { success: false, error: error.message || "Failed to contest settlement" }
     }
 
     console.log("[v0] contestSettlement: RPC success! Data:", data)
@@ -230,15 +214,6 @@ export async function submitVote(contestId: string, voteOutcome: boolean) {
     if (authError || !user) {
       console.log("[v0] submitVote: Auth error:", authError)
       return { success: false, error: "Not authenticated" }
-    }
-
-    const rateLimit = await checkRateLimit(user.id, "vote")
-    if (!rateLimit.allowed) {
-      const resetTime = rateLimit.resetAt.toLocaleTimeString()
-      return {
-        success: false,
-        error: `Rate limit exceeded. You can submit ${rateLimit.remaining} more votes. Limit resets at ${resetTime}.`,
-      }
     }
 
     console.log("[v0] submitVote: User authenticated:", user.id)

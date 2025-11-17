@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from "lucide-react"
+import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
@@ -30,6 +30,8 @@ import { shouldShowBlockchainUI } from "@/lib/blockchain/feature-flags"
 import type { Position } from "@/types/position"
 import { MarketPriceChart } from "@/components/market-price-chart"
 import { ProposeOutcomeDialog } from "@/components/propose-outcome-dialog"
+import { BLOCKCHAIN_FEATURES } from "@/lib/blockchain/feature-flags"
+import { useToast } from "@/hooks/use-toast"
 
 interface Market {
   id: string
@@ -114,6 +116,7 @@ export function MarketDetailClient({
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const [showProposeDialog, setShowProposeDialog] = useState(false)
+  const { toast } = useToast()
 
   const marketStatus = getMarketStatusDisplay(market)
 
@@ -281,26 +284,28 @@ export function MarketDetailClient({
       const result = await contestSettlement(market.id)
 
       if (!result.success) {
-        throw new Error(result.error || "Contest failed")
+        toast({
+          title: "Unable to Contest",
+          description: result.error,
+          variant: "destructive",
+        })
+        return
       }
+      
+      toast({
+        title: "Settlement Contested",
+        description: "Your contest has been submitted. Voters have been notified.",
+      })
 
-      setSettlementStatus((prev: any) => ({
-        ...prev,
-        status: "contested",
-        contest_id: result.data?.contestId,
-        voting_deadline: result.data?.voteDeadline,
-      }))
-
-      setMarket((prev) => ({
-        ...prev,
-        status: "contested",
-      }))
-
-      await fetchSettlementStatus()
-      router.refresh()
+      // This ensures the UI immediately reflects the new status and hides the contest window
+      window.location.reload()
     } catch (error: any) {
       console.error("[v0] Contest error:", error)
-      setError(error.message)
+      toast({
+        title: "Error",
+        description: "Failed to contest settlement. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsContesting(false)
     }
@@ -391,6 +396,15 @@ export function MarketDetailClient({
     }
   }, [market])
 
+  useEffect(() => {
+    const showUI = shouldShowBlockchainUI()
+    console.log("[v0] Blockchain UI visibility check:", {
+      shouldShow: showUI,
+      blockchainFeatures: BLOCKCHAIN_FEATURES,
+      isPrivate: market.is_private,
+    })
+  }, [market.is_private])
+
   const odds = getCurrentOdds(market.qy, market.qn, market.b)
   const yesPercentage = odds.yesPercent
   const noPercentage = odds.noPercent
@@ -418,6 +432,8 @@ export function MarketDetailClient({
   const canContestSettlement =
     !marketSettled &&
     (settlementStatus?.status === "pending_contest" || market.status === "suspended") &&
+    market.status !== "contested" &&
+    settlementStatus?.status !== "contested" &&
     currentUserId !== market.creator_id &&
     hasAnyPosition &&
     market.contest_deadline &&
@@ -657,7 +673,7 @@ export function MarketDetailClient({
               </Card>
             )}
 
-            {!marketSettled && settlementStatus?.status === "contested" && (
+            {!marketSettled && (settlementStatus?.status === "contested" || market.status === "contested") && settlementStatus && (
               <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
                 <CardHeader>
                   <CardTitle className="text-lg flex flex-col gap-1 text-red-600">
@@ -665,7 +681,7 @@ export function MarketDetailClient({
                       <AlertTriangle className="w-5 h-5" />A settlement has been contested
                     </div>
                     <div className="text-sm font-normal text-red-500">
-                      Voting Deadline: {settlementStatus.voting_deadline}
+                      Voting Deadline: {settlementStatus.voting_deadline ? new Date(settlementStatus.voting_deadline).toLocaleString() : 'Loading...'}
                     </div>
                   </CardTitle>
                 </CardHeader>
@@ -724,7 +740,7 @@ export function MarketDetailClient({
                     </div>
                   )}
 
-                  {settlementStatus?.is_notified_voter && settlementStatus?.has_voted && (
+                  {settlementStatus.is_notified_voter && settlementStatus.has_voted && (
                     <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                       <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
                         <span className="font-medium">✓ You've already voted</span>

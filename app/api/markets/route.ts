@@ -35,7 +35,7 @@ export async function GET() {
     console.log("[v0] User ID:", user.id)
     console.log("[v0] User groups:", groupIds)
 
-    const privateMarketsData: any[] = []
+    const privateMarketsMap = new Map()
     if (groupIds.length > 0) {
       for (const groupId of groupIds) {
         const groupMarkets = await select(
@@ -50,34 +50,32 @@ export async function GET() {
           { column: "created_at", ascending: false },
         )
         if (groupMarkets) {
-          privateMarketsData.push(...groupMarkets)
+          // Only add markets that haven't been added yet
+          groupMarkets.forEach((market) => {
+            if (!privateMarketsMap.has(market.id)) {
+              privateMarketsMap.set(market.id, market)
+            }
+          })
         }
       }
     }
+    const privateMarketsData = Array.from(privateMarketsMap.values())
 
     const createdMarkets = await select(
       "markets",
-      "*, settled_at, winning_side",
+      "*, settled_at, winning_side, creator_fees_earned",
       [{ column: "creator_id", operator: "eq", value: user.id }],
       { column: "created_at", ascending: false },
     )
 
     if (createdMarkets && createdMarkets.length > 0) {
       for (const market of createdMarkets) {
-        const fees = await select("fees", "fee_amount", [
-          { column: "market_id", operator: "eq", value: market.id },
-          { column: "fee_type", operator: "eq", value: "creator_fee" },
-        ])
-
-        const totalFees = fees?.reduce((sum, fee) => sum + Number.parseFloat(fee.fee_amount || "0"), 0) || 0
-        market.cumulative_creator_fees = totalFees
+        market.cumulative_creator_fees = Number.parseFloat(market.creator_fees_earned?.toString() || "0")
       }
+      console.log("[v0] Created markets with fees:", createdMarkets[0])
     }
 
     console.log("[v0] Created markets query result:", createdMarkets?.length || 0, "markets")
-    if (createdMarkets && createdMarkets.length > 0) {
-      console.log("[v0] First created market with fees:", createdMarkets[0])
-    }
 
     // Fetch stats
     const stats = await select("markets", "total_volume", [

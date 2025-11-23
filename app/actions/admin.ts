@@ -4,7 +4,6 @@ import { rpc, selectWithJoin, update } from "@/lib/database/adapter"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin } from "@/lib/auth/admin"
 import { revalidatePath } from "next/cache"
-import { recordPlatformLedgerEntry, zerOutLiquidityPool } from "@/lib/platform-ledger"
 
 export async function settleMarket(marketId: string, winningSide: boolean) {
   try {
@@ -19,12 +18,6 @@ export async function settleMarket(marketId: string, winningSide: boolean) {
       throw new Error("Not authenticated")
     }
 
-    const { data: marketBefore } = await selectWithJoin("markets", {
-      select: "liquidity_pool, is_private",
-      where: [{ column: "id", value: marketId }],
-      single: true,
-    })
-
     const { data: result, error } = await rpc("settle_market", {
       p_market_id: marketId,
       p_outcome: winningSide,
@@ -33,36 +26,6 @@ export async function settleMarket(marketId: string, winningSide: boolean) {
 
     if (error) {
       throw new Error(`Settlement failed: ${error.message}`)
-    }
-
-    try {
-      const { data: marketAfter } = await selectWithJoin("markets", {
-        select: "liquidity_pool",
-        where: [{ column: "id", value: marketId }],
-        single: true,
-      })
-
-      const leftoverLiquidity = marketAfter?.liquidity_pool || 0
-
-      if (leftoverLiquidity > 0) {
-        console.log(`[v0] Settlement leftover liquidity: $${leftoverLiquidity} from market ${marketId}`)
-
-        // Record platform ledger entry for leftover liquidity
-        await recordPlatformLedgerEntry({
-          type: "settlement_leftover",
-          amount: leftoverLiquidity,
-          marketId: marketId,
-          description: `Leftover liquidity from ${marketBefore?.is_private ? "private" : "public"} market settlement`,
-        })
-
-        // Zero out the liquidity pool now that platform has claimed it
-        await zerOutLiquidityPool(marketId)
-
-        console.log(`[v0] Transferred $${leftoverLiquidity} leftover liquidity to platform account`)
-      }
-    } catch (ledgerError) {
-      console.error("[v0] Failed to record settlement leftover:", ledgerError)
-      // Don't fail the whole settlement if ledger tracking fails
     }
 
     revalidatePath("/")
@@ -120,36 +83,6 @@ export async function settlePrivateMarket(marketId: string, winningSide: boolean
 
     if (error) {
       throw new Error(`Settlement failed: ${error.message}`)
-    }
-
-    try {
-      const { data: marketAfter } = await selectWithJoin("markets", {
-        select: "liquidity_pool",
-        where: [{ column: "id", value: marketId }],
-        single: true,
-      })
-
-      const leftoverLiquidity = marketAfter?.liquidity_pool || 0
-
-      if (leftoverLiquidity > 0) {
-        console.log(`[v0] Private market settlement leftover: $${leftoverLiquidity} from market ${marketId}`)
-
-        // Record platform ledger entry for leftover liquidity
-        await recordPlatformLedgerEntry({
-          type: "settlement_leftover",
-          amount: leftoverLiquidity,
-          marketId: marketId,
-          description: "Leftover liquidity from private market settlement",
-        })
-
-        // Zero out the liquidity pool now that platform has claimed it
-        await zerOutLiquidityPool(marketId)
-
-        console.log(`[v0] Transferred $${leftoverLiquidity} leftover liquidity to platform account`)
-      }
-    } catch (ledgerError) {
-      console.error("[v0] Failed to record settlement leftover:", ledgerError)
-      // Don't fail the whole settlement if ledger tracking fails
     }
 
     revalidatePath("/")
@@ -459,7 +392,7 @@ export async function runBalanceReconciliation() {
 
     console.log("[v0] Reconciliation complete:", result)
 
-    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+    const parsedResult = typeof result === "string" ? JSON.parse(result) : result
     const reconciliationData = parsedResult?.run_balance_reconciliation || parsedResult
 
     return { success: true, data: reconciliationData }

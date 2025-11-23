@@ -40,13 +40,13 @@ export async function recordPlatformTransaction(params: RecordPlatformTransactio
 
     // Calculate current balance by summing all amounts
     const currentBalance = balanceRows.reduce((sum: number, row: any) => sum + Number(row.amount), 0)
-    const newBalance = currentBalance + params.amount
+    const newBalance = Number(currentBalance) + Number(params.amount)
 
     console.log("[v0] Current platform balance:", currentBalance, "→ New balance:", newBalance)
 
     const { data, error } = await insert("platform_ledger", {
       transaction_type: params.transactionType,
-      amount: params.amount,
+      amount: Number(params.amount), // Ensure amount is number
       balance_after: newBalance,
       market_id: params.marketId || null,
       fee_id: params.feeId || null,

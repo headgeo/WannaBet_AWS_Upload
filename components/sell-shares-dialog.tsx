@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,7 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, DollarSign } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
 import { calculateSellValueWithFee } from "@/lib/lmsr"
 import { FEE_PERCENTAGE } from "@/lib/fees"
 
@@ -50,13 +50,24 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
     if (sharesToSell <= 0) return { grossValue: 0, feeAmount: 0, netValue: 0 }
 
     try {
-      return calculateSellValueWithFee(
+      console.log("[v0] Calculating sell value with:", {
+        sharesToSell,
+        qy: position.market.qy,
+        qn: position.market.qn,
+        b: position.market.b,
+        side: position.side,
+      })
+      
+      const result = calculateSellValueWithFee(
         sharesToSell,
         position.market.qy,
         position.market.qn,
         position.market.b,
         position.side,
       )
+      
+      console.log("[v0] Sell calculation result:", result)
+      return result
     } catch (error) {
       console.error("Error calculating sell value:", error)
       return { grossValue: 0, feeAmount: 0, netValue: 0 }

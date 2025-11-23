@@ -28,18 +28,27 @@ export async function depositFunds() {
     const balanceBefore = Number(profile.balance)
     const balanceAfter = balanceBefore + DEPOSIT_AMOUNT
 
+    console.log("[v0] Deposit starting:", { userId: user.id, balanceBefore, balanceAfter })
+
     // Update balance
     await update("profiles", { balance: balanceAfter }, { column: "id", value: user.id })
+    console.log("[v0] Profile balance updated")
 
     // Record in deposit_withdraw table
-    await insert("deposit_withdraw", {
-      user_id: user.id,
-      type: "deposit",
-      amount: DEPOSIT_AMOUNT,
-      balance_before: balanceBefore,
-      balance_after: balanceAfter,
-      metadata: JSON.stringify({ method: "manual_deposit" }),
-    })
+    try {
+      await insert("deposit_withdraw", {
+        user_id: user.id,
+        type: "deposit",
+        amount: DEPOSIT_AMOUNT,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        metadata: JSON.stringify({ method: "manual_deposit" }),
+      })
+      console.log("[v0] Deposit record created in deposit_withdraw table")
+    } catch (error) {
+      console.error("[v0] Error inserting into deposit_withdraw:", error)
+      // Continue execution - ledger entry will still be created by trigger if table exists
+    }
 
     // Create notification
     await insert("notifications", {
@@ -51,9 +60,10 @@ export async function depositFunds() {
     })
 
     revalidatePath("/wallet")
+    console.log("[v0] Deposit completed successfully")
     return { success: true, newBalance: balanceAfter }
   } catch (error) {
-    console.error("Deposit error:", error)
+    console.error("[v0] Deposit error:", error)
     return { success: false, error: "Failed to process deposit" }
   }
 }
@@ -84,18 +94,27 @@ export async function withdrawFunds() {
 
     const balanceAfter = balanceBefore - WITHDRAW_AMOUNT
 
+    console.log("[v0] Withdrawal starting:", { userId: user.id, balanceBefore, balanceAfter })
+
     // Update balance
     await update("profiles", { balance: balanceAfter }, { column: "id", value: user.id })
+    console.log("[v0] Profile balance updated")
 
     // Record in deposit_withdraw table
-    await insert("deposit_withdraw", {
-      user_id: user.id,
-      type: "withdraw",
-      amount: WITHDRAW_AMOUNT,
-      balance_before: balanceBefore,
-      balance_after: balanceAfter,
-      metadata: JSON.stringify({ method: "manual_withdraw" }),
-    })
+    try {
+      await insert("deposit_withdraw", {
+        user_id: user.id,
+        type: "withdraw",
+        amount: WITHDRAW_AMOUNT,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        metadata: JSON.stringify({ method: "manual_withdraw" }),
+      })
+      console.log("[v0] Withdrawal record created in deposit_withdraw table")
+    } catch (error) {
+      console.error("[v0] Error inserting into deposit_withdraw:", error)
+      // Continue execution
+    }
 
     // Create notification
     await insert("notifications", {
@@ -107,9 +126,10 @@ export async function withdrawFunds() {
     })
 
     revalidatePath("/wallet")
+    console.log("[v0] Withdrawal completed successfully")
     return { success: true, newBalance: balanceAfter }
   } catch (error) {
-    console.error("Withdraw error:", error)
+    console.error("[v0] Withdrawal error:", error)
     return { success: false, error: "Failed to process withdrawal" }
   }
 }

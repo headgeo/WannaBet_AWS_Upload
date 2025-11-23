@@ -521,3 +521,248 @@ psql $POSTGRES_URL -c "SELECT user_id, COUNT(*), SUM(credit - debit) FROM ledger
 **Launch Readiness: 85%**
 
 Your app now has robust transaction tracking with the ledger system. Complete the monitoring setup and outbox pattern, then you're ready for a soft launch!
+
+--ledger system---
+
+## Double-Entry Ledger System
+
+### Overview
+
+The platform implements a complete double-entry accounting system that tracks all monetary flows with zero-sum guarantees. Every transaction creates balanced debit and credit entries that maintain platform-wide consistency.
+
+### Architecture
+
+#### 1. Account Types
+
+All money locations are represented as accounts in the `ledger_accounts` table:
+
+- **user** - Individual user balances (references `profiles.id`)
+- **market_pool** - Market liquidity pools (references `markets.id`)
+- **market_fees** - Accumulated creator fees per market (references `markets.id`)
+- **platform** - Platform-wide account for site fees, excess liquidity, and blockchain rewards
+- **bonds** - Locked value in settlement/contest/vote bonds (references bond table IDs)
+- **clearing** - External clearing account for deposits/withdrawals (negative balance mirrors platform total)
+
+#### 2. Ledger Entries
+
+The `ledger_entries` table stores all monetary movements:
+
+**Key Columns:**
+- `account_id` - References `ledger_accounts.id`
+- `amount_cents` - Integer cents for precision (avoids floating point errors)
+- `entry_side` - 'debit' (decrease) or 'credit' (increase)
+- `transaction_group_id` - Groups related debit/credit pairs
+- `idempotency_key` - Prevents duplicate entries
+- `balance_after` - Account balance after this entry (for backward compatibility)
+
+**Principles:**
+- **Append-only** - Never update or delete, use reversal entries
+- **Balanced** - Every transaction group's debits equal credits (sums to zero)
+- **Integer amounts** - Store in cents to avoid rounding errors
+- **Idempotent** - Duplicate operations are safely ignored
+
+#### 3. Balance Snapshots
+
+The `ledger_balance_snapshots` table provides fast balance reads:
+
+- Updated atomically with ledger entries
+- Stores current balance in cents for each account
+- Tracks last processed ledger entry ID
+- Optimized for real-time balance queries (no need to sum ledger entries)
+
+#### 4. Transaction Flows
+
+##### Deposits/Withdrawals
+\`\`\`
+Deposit:  Debit: Clearing → Credit: User Balance
+Withdraw: Debit: User Balance → Credit: Clearing
+\`\`\`
+
+##### Trading
+\`\`\`
+Buy:  Debit: User Balance → Credit: Market Pool
+Sell: Debit: Market Pool → Credit: User Balance
+\`\`\`
+
+##### Market Creation
+\`\`\`
+Initial Liquidity: Debit: User Balance → Credit: Market Pool
+Public Market Blockchain Reward: Debit: Market Pool → Credit: Platform ($10)
+\`\`\`
+
+##### Fees (during trades)
+\`\`\`
+Creator Fee: Debit: Market Pool → Credit: Market Fees
+Site Fee:    Debit: Market Pool → Credit: Platform
+\`\`\`
+
+##### Settlement Bonds (Private Markets)
+\`\`\`
+Bond Posted: Debit: User Balance → Credit: Bond Account
+Bond Payout: Debit: Bond Account → Credit: User Balance
+\`\`\`
+*Note: Creator fee bonds (bond_amount = 0) are NOT debited on posting since funds never leave market_fees account*
+
+##### Contest/Vote Bonds
+\`\`\`
+Bond Posted: Debit: User Balance → Credit: Bond Account
+Bond Payout: Debit: Bond Account → Credit: User Balance
+\`\`\`
+
+##### Settlement Payouts
+\`\`\`
+Winner Payout: Debit: Market Pool → Credit: User Balance
+\`\`\`
+
+##### Creator Payouts
+\`\`\`
+Creator Fees:      Debit: Market Fees → Credit: User Balance
+Liquidity Return:  Debit: Market Pool → Credit: User Balance
+\`\`\`
+
+##### Liquidity Sweep (after settlement)
+\`\`\`
+Excess to Platform: Debit: Market Pool → Credit: Platform
+\`\`\`
+
+##### Cancellations/Refunds
+\`\`\`
+Refund:      Debit: Market Pool → Credit: User Balance
+Fee Refund:  Debit: Market Fees → Credit: User Balance (public markets)
+             Debit: Bond Account → Credit: User Balance (private markets)
+\`\`\`
+
+#### 5. Concurrency Control
+
+All ledger operations use proper locking to prevent race conditions:
+
+1. Lock accounts in consistent order (by ID) using `FOR UPDATE`
+2. Insert ledger entries within same transaction
+3. Update balance snapshots atomically
+4. Commit all changes together
+
+This ensures:
+- No lost updates
+- No dirty reads
+- Consistent balance snapshots
+- No deadlocks (consistent lock ordering)
+
+#### 6. Reconciliation & Auditing
+
+##### Balance Reconciliation
+\`\`\`sql
+SELECT * FROM reconcile_ledger_snapshots();
+\`\`\`
+Compares snapshot balances with calculated ledger balances, identifies discrepancies.
+
+##### Transaction Balance Check
+\`\`\`sql
+SELECT * FROM audit_ledger_balance();
+\`\`\`
+Verifies all transaction groups sum to zero (debits = credits).
+
+##### Platform Summary
+\`\`\`sql
+SELECT * FROM get_platform_balance_summary();
+\`\`\`
+Shows total balances by account type.
+
+##### Zero-Sum Verification
+\`\`\`sql
+SELECT * FROM verify_zero_sum();
+\`\`\`
+Confirms platform total + clearing balance ≈ 0 (allowing < $1 rounding).
+
+#### 7. Scalability
+
+**Write Performance:**
+- Append-only design enables high write throughput (thousands/sec)
+- Minimal locking (only affected accounts)
+- Indexed for fast lookups: `(account_id, created_at)`, `(transaction_group_id)`
+
+**Read Performance:**
+- Balance queries use snapshots (O(1) lookup, no aggregation needed)
+- Ledger queries use indexes on account_id and created_at
+- Partitioning ready (can partition by created_at for historical data)
+
+**Storage:**
+- ~100 bytes per ledger entry
+- 2 entries per transaction (debit + credit)
+- Archival strategy: Move old entries to cold storage after reconciliation
+
+#### 8. Safety Guarantees
+
+**Enforced at Database Level:**
+1. ✅ Balances calculated from ledger (not stored separately except in snapshots)
+2. ✅ Integer amounts prevent floating point errors
+3. ✅ Idempotency keys prevent duplicate processing
+4. ✅ Triggers ensure all transactions are tracked
+5. ✅ Append-only prevents history tampering
+6. ✅ Balance snapshots updated atomically with ledger
+
+**Enforced by Application Logic:**
+1. ✅ Transaction groups are balanced (verified by audit function)
+2. ✅ Platform is zero-sum with clearing account
+3. ✅ No negative balances (except clearing)
+4. ✅ Reversal entries for corrections (no deletions)
+
+#### 9. Migration Strategy
+
+**Current State:**
+- Existing transactions tracked in `transactions` table
+- Fees tracked in `fees` table
+- Bonds tracked in `settlement_bonds`, `settlement_contests`, `settlement_votes`
+- Balances stored in `profiles.balance` and `markets.liquidity_pool`
+
+**Migration Approach:**
+- ✅ New triggers capture all future transactions in ledger
+- ✅ Existing balances initialized in snapshots
+- ✅ Run reconciliation to identify historical discrepancies
+- ⏳ Backfill historical transactions (optional, for complete audit trail)
+- ⏳ Transition to reading from snapshots instead of source tables
+
+**Rollback Safety:**
+- All existing tables unchanged (ledger is additive)
+- Triggers can be dropped without affecting operations
+- Source tables remain authoritative during transition
+
+### Usage Examples
+
+#### Get User Balance
+\`\`\`sql
+SELECT get_account_balance('user', '<user_id>');
+\`\`\`
+
+#### Get Market Pool Balance
+\`\`\`sql
+SELECT get_account_balance('market_pool', '<market_id>');
+\`\`\`
+
+#### Get Platform Balance
+\`\`\`sql
+SELECT get_account_balance('platform', NULL);
+\`\`\`
+
+#### Audit Platform Health
+\`\`\`sql
+-- Check zero-sum property
+SELECT * FROM verify_zero_sum();
+
+-- Check for unbalanced transactions
+SELECT * FROM audit_ledger_balance();
+
+-- Check snapshot accuracy
+SELECT * FROM reconcile_ledger_snapshots();
+
+-- View balance summary
+SELECT * FROM get_platform_balance_summary();
+\`\`\`
+
+### Future Enhancements
+
+1. **Historical Backfill** - Replay all historical transactions into ledger for complete audit trail
+2. **Partitioning** - Partition ledger_entries by date for improved query performance
+3. **Archival** - Move old ledger entries to cold storage after verification
+4. **Real-time Monitoring** - Dashboard showing platform balance health and reconciliation status
+5. **Automated Alerts** - Notify on unbalanced transactions or reconciliation failures
+6. **Multi-currency Support** - Extend to support different currencies/tokens

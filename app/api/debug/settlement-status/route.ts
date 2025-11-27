@@ -14,6 +14,7 @@ export async function GET() {
         "id",
         "title",
         "status",
+        "settlement_status",
         "end_date",
         "settlement_initiated_at",
         "contest_deadline",
@@ -45,28 +46,18 @@ export async function GET() {
 
     const now = new Date()
 
-    const contestedMarkets =
-      allMarkets?.filter((m: any) => {
-        // Exclude already settled or cancelled markets
-        if (m.status === "settled" || m.status === "cancelled") {
-          return false
-        }
-        const hasActiveContest = allContests?.some(
-          (c: any) => c.market_id === m.id && (c.status === "active" || c.status === "voting"),
-        )
-        const hasContestedStatus = m.status === "contested"
-        return hasActiveContest || hasContestedStatus
-      }) || []
-
     const pendingContestMarkets =
       allMarkets?.filter((m: any) => {
-        const hasSettlementInitiated = m.settlement_initiated_at != null
-        const isNotSettled = m.status !== "settled" && m.status !== "cancelled"
-        const isNotContested = m.status !== "contested"
-        const hasActiveContest = allContests?.some(
-          (c: any) => c.market_id === m.id && (c.status === "active" || c.status === "voting"),
+        return m.settlement_status === "pending_contest" && m.status !== "settled" && m.status !== "cancelled"
+      }) || []
+
+    const contestedMarkets =
+      allMarkets?.filter((m: any) => {
+        return (
+          (m.settlement_status === "contested" || m.settlement_status === "voting") &&
+          m.status !== "settled" &&
+          m.status !== "cancelled"
         )
-        return hasSettlementInitiated && !hasActiveContest && isNotSettled && isNotContested
       }) || []
 
     console.log("[v0] Markets with pending_contest:", pendingContestMarkets.length)
@@ -94,8 +85,9 @@ export async function GET() {
           id: m.id,
           title: m.title,
           status: m.status,
-          settlement_status: "pending_contest",
+          settlement_status: m.settlement_status,
           contest_deadline: m.contest_deadline,
+          creator_settlement_outcome: m.creator_settlement_outcome,
           is_expired: isExpired,
           minutes_since_deadline: minutesSinceDeadline,
           has_contest: hasContest,
@@ -114,7 +106,7 @@ export async function GET() {
           id: m.id,
           title: m.title,
           status: m.status,
-          settlement_status: "contested",
+          settlement_status: m.settlement_status,
           contest_id: contest?.id || null,
           contest_status: contest?.status || null,
           vote_deadline: deadline || null,

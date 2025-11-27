@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { checkPendingSettlements } from "@/app/actions/oracle-settlement"
+import { checkPendingSettlements, forceSettlePendingSettlements } from "@/app/actions/oracle-settlement"
 import { isAdmin } from "@/lib/auth/admin"
 
 export const dynamic = "force-dynamic"
@@ -55,26 +55,38 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("[v0] Settlement cron: Checking pending settlements...")
+    const checkResult = await checkPendingSettlements()
 
-    const result = await checkPendingSettlements()
+    if (!checkResult.success) {
+      console.error("[v0] Settlement cron check error:", checkResult.error)
+      return NextResponse.json({ error: checkResult.error }, { status: 500 })
+    }
 
-    if (!result.success) {
-      console.error("[v0] Settlement cron error:", result.error)
+    console.log("[v0] Settlement cron: Found markets to check:", checkResult.data)
+
+    console.log("[v0] Settlement cron: Calling force_settle_pending_settlements...")
+    const settleResult = await forceSettlePendingSettlements()
+
+    if (!settleResult.success) {
+      console.error("[v0] Settlement cron settlement error:", settleResult.error)
       console.log("[v0] ========================================")
       console.log("[v0] Settlement cron job FAILED at:", new Date().toISOString())
       console.log("[v0] ========================================")
-      return NextResponse.json({ error: result.error }, { status: 500 })
+      return NextResponse.json({ error: settleResult.error }, { status: 500 })
     }
 
     const endTime = new Date().toISOString()
-    console.log("[v0] Settlement cron completed successfully:", result.data)
+    console.log("[v0] Settlement cron completed successfully!")
+    console.log("[v0] Settlement cron: Markets checked:", checkResult.data)
+    console.log("[v0] Settlement cron: Settlement result:", settleResult.data)
     console.log("[v0] ========================================")
     console.log("[v0] Settlement cron job completed at:", endTime)
     console.log("[v0] ========================================")
 
     return NextResponse.json({
       success: true,
-      processed: result.data,
+      checked: checkResult.data,
+      settled: settleResult.data,
       startTime,
       endTime,
       mode: isDevelopment ? "development" : isAdminUser ? "admin" : "production",

@@ -146,8 +146,11 @@ export async function contestSettlement(marketId: string) {
     if (error) {
       console.error("[v0] contestSettlement: RPC error:", error)
       console.error("[v0] contestSettlement: Error details:", JSON.stringify(error, null, 2))
-      if (error.message?.includes('Insufficient balance')) {
-        return { success: false, error: "Insufficient balance. Please deposit at least $50 to contest this settlement." }
+      if (error.message?.includes("Insufficient balance")) {
+        return {
+          success: false,
+          error: "Insufficient balance. Please deposit at least $50 to contest this settlement.",
+        }
       }
       return { success: false, error: error.message || "Failed to contest settlement" }
     }
@@ -585,20 +588,15 @@ export async function checkPendingSettlements() {
       return { success: false, error: error.message }
     }
 
-    console.log("[v0] checkPendingSettlements: RPC Success! Result:", data)
+    console.log("[v0] checkPendingSettlements: RPC Success! Result:", { data })
 
-    revalidatePath("/admin")
-    revalidatePath("/my-bets")
-
-    return {
-      success: true,
-      data: {
-        processed: data,
-      },
-    }
+    return { success: true, data }
   } catch (error) {
     console.error("[v0] checkPendingSettlements: Exception:", error)
-    return { success: false, error: "Failed to check pending settlements" }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
   }
 }
 
@@ -610,28 +608,6 @@ export async function forceSettlePendingSettlements() {
   try {
     console.log("[v0] forceSettlePendingSettlements: Calling force_settle_pending_settlements RPC...")
 
-    const markets = await select<any>(
-      "markets",
-      ["id", "title", "status", "settlement_status"],
-      [
-        {
-          column: "settlement_status",
-          operator: "IN",
-          value: ["pending_contest", "contested"],
-        },
-      ],
-    )
-
-    console.log("[v0] forceSettlePendingSettlements: Found markets before RPC:", {
-      count: markets?.length || 0,
-      markets: markets?.map((m: any) => ({
-        id: m.id,
-        title: m.title,
-        status: m.status,
-        settlement_status: m.settlement_status,
-      })),
-    })
-
     const { data, error } = await rpc("force_settle_pending_settlements", {})
 
     if (error) {
@@ -641,18 +617,17 @@ export async function forceSettlePendingSettlements() {
 
     console.log("[v0] forceSettlePendingSettlements: RPC Success! Result:", data)
 
+    // Revalidate relevant paths
     revalidatePath("/admin")
-    revalidatePath("/my-bets")
+    revalidatePath("/markets")
 
-    return {
-      success: true,
-      data: {
-        processed: data,
-      },
-    }
+    return { success: true, data }
   } catch (error) {
     console.error("[v0] forceSettlePendingSettlements: Exception:", error)
-    return { success: false, error: "Failed to force settle pending settlements" }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
   }
 }
 

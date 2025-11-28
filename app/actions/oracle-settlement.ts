@@ -8,12 +8,15 @@ export type SettlementStatus = "pending_contest" | "contested" | "resolved" | nu
 
 export type BondType = "settlement" | "contest" | "verification"
 
+export type OutcomeChoice = "yes" | "no" | "cancel"
+
 export interface SettlementBond {
   id: string
   market_id: string
   creator_id: string
   bond_amount: number
   outcome_chosen: boolean
+  outcome_chosen_text?: OutcomeChoice
   status: "active" | "returned" | "forfeited"
   created_at: string
   market?: {
@@ -27,6 +30,7 @@ export interface ContestBond {
   market_id: string
   contestant_id: string
   contest_bond_amount: number
+  contested_outcome_text?: OutcomeChoice
   status: "active" | "returned" | "forfeited"
   created_at: string
   vote_deadline: string
@@ -40,23 +44,33 @@ export interface VerificationBond {
   contest_id: string
   voter_id: string
   vote_outcome: boolean
+  vote_outcome_text?: OutcomeChoice
   vote_bond_amount: number
   is_correct: boolean | null
   status: "active" | "won" | "lost"
   created_at: string
 }
 
-/**
- * Initiates settlement for a private market
- * Creator posts their fees as collateral and chooses an outcome
- */
-export async function initiateSettlement(marketId: string, outcome: boolean) {
+function outcomeToBoolean(outcome: OutcomeChoice): boolean | null {
+  if (outcome === "yes") return true
+  if (outcome === "no") return false
+  return null
+}
+
+function booleanToOutcome(value: boolean | null): OutcomeChoice | null {
+  if (value === true) return "yes"
+  if (value === false) return "no"
+  return null
+}
+
+export async function initiateSettlement(marketId: string, outcome: OutcomeChoice | boolean) {
   try {
-    console.log("[v0] initiateSettlement: Starting settlement for market:", marketId, "outcome:", outcome)
+    const outcomeText: OutcomeChoice = typeof outcome === "boolean" ? (outcome ? "yes" : "no") : outcome
+
+    console.log("[v0] initiateSettlement: Starting settlement for market:", marketId, "outcome:", outcomeText)
 
     const supabase = await createServerClient()
 
-    // Get current user
     const {
       data: { user },
       error: authError,
@@ -67,17 +81,28 @@ export async function initiateSettlement(marketId: string, outcome: boolean) {
     }
 
     console.log("[v0] initiateSettlement: User authenticated:", user.id)
-    console.log("[v0] initiateSettlement: Calling RPC with params:", {
-      p_creator_id: user.id,
-      p_market_id: marketId,
-      p_outcome: outcome,
-    })
 
-    const { data, error } = await rpc("initiate_settlement", {
-      p_creator_id: user.id,
-      p_market_id: marketId,
-      p_outcome: outcome,
-    })
+    let result
+    try {
+      console.log("[v0] initiateSettlement: Trying v2 RPC with text outcome:", outcomeText)
+      result = await rpc("initiate_settlement_v2", {
+        p_creator_id: user.id,
+        p_market_id: marketId,
+        p_outcome: outcomeText,
+      })
+    } catch (v2Error) {
+      console.log("[v0] initiateSettlement: v2 not available, falling back to v1")
+      if (outcomeText === "cancel") {
+        return { success: false, error: "Cancel outcome requires database upgrade. Please contact support." }
+      }
+      result = await rpc("initiate_settlement", {
+        p_creator_id: user.id,
+        p_market_id: marketId,
+        p_outcome: outcomeText === "yes",
+      })
+    }
+
+    const { data, error } = result
 
     if (error) {
       console.error("[v0] initiateSettlement: RPC error:", error)
@@ -85,17 +110,6 @@ export async function initiateSettlement(marketId: string, outcome: boolean) {
     }
 
     console.log("[v0] initiateSettlement: RPC success! Data:", data)
-
-    const { data: bondCheck, error: bondError } = await supabase
-      .from("settlement_bonds")
-      .select("*")
-      .eq("market_id", marketId)
-      .single()
-
-    console.log("[v0] initiateSettlement: Bond check result:", {
-      bond: bondCheck,
-      error: bondError,
-    })
 
     revalidatePath(`/market/${marketId}`)
     revalidatePath("/my-bets")
@@ -113,13 +127,9 @@ export async function initiateSettlement(marketId: string, outcome: boolean) {
   }
 }
 
-/**
- * Contests a settlement by posting a $50 bond
- * Triggers the voting process
- */
-export async function contestSettlement(marketId: string) {
+export async function contestSettlement(marketId: string, contestedOutcome?: OutcomeChoice) {
   try {
-    console.log("[v0] contestSettlement: Starting contest for market:", marketId)
+    console.log("[v0] contestSettlement: Starting contest for market:", marketId, "with outcome:", contestedOutcome)
 
     const supabase = await createServerClient()
 
@@ -133,19 +143,34 @@ export async function contestSettlement(marketId: string) {
     }
 
     console.log("[v0] contestSettlement: User authenticated:", user.id)
-    console.log("[v0] contestSettlement: Calling RPC with params:", {
-      p_market_id: marketId,
-      p_contestant_id: user.id,
-    })
 
-    const { data, error } = await rpc("contest_settlement", {
-      p_market_id: marketId,
-      p_contestant_id: user.id,
-    })
+    let result
+    if (contestedOutcome) {
+      try {
+        console.log("[v0] contestSettlement: Trying v2 RPC with contested outcome:", contestedOutcome)
+        result = await rpc("contest_settlement_v2", {
+          p_market_id: marketId,
+          p_contestant_id: user.id,
+          p_contested_outcome: contestedOutcome,
+        })
+      } catch (v2Error) {
+        console.log("[v0] contestSettlement: v2 not available, falling back to v1")
+        result = await rpc("contest_settlement", {
+          p_market_id: marketId,
+          p_contestant_id: user.id,
+        })
+      }
+    } else {
+      result = await rpc("contest_settlement", {
+        p_market_id: marketId,
+        p_contestant_id: user.id,
+      })
+    }
+
+    const { data, error } = result
 
     if (error) {
       console.error("[v0] contestSettlement: RPC error:", error)
-      console.error("[v0] contestSettlement: Error details:", JSON.stringify(error, null, 2))
       if (error.message?.includes("Insufficient balance")) {
         return {
           success: false,
@@ -156,28 +181,6 @@ export async function contestSettlement(marketId: string) {
     }
 
     console.log("[v0] contestSettlement: RPC success! Data:", data)
-
-    const { data: contestCheck, error: contestError } = await supabase
-      .from("settlement_contests")
-      .select("*")
-      .eq("market_id", marketId)
-      .single()
-
-    console.log("[v0] contestSettlement: Contest check result:", {
-      contest: contestCheck,
-      error: contestError,
-    })
-
-    const { data: marketCheck, error: marketError } = await supabase
-      .from("markets")
-      .select("status, settlement_status")
-      .eq("id", marketId)
-      .single()
-
-    console.log("[v0] contestSettlement: Market status check:", {
-      market: marketCheck,
-      error: marketError,
-    })
 
     revalidatePath(`/market/${marketId}`)
     revalidatePath("/my-bets")
@@ -196,16 +199,13 @@ export async function contestSettlement(marketId: string) {
   }
 }
 
-/**
- * Submits a vote on a contested settlement
- * Verifier posts $25 bond and votes
- */
-export async function submitVote(contestId: string, voteOutcome: boolean) {
+export async function submitVote(contestId: string, voteOutcome: OutcomeChoice | boolean) {
   try {
+    const outcomeText: OutcomeChoice = typeof voteOutcome === "boolean" ? (voteOutcome ? "yes" : "no") : voteOutcome
+
     console.log("[v0] submitVote: Starting vote submission", {
       contestId,
-      voteOutcome,
-      voteOutcomeType: typeof voteOutcome,
+      voteOutcome: outcomeText,
     })
 
     const supabase = await createServerClient()
@@ -227,39 +227,37 @@ export async function submitVote(contestId: string, voteOutcome: boolean) {
       [{ column: "id", value: contestId }],
     )
 
-    console.log("[v0] submitVote: Contest query result:", {
-      found: contests && contests.length > 0,
-      contest: contests?.[0],
-    })
-
     if (!contests || contests.length === 0) {
       console.error("[v0] submitVote: Contest not found in database!")
       return { success: false, error: "Contest not found" }
     }
 
     const contest = contests[0]
-    console.log("[v0] submitVote: Contest details:", {
-      id: contest.id,
-      status: contest.status,
-      vote_deadline: contest.vote_deadline,
-      market_id: contest.market_id,
-    })
 
-    console.log("[v0] submitVote: Calling RPC with params:", {
-      p_contest_id: contestId,
-      p_voter_id: user.id,
-      p_vote_outcome: voteOutcome,
-    })
+    let result
+    try {
+      console.log("[v0] submitVote: Trying v2 RPC with text outcome:", outcomeText)
+      result = await rpc("submit_vote_v2", {
+        p_contest_id: contestId,
+        p_voter_id: user.id,
+        p_vote_outcome: outcomeText,
+      })
+    } catch (v2Error) {
+      console.log("[v0] submitVote: v2 not available, falling back to v1")
+      if (outcomeText === "cancel") {
+        return { success: false, error: "Cancel vote requires database upgrade. Please contact support." }
+      }
+      result = await rpc("submit_vote", {
+        p_contest_id: contestId,
+        p_voter_id: user.id,
+        p_vote_outcome: outcomeText === "yes",
+      })
+    }
 
-    const { data: rpcData, error: rpcError } = await rpc("submit_vote", {
-      p_contest_id: contestId,
-      p_voter_id: user.id,
-      p_vote_outcome: voteOutcome,
-    })
+    const { data: rpcData, error: rpcError } = result
 
     if (rpcError) {
       console.error("[v0] submitVote: RPC error:", rpcError)
-      console.error("[v0] RPC error for submit_vote:", rpcError)
       return { success: false, error: rpcError.message }
     }
 
@@ -271,14 +269,10 @@ export async function submitVote(contestId: string, voteOutcome: boolean) {
     return { success: true }
   } catch (error) {
     console.error("[v0] Error submitting vote:", error)
-    console.error("[v0] Exception in submitVote:", error)
     return { success: false, error: "Failed to submit vote" }
   }
 }
 
-/**
- * Gets the settlement status for a market
- */
 export async function getSettlementStatus(marketId: string) {
   try {
     console.log("[v0] getSettlementStatus: Fetching status for market:", marketId)
@@ -294,7 +288,14 @@ export async function getSettlementStatus(marketId: string) {
 
     const markets = await select<any>(
       "markets",
-      ["settlement_status", "settlement_initiated_at", "contest_deadline", "creator_settlement_outcome", "status"],
+      [
+        "settlement_status",
+        "settlement_initiated_at",
+        "contest_deadline",
+        "creator_settlement_outcome",
+        "creator_settlement_outcome_text",
+        "status",
+      ],
       [{ column: "id", value: marketId }],
     )
 
@@ -314,19 +315,28 @@ export async function getSettlementStatus(marketId: string) {
     const contest = contests && contests.length > 0 ? contests[0] : null
     console.log("[v0] getSettlementStatus: Contest data:", contest)
 
-    let voteCount = 0
+    const voteCounts = { yes: 0, no: 0, cancel: 0 }
     if (contest) {
-      const votes = await select<any>("settlement_votes", ["id"], [{ column: "contest_id", value: contest.id }])
-      voteCount = votes?.length || 0
-      console.log("[v0] getSettlementStatus: Vote count:", voteCount)
+      const votes = await select<any>(
+        "settlement_votes",
+        ["vote_outcome", "vote_outcome_text"],
+        [{ column: "contest_id", value: contest.id }],
+      )
+      if (votes) {
+        votes.forEach((vote: any) => {
+          const outcome = vote.vote_outcome_text || booleanToOutcome(vote.vote_outcome)
+          if (outcome === "yes") voteCounts.yes++
+          else if (outcome === "no") voteCounts.no++
+          else if (outcome === "cancel") voteCounts.cancel++
+        })
+      }
+      console.log("[v0] getSettlementStatus: Vote counts:", voteCounts)
     }
 
     let isNotifiedVoter = false
     let hasVoted = false
 
     if (user && contest) {
-      console.log("[v0] getSettlementStatus: Checking if user is notified voter...")
-
       const notifications = await select<any>(
         "settlement_notifications",
         ["responded_at", "vote_submitted"],
@@ -336,22 +346,13 @@ export async function getSettlementStatus(marketId: string) {
         ],
       )
 
-      console.log("[v0] getSettlementStatus: Notification query result:", {
-        found: notifications && notifications.length > 0,
-        data: notifications,
-      })
-
       if (notifications && notifications.length > 0) {
         const notification = notifications[0]
         isNotifiedVoter = true
         hasVoted = notification.vote_submitted || false
-        console.log("[v0] getSettlementStatus: User is notified voter! hasVoted:", hasVoted)
-      } else {
-        console.log("[v0] getSettlementStatus: User is NOT a notified voter")
       }
     }
 
-    // Calculate time remaining for contest deadline
     let timeRemaining = null
     if (market.contest_deadline) {
       const deadline = new Date(market.contest_deadline)
@@ -366,25 +367,30 @@ export async function getSettlementStatus(marketId: string) {
       }
     }
 
+    const creatorOutcomeText =
+      market.creator_settlement_outcome_text || booleanToOutcome(market.creator_settlement_outcome)
+
     const result = {
       status: market.settlement_status,
       initiatedAt: market.settlement_initiated_at,
       contestDeadline: market.contest_deadline,
       timeRemaining,
       creatorOutcome: market.creator_settlement_outcome,
+      creatorOutcomeText: creatorOutcomeText,
       bondAmount: bond?.bond_amount,
       bond,
       contest_id: contest?.id,
       contest: contest
         ? {
             ...contest,
-            voteCount,
+            voteCounts,
           }
         : null,
       is_notified_voter: isNotifiedVoter,
       has_voted: hasVoted,
       creator_outcome: market.creator_settlement_outcome,
-      vote_count: voteCount,
+      creator_outcome_text: creatorOutcomeText,
+      vote_counts: voteCounts,
       voting_deadline: contest?.vote_deadline ? new Date(contest.vote_deadline).toLocaleString() : null,
     }
 
@@ -400,9 +406,6 @@ export async function getSettlementStatus(marketId: string) {
   }
 }
 
-/**
- * Gets all bonds for the current user
- */
 export async function getUserBonds() {
   try {
     console.log("[v0] getUserBonds: Starting bond fetch")
@@ -430,7 +433,6 @@ export async function getUserBonds() {
 
         console.log("[v0] getUserBonds: Falling back to direct table queries")
 
-        // Query settlement_bonds table
         const { data: settlementBonds, error: sbError } = await supabase
           .from("settlement_bonds")
           .select(`
@@ -451,7 +453,6 @@ export async function getUserBonds() {
           data: settlementBonds,
         })
 
-        // Query settlement_contests table
         const { data: contestBonds, error: cbError } = await supabase
           .from("settlement_contests")
           .select(`
@@ -472,7 +473,6 @@ export async function getUserBonds() {
           data: contestBonds,
         })
 
-        // Query settlement_votes table
         const { data: voteBonds, error: vbError } = await supabase
           .from("settlement_votes")
           .select(`
@@ -496,7 +496,6 @@ export async function getUserBonds() {
           data: voteBonds,
         })
 
-        // Transform and combine all bonds
         const allBonds = [
           ...(settlementBonds || []).map((bond: any) => ({
             id: bond.id,
@@ -546,7 +545,6 @@ export async function getUserBonds() {
         console.log("[v0] getUserBonds: First bond:", data[0])
       }
 
-      // Transform the data to match the expected format
       const bonds = (data || []).map((bond: any) => ({
         id: bond.id,
         type: bond.type,
@@ -573,10 +571,6 @@ export async function getUserBonds() {
   }
 }
 
-/**
- * Manually triggers resolution check for pending settlements
- * This would normally be called by a cron job
- */
 export async function checkPendingSettlements() {
   try {
     console.log("[v0] checkPendingSettlements: Calling check_pending_settlements RPC...")
@@ -600,10 +594,6 @@ export async function checkPendingSettlements() {
   }
 }
 
-/**
- * Force settles all pending settlements immediately (for testing)
- * Bypasses the 1-hour waiting period
- */
 export async function forceSettlePendingSettlements() {
   try {
     console.log("[v0] forceSettlePendingSettlements: Calling force_settle_pending_settlements RPC...")
@@ -617,7 +607,6 @@ export async function forceSettlePendingSettlements() {
 
     console.log("[v0] forceSettlePendingSettlements: RPC Success! Result:", data)
 
-    // Revalidate relevant paths
     revalidatePath("/admin")
     revalidatePath("/markets")
 
@@ -631,14 +620,10 @@ export async function forceSettlePendingSettlements() {
   }
 }
 
-/**
- * Gets all bonds from all tables for debugging purposes (admin only)
- */
 export async function getAllBondsDebug() {
   try {
     console.log("[v0] getAllBondsDebug: Fetching all bonds from AWS RDS...")
 
-    // Query all settlement bonds
     const settlementBonds = await select<any>(
       "settlement_bonds",
       ["id", "market_id", "creator_id", "bond_amount", "status", "created_at"],
@@ -650,7 +635,6 @@ export async function getAllBondsDebug() {
       count: settlementBonds?.length || 0,
     })
 
-    // Query all contest bonds
     const contestBonds = await select<any>(
       "settlement_contests",
       ["id", "market_id", "contestant_id", "contest_bond_amount", "status", "created_at"],
@@ -662,7 +646,6 @@ export async function getAllBondsDebug() {
       count: contestBonds?.length || 0,
     })
 
-    // Query all vote bonds
     const voteBonds = await select<any>(
       "settlement_votes",
       ["id", "contest_id", "voter_id", "vote_bond_amount", "is_correct", "payout_amount", "created_at"],
@@ -674,7 +657,6 @@ export async function getAllBondsDebug() {
       count: voteBonds?.length || 0,
     })
 
-    // Get market titles for each bond
     const allMarketIds = [
       ...(settlementBonds || []).map((b: any) => b.market_id),
       ...(contestBonds || []).map((b: any) => b.market_id),
@@ -689,7 +671,6 @@ export async function getAllBondsDebug() {
 
     const marketMap = new Map(markets?.map((m: any) => [m.id, m]) || [])
 
-    // Transform data for display
     const transformedSettlementBonds = (settlementBonds || []).map((bond: any) => {
       const market = marketMap.get(bond.market_id)
       return {
@@ -719,9 +700,6 @@ export async function getAllBondsDebug() {
     })
 
     const transformedVoteBonds = (voteBonds || []).map((bond: any) => {
-      // Derive status: if is_correct is null, it's still active (voting in progress)
-      // if is_correct is true and payout > 0, it's won
-      // if is_correct is false, it's lost
       let derivedStatus = "active"
       if (bond.is_correct === true && bond.payout_amount > 0) {
         derivedStatus = "won"
@@ -766,9 +744,6 @@ export async function getAllBondsDebug() {
   }
 }
 
-/**
- * Direct database query to verify settlement columns exist
- */
 export async function verifySettlementColumns() {
   try {
     console.log("[v0] verifySettlementColumns: Checking database schema...")
@@ -782,6 +757,7 @@ export async function verifySettlementColumns() {
         "settlement_initiated_at",
         "contest_deadline",
         "creator_settlement_outcome",
+        "creator_settlement_outcome_text",
       ],
       undefined,
       undefined,
@@ -816,9 +792,6 @@ export async function verifySettlementColumns() {
   }
 }
 
-/**
- * Gets all suspended and contested markets for debugging auto-settlement
- */
 export async function getSuspendedMarketsDebug() {
   try {
     console.log("[v0] getSuspendedMarketsDebug: Fetching suspended markets...")

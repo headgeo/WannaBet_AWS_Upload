@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from 'lucide-react'
+import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from "lucide-react"
 import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
@@ -32,6 +32,10 @@ import { MarketPriceChart } from "@/components/market-price-chart"
 import { ProposeOutcomeDialog } from "@/components/propose-outcome-dialog"
 import { BLOCKCHAIN_FEATURES } from "@/lib/blockchain/feature-flags"
 import { useToast } from "@/hooks/use-toast"
+import { ContestOutcomeDialog } from "@/components/contest-outcome-dialog"
+import { VoteOutcomeDialog } from "@/components/vote-outcome-dialog"
+
+type OutcomeChoice = "yes" | "no" | "cancel"
 
 interface Market {
   id: string
@@ -116,6 +120,8 @@ export function MarketDetailClient({
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const [showProposeDialog, setShowProposeDialog] = useState(false)
+  const [showContestDialog, setShowContestDialog] = useState(false)
+  const [showVoteDialog, setShowVoteDialog] = useState(false)
   const { toast } = useToast()
 
   const marketStatus = getMarketStatusDisplay(market)
@@ -235,7 +241,7 @@ export function MarketDetailClient({
     }
   }
 
-  const handlePrivateMarketSettlement = async (winningSide: boolean) => {
+  const handlePrivateMarketSettlement = async (winningSide: OutcomeChoice) => {
     setIsSettling(true)
     setError(null)
 
@@ -276,12 +282,12 @@ export function MarketDetailClient({
     }
   }
 
-  const handleContestSettlement = async () => {
+  const handleContestWithOutcome = async (contestedOutcome: OutcomeChoice) => {
     setIsContesting(true)
     setError(null)
 
     try {
-      const result = await contestSettlement(market.id)
+      const result = await contestSettlement(market.id, contestedOutcome)
 
       if (!result.success) {
         toast({
@@ -291,13 +297,13 @@ export function MarketDetailClient({
         })
         return
       }
-      
+
       toast({
         title: "Settlement Contested",
         description: "Your contest has been submitted. Voters have been notified.",
       })
 
-      // This ensures the UI immediately reflects the new status and hides the contest window
+      setShowContestDialog(false)
       window.location.reload()
     } catch (error: any) {
       console.error("[v0] Contest error:", error)
@@ -311,27 +317,36 @@ export function MarketDetailClient({
     }
   }
 
-  const handleSubmitVote = async (outcome: boolean) => {
-    if (!settlementStatus?.contest_id) return
+  const handleSubmitVoteWithOutcome = async (voteOutcome: OutcomeChoice) => {
+    if (!settlementStatus?.contest_id) {
+      console.error("[v0] No contest ID available for voting")
+      setError("Contest not found")
+      return
+    }
 
     setIsVoting(true)
     setError(null)
 
     try {
-      const result = await submitVote(settlementStatus.contest_id, outcome)
+      const result = await submitVote(settlementStatus.contest_id, voteOutcome)
 
       if (!result.success) {
         throw new Error(result.error || "Vote submission failed")
       }
 
+      toast({
+        title: "Vote Submitted",
+        description: `Your vote for ${voteOutcome.toUpperCase()} has been recorded.`,
+      })
+
+      setShowVoteDialog(false)
       await fetchSettlementStatus()
       router.refresh()
     } catch (error: any) {
-      console.error("[v0] Vote submission error:", error)
+      console.error("[v0] Vote error:", error)
       setError(error.message)
     } finally {
       setIsVoting(false)
-      setVoteOutcome(null)
     }
   }
 
@@ -446,6 +461,13 @@ export function MarketDetailClient({
   const noPosition = userPositions.find((pos) => pos.side === false)
 
   const hasUMARequest = !market.is_private && market.uma_request_id
+
+  const getOutcomeLabel = (outcome: OutcomeChoice | boolean | null): string => {
+    if (outcome === true || outcome === "yes") return "YES"
+    if (outcome === false || outcome === "no") return "NO"
+    if (outcome === "cancel") return "CANCEL"
+    return "Unknown"
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
@@ -645,11 +667,11 @@ export function MarketDetailClient({
                   {canContestSettlement && (
                     <>
                       <Button
-                        onClick={handleContestSettlement}
+                        onClick={() => setShowContestDialog(true)}
                         disabled={isContesting}
                         className="w-full bg-orange-600 hover:bg-orange-700"
                       >
-                        {isContesting ? "Contesting..." : "Contest Settlement ($50)"}
+                        {isContesting ? "Contesting..." : "Contest This Outcome"}
                       </Button>
                       <p className="text-xs text-muted-foreground">
                         If you contest, random participants will be selected to vote. If the majority agrees with you,
@@ -673,87 +695,94 @@ export function MarketDetailClient({
               </Card>
             )}
 
-            {!marketSettled && (settlementStatus?.status === "contested" || market.status === "contested") && settlementStatus && (
-              <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
-                <CardHeader>
-                  <CardTitle className="text-lg flex flex-col gap-1 text-red-600">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5" />A settlement has been contested
-                    </div>
-                    <div className="text-sm font-normal text-red-500">
-                      Voting Deadline: {settlementStatus.voting_deadline ? new Date(settlementStatus.voting_deadline).toLocaleString() : 'Loading...'}
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    This settlement has been contested. Verifiers are voting on the outcome.
-                  </p>
+            {!marketSettled &&
+              (settlementStatus?.status === "contested" || market.status === "contested") &&
+              settlementStatus && (
+                <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex flex-col gap-1 text-red-600">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5" />A settlement has been contested
+                      </div>
+                      <div className="text-sm font-normal text-red-500">
+                        Voting Deadline:{" "}
+                        {settlementStatus.voting_deadline
+                          ? new Date(settlementStatus.voting_deadline).toLocaleString()
+                          : "Loading..."}
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      This settlement has been contested. Verifiers are voting on the outcome.
+                    </p>
 
-                  {canVote && (
-                    <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <div className="mb-3">
-                        <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                          You've Been Selected to Vote!
-                        </h4>
-                        <p className="text-sm text-blue-700 dark:text-blue-300">
-                          Cast your vote on the correct outcome. You'll receive a $25 bond for participating, plus a
-                          share of the losing party's bond if you vote with the majority.
+                    {canVote && (
+                      <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div className="mb-3">
+                          <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                            You've Been Selected to Vote!
+                          </h4>
+                          <p className="text-sm text-blue-700 dark:text-blue-300">
+                            Cast your vote on the correct outcome. You'll receive a $25 bond for participating, plus a
+                            share of the losing party's bond if you vote with the majority.
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="p-3 bg-white dark:bg-gray-800 rounded border">
+                            <div className="text-sm text-muted-foreground mb-1">Creator's Proposed Outcome:</div>
+                            <div className="font-semibold text-lg">
+                              {settlementStatus.creator_outcome ? "YES" : "NO"}
+                            </div>
+                          </div>
+
+                          <div className="text-sm text-center text-muted-foreground">
+                            Which outcome do you believe is correct?
+                          </div>
+
+                          {error && (
+                            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded">{error}</div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <Button
+                              onClick={() => handleSubmitVoteWithOutcome("yes")}
+                              disabled={isVoting}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              {isVoting ? "Voting..." : "Vote YES"}
+                            </Button>
+                            <Button
+                              onClick={() => handleSubmitVoteWithOutcome("no")}
+                              disabled={isVoting}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              {isVoting ? "Voting..." : "Vote NO"}
+                            </Button>
+                          </div>
+
+                          <p className="text-xs text-muted-foreground text-center">
+                            Your $25 voting bond will be returned with rewards if you vote with the majority.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {settlementStatus.is_notified_voter && settlementStatus.has_voted && (
+                      <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                        <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                          <span className="font-medium">✓ You've already voted</span>
+                        </div>
+                        <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                          Thank you for participating! Your vote has been recorded and your bond will be returned with
+                          rewards after the voting period ends.
                         </p>
                       </div>
-
-                      <div className="space-y-3">
-                        <div className="p-3 bg-white dark:bg-gray-800 rounded border">
-                          <div className="text-sm text-muted-foreground mb-1">Creator's Proposed Outcome:</div>
-                          <div className="font-semibold text-lg">{settlementStatus.creator_outcome ? "YES" : "NO"}</div>
-                        </div>
-
-                        <div className="text-sm text-center text-muted-foreground">
-                          Which outcome do you believe is correct?
-                        </div>
-
-                        {error && (
-                          <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded">{error}</div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <Button
-                            onClick={() => handleSubmitVote(true)}
-                            disabled={isVoting}
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            {isVoting ? "Voting..." : "Vote YES"}
-                          </Button>
-                          <Button
-                            onClick={() => handleSubmitVote(false)}
-                            disabled={isVoting}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            {isVoting ? "Voting..." : "Vote NO"}
-                          </Button>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground text-center">
-                          Your $25 voting bond will be returned with rewards if you vote with the majority.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {settlementStatus.is_notified_voter && settlementStatus.has_voted && (
-                    <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                      <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
-                        <span className="font-medium">✓ You've already voted</span>
-                      </div>
-                      <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                        Thank you for participating! Your vote has been recorded and your bond will be returned with
-                        rewards after the voting period ends.
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
             <MarketPriceChart marketId={marketId} />
 
@@ -846,6 +875,7 @@ export function MarketDetailClient({
               </Card>
             )}
 
+            {/* Creator settlement proposal - updated for 3-way */}
             {canSettlePrivateMarket && (
               <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
                 <CardHeader>
@@ -866,14 +896,14 @@ export function MarketDetailClient({
 
                   <div className="flex gap-3">
                     <Button
-                      onClick={() => handlePrivateMarketSettlement(true)}
+                      onClick={() => handlePrivateMarketSettlement("yes")}
                       disabled={isSettling || isCancelling}
                       className="flex-1 bg-green-600 hover:bg-green-700"
                     >
                       {isSettling ? "Settling..." : "Settle as YES"}
                     </Button>
                     <Button
-                      onClick={() => handlePrivateMarketSettlement(false)}
+                      onClick={() => handlePrivateMarketSettlement("no")}
                       disabled={isSettling || isCancelling}
                       className="flex-1 bg-red-600 hover:bg-red-700"
                     >
@@ -882,12 +912,12 @@ export function MarketDetailClient({
                   </div>
 
                   <Button
-                    onClick={handlePrivateMarketCancellation}
+                    onClick={() => handlePrivateMarketSettlement("cancel")}
                     disabled={isSettling || isCancelling}
                     variant="outline"
-                    className="w-full bg-transparent"
+                    className="w-full bg-transparent border-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40"
                   >
-                    {isCancelling ? "Cancelling..." : "Cancel Market (Refund All)"}
+                    {isSettling ? "Cancelling..." : "Cancel Market (Refund All)"}
                   </Button>
 
                   <p className="text-xs text-muted-foreground">
@@ -1023,6 +1053,28 @@ export function MarketDetailClient({
         onConfirm={handleConfirmProposal}
         isLoading={isRequestingSettlement}
         marketTitle={market.title}
+      />
+      <ContestOutcomeDialog
+        open={showContestDialog}
+        onOpenChange={setShowContestDialog}
+        onConfirm={handleContestWithOutcome}
+        isLoading={isContesting}
+        marketTitle={market.title}
+        creatorProposedOutcome={
+          settlementStatus?.creator_outcome_text || (settlementStatus?.creator_outcome ? "yes" : "no")
+        }
+      />
+
+      <VoteOutcomeDialog
+        open={showVoteDialog}
+        onOpenChange={setShowVoteDialog}
+        onConfirm={handleSubmitVoteWithOutcome}
+        isLoading={isVoting}
+        marketTitle={market.title}
+        creatorProposedOutcome={
+          settlementStatus?.creator_outcome_text || (settlementStatus?.creator_outcome ? "yes" : "no")
+        }
+        voteCounts={settlementStatus?.vote_counts}
       />
     </div>
   )

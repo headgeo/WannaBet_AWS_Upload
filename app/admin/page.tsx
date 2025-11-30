@@ -16,6 +16,7 @@ import {
   TrendingDown,
   Shield,
   Database,
+  Play,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useIsAdmin } from "@/lib/auth/admin-client"
@@ -1127,30 +1128,13 @@ export default function AdminPage() {
             </Card>
             {/* End of Positions Audit Card */}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-blue-500" />
-                  Bonds Diagnostic
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  View all bonds in the database to debug why they're not appearing in my-bets page.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Button and logic for loading bonds were removed as per updates */}
-                <p className="text-sm text-muted-foreground">
-                  Bond diagnostic functionality has been updated. Please refer to the Balance Reconciliation section for
-                  related checks.
-                </p>
-              </CardContent>
-            </Card>
+            {/* Removed Bonds Diagnostic card */}
 
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-purple-500" />
-                  Settlement Testing (Local Development)
+                  <Play className="w-5 h-5 text-green-500" />
+                  Local Settlement Testing
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
                   Test the auto-settlement system locally. This works on localhost without needing CRON_SECRET.
@@ -1192,16 +1176,6 @@ export default function AdminPage() {
                       "Test Settlement Now"
                     )}
                   </Button>
-                </div>
-
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                  <h4 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">How Auto-Settlement Works:</h4>
-                  <ol className="text-sm text-amber-800 dark:text-amber-200 space-y-1 list-decimal list-inside">
-                    <li>Markets with expired contest deadlines are automatically settled</li>
-                    <li>Contested markets with expired vote deadlines are resolved based on vote counts</li>
-                    <li>Settlement initiator and contestant count as implicit votes for their sides</li>
-                    <li>Majority wins; ties result in market cancellation with full refunds</li>
-                  </ol>
                 </div>
               </CardContent>
             </Card>

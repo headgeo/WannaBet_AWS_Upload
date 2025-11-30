@@ -135,7 +135,7 @@ export async function createMarket(data: CreateMarketData) {
       market_id: createdMarket.id,
       type: "market_creation",
       amount: -data.liquidityAmount, // Full amount deducted from balance
-      description: `Created market: ${data.title} (Liquidity: $${data.liquidityAmount}${isPublicMarket ? `, $${liquidityForReward} for UMA reward` : ""})`,
+      description: `Created market: ${data.title} (Liquidity: $${liquidityForPool}${isPublicMarket ? `, $${liquidityForReward} for UMA reward` : ""})`,
     })
 
     console.log("[v0] Transaction result:", transactionResult)

@@ -1,6 +1,6 @@
 "use server"
 
-import { rpc, selectWithJoin, update } from "@/lib/database/adapter"
+import { rpc, selectWithJoin, update, query } from "@/lib/database/adapter"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin } from "@/lib/auth/admin"
 import { revalidatePath } from "next/cache"
@@ -398,6 +398,155 @@ export async function runBalanceReconciliation() {
     return { success: true, data: reconciliationData }
   } catch (error) {
     console.error("Balance reconciliation error:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+}
+
+export async function runPositionsAudit() {
+  try {
+    await requireAdmin()
+
+    console.log("[v0] Starting positions audit...")
+
+    const { rows, error } = await query("SELECT * FROM run_positions_audit()", [])
+
+    if (error) {
+      throw new Error(`Positions audit failed: ${error.message}`)
+    }
+
+    console.log("[v0] Positions audit raw result:", rows)
+    console.log("[v0] Positions audit rows count:", rows?.length || 0)
+
+    const allRows = rows || []
+
+    // Separate user position discrepancies from market state discrepancies
+    const userPositionRows = allRows.filter((r: any) => r.audit_type === "user_position")
+    const marketLiquidityRows = allRows.filter((r: any) => r.audit_type === "market_liquidity_pool")
+    const marketQyRows = allRows.filter((r: any) => r.audit_type === "market_qy")
+    const marketQnRows = allRows.filter((r: any) => r.audit_type === "market_qn")
+
+    console.log(
+      "[v0] Filtered rows - LP:",
+      marketLiquidityRows.length,
+      "QY:",
+      marketQyRows.length,
+      "QN:",
+      marketQnRows.length,
+      "User:",
+      userPositionRows.length,
+    )
+
+    // Build position discrepancies
+    const position_discrepancies = userPositionRows.map((row: any) => ({
+      user_id: row.user_id,
+      market_id: row.market_id,
+      username: row.user_id?.substring(0, 8) || "Unknown",
+      market_title: row.market_id?.substring(0, 8) || "Unknown",
+      side: row.position_side ? "YES" : "NO",
+      position_table_shares: row.positions_table || 0,
+      transaction_snapshot_shares: row.transactions_snapshot || 0,
+      calculated_shares: row.calculated || 0,
+      discrepancy_vs_snapshot: row.discrepancy || 0,
+    }))
+
+    // Build market share discrepancies - group by market_id
+    const marketIds = [
+      ...new Set([
+        ...marketLiquidityRows.map((r: any) => r.market_id),
+        ...marketQyRows.map((r: any) => r.market_id),
+        ...marketQnRows.map((r: any) => r.market_id),
+      ]),
+    ]
+
+    const market_share_discrepancies = marketIds.map((marketId: string) => {
+      const lpRow = marketLiquidityRows.find((r: any) => r.market_id === marketId)
+      const qyRow = marketQyRows.find((r: any) => r.market_id === marketId)
+      const qnRow = marketQnRows.find((r: any) => r.market_id === marketId)
+
+      const lpStored = Number(lpRow?.positions_table || 0)
+      const lpTxnSnapshot = Number(lpRow?.transactions_snapshot || 0)
+      const lpLedgerSnapshot = Number(lpRow?.ledger_snapshot || 0)
+
+      // Discrepancy if ANY of these don't match
+      const lpDiscrepancyVsTxn = Math.abs(lpStored - lpTxnSnapshot)
+      const lpDiscrepancyVsLedger = Math.abs(lpStored - lpLedgerSnapshot)
+      const hasLpDiscrepancy = lpDiscrepancyVsTxn > 0.01 || lpDiscrepancyVsLedger > 0.01
+
+      const qyStored = Number(qyRow?.positions_table || 0)
+      const qyTxnSnapshot = Number(qyRow?.transactions_snapshot || 0)
+      const qyDiscrepancy = Math.abs(qyStored - qyTxnSnapshot)
+
+      const qnStored = Number(qnRow?.positions_table || 0)
+      const qnTxnSnapshot = Number(qnRow?.transactions_snapshot || 0)
+      const qnDiscrepancy = Math.abs(qnStored - qnTxnSnapshot)
+
+      const hasDiscrepancy = hasLpDiscrepancy || qyDiscrepancy > 0.01 || qnDiscrepancy > 0.01
+
+      console.log("[v0] Market discrepancy check:", {
+        marketId: marketId?.substring(0, 8),
+        lpStored,
+        lpTxnSnapshot,
+        lpLedgerSnapshot,
+        lpDiscrepancyVsTxn,
+        lpDiscrepancyVsLedger,
+        hasLpDiscrepancy,
+        hasDiscrepancy,
+      })
+
+      return {
+        market_id: marketId,
+        market_title: marketId?.substring(0, 8) || "Unknown",
+        has_discrepancy: hasDiscrepancy,
+        qy: {
+          stored: qyStored,
+          transaction_snapshot: qyTxnSnapshot,
+          calculated: Number(qyRow?.calculated || 0),
+          discrepancy: qyDiscrepancy,
+        },
+        qn: {
+          stored: qnStored,
+          transaction_snapshot: qnTxnSnapshot,
+          calculated: Number(qnRow?.calculated || 0),
+          discrepancy: qnDiscrepancy,
+        },
+        liquidity_pool: {
+          stored: lpStored,
+          transaction_snapshot: lpTxnSnapshot,
+          ledger_snapshot: lpLedgerSnapshot,
+          calculated: Number(lpRow?.calculated || 0),
+          discrepancy_vs_txn: lpDiscrepancyVsTxn,
+          discrepancy_vs_ledger: lpDiscrepancyVsLedger,
+        },
+      }
+    })
+
+    const marketsWithIssues = market_share_discrepancies.filter((m) => m.has_discrepancy)
+
+    // Build summary
+    const position_issues = position_discrepancies.length
+    const market_share_issues = marketsWithIssues.length
+    const total_issues = position_issues + market_share_issues
+
+    const auditData = {
+      summary: {
+        status: total_issues === 0 ? "PASS" : "FAIL",
+        position_issues,
+        market_share_issues,
+        total_issues,
+        timestamp: new Date().toISOString(),
+      },
+      position_discrepancies,
+      market_share_discrepancies: marketsWithIssues, // Only return markets with issues
+    }
+
+    console.log("[v0] Positions audit transformed:", auditData)
+
+    return { success: true, data: auditData }
+  } catch (error) {
+    console.error("Positions audit error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

@@ -1,15 +1,32 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertTriangle, CheckCircle, Clock, Users, DollarSign, TrendingUp, TrendingDown, Shield } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Users,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Shield,
+  Database,
+} from "lucide-react"
 import { format } from "date-fns"
 import { useIsAdmin } from "@/lib/auth/admin-client"
-import { settleMarket, cancelMarket, getAllMarkets, getFeesAndLiquiditySummary, runBalanceReconciliation } from "@/app/actions/admin"
+import {
+  settleMarket,
+  cancelMarket,
+  getAllMarkets,
+  getFeesAndLiquiditySummary,
+  runBalanceReconciliation,
+  runPositionsAudit,
+} from "@/app/actions/admin"
 import { createGroupsTables } from "@/app/actions/database"
 import { getMarketStatusDisplay } from "@/lib/market-status"
 import { NotificationBell } from "@/components/notifications"
@@ -52,6 +69,8 @@ export default function AdminPage() {
   const [isLoadingDiagnostics, setIsLoadingDiagnostics] = useState(false)
   const [reconciliationData, setReconciliationData] = useState<any>(null)
   const [isRunningReconciliation, setIsRunningReconciliation] = useState(false)
+  const [positionsAuditData, setPositionsAuditData] = useState<any>(null)
+  const [isRunningPositionsAudit, setIsRunningPositionsAudit] = useState(false)
 
   const { isAdmin, isLoading: adminLoading } = useIsAdmin()
   const router = useRouter()
@@ -254,6 +273,34 @@ export default function AdminPage() {
       setError(`Reconciliation failed: ${error.message}`)
     } finally {
       setIsRunningReconciliation(false)
+    }
+  }
+
+  const handleRunPositionsAudit = async () => {
+    setIsRunningPositionsAudit(true)
+    setError(null)
+    setSuccessMessage(null)
+    setPositionsAuditData(null)
+
+    try {
+      const result = await runPositionsAudit()
+
+      if (!result.success) {
+        throw new Error(result.error)
+      }
+
+      setPositionsAuditData(result.data)
+
+      const totalIssues = result.data?.summary?.total_issues || 0
+      if (totalIssues === 0) {
+        setSuccessMessage("All positions reconciled successfully! No discrepancies found.")
+      } else {
+        setError(`Found ${totalIssues} position discrepancy(ies). Review details below.`)
+      }
+    } catch (error: any) {
+      setError(`Positions audit failed: ${error.message}`)
+    } finally {
+      setIsRunningPositionsAudit(false)
     }
   }
 
@@ -706,11 +753,9 @@ export default function AdminPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="w-5 h-5 text-blue-500" />
-                  Balance Reconciliation
+                  User Balance Reconciliation
                 </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Audit user balances and market states against ledger entries and transaction history.
-                </p>
+                <p className="text-sm text-muted-foreground">Audit user balances against ledger entries.</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Button
@@ -731,10 +776,16 @@ export default function AdminPage() {
                 {reconciliationData && (
                   <div className="space-y-4 mt-4">
                     {/* Summary Card */}
-                    <Card className={reconciliationData.summary?.status === 'PASS' ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}>
+                    <Card
+                      className={
+                        reconciliationData.summary?.status === "PASS"
+                          ? "border-green-200 bg-green-50/50"
+                          : "border-amber-200 bg-amber-50/50"
+                      }
+                    >
                       <CardHeader>
                         <CardTitle className="text-sm flex items-center gap-2">
-                          {reconciliationData.summary?.status === 'PASS' ? (
+                          {reconciliationData.summary?.status === "PASS" ? (
                             <CheckCircle className="w-4 h-4 text-green-500" />
                           ) : (
                             <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -743,23 +794,20 @@ export default function AdminPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                           <div>
                             <div className="font-medium text-muted-foreground">Status</div>
-                            <Badge variant={reconciliationData.summary?.status === 'PASS' ? 'default' : 'destructive'} className="mt-1">
-                              {reconciliationData.summary?.status || 'UNKNOWN'}
+                            <Badge
+                              variant={reconciliationData.summary?.status === "PASS" ? "default" : "destructive"}
+                              className="mt-1"
+                            >
+                              {reconciliationData.summary?.status || "UNKNOWN"}
                             </Badge>
                           </div>
                           <div>
-                            <div className="font-medium text-muted-foreground">User Issues</div>
+                            <div className="font-medium text-muted-foreground">User Balance Issues</div>
                             <div className="text-2xl font-bold text-amber-600">
                               {reconciliationData.summary?.user_balance_issues || 0}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="font-medium text-muted-foreground">Market Issues</div>
-                            <div className="text-2xl font-bold text-amber-600">
-                              {reconciliationData.summary?.market_state_issues || 0}
                             </div>
                           </div>
                           <div>
@@ -770,7 +818,10 @@ export default function AdminPage() {
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground mt-3">
-                          Last run: {reconciliationData.summary?.timestamp ? format(new Date(reconciliationData.summary.timestamp), "MMM d, yyyy 'at' HH:mm:ss") : 'Unknown'}
+                          Last run:{" "}
+                          {reconciliationData.summary?.timestamp
+                            ? format(new Date(reconciliationData.summary.timestamp), "MMM d, yyyy 'at' HH:mm:ss")
+                            : "Unknown"}
                         </p>
                       </CardContent>
                     </Card>
@@ -794,73 +845,20 @@ export default function AdminPage() {
                                       <span className="font-medium">Username:</span> {issue.username}
                                     </div>
                                     <div>
-                                      <span className="font-medium">Stored Balance:</span> ${Number(issue.stored_balance).toFixed(2)}
+                                      <span className="font-medium">Stored Balance:</span> $
+                                      {Number(issue.stored_balance).toFixed(2)}
                                     </div>
                                     <div>
-                                      <span className="font-medium">Ledger Balance:</span> ${Number(issue.ledger_balance).toFixed(2)}
+                                      <span className="font-medium">Ledger Balance:</span> $
+                                      {Number(issue.ledger_balance).toFixed(2)}
                                     </div>
                                     <div>
-                                      <span className="font-medium">Discrepancy:</span>{' '}
-                                      <span className="text-red-600 font-semibold">${Number(issue.discrepancy).toFixed(2)}</span>
+                                      <span className="font-medium">Discrepancy:</span>{" "}
+                                      <span className="text-red-600 font-semibold">
+                                        ${Number(issue.discrepancy).toFixed(2)}
+                                      </span>
                                     </div>
-                                    <div className="text-[10px] text-muted-foreground">
-                                      {issue.user_id}
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* Market State Discrepancies */}
-                    {reconciliationData.market_discrepancies && reconciliationData.market_discrepancies.length > 0 && (
-                      <Card className="border-red-200">
-                        <CardHeader>
-                          <CardTitle className="text-sm flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4 text-red-500" />
-                            Market State Discrepancies ({reconciliationData.market_discrepancies.length})
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {reconciliationData.market_discrepancies.map((issue: any) => (
-                              <Card key={issue.market_id} className="border-red-100 bg-red-50/30">
-                                <CardContent className="pt-4 text-xs">
-                                  <h4 className="font-semibold text-sm mb-2">{issue.market_title}</h4>
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div>
-                                      <div className="font-medium mb-1">Liquidity Pool:</div>
-                                      <div className="pl-2 space-y-1">
-                                        <div>Stored: ${Number(issue.liquidity_pool.stored).toFixed(2)}</div>
-                                        <div>Audited: ${Number(issue.liquidity_pool.audited).toFixed(2)}</div>
-                                        <div className="text-red-600 font-semibold">
-                                          Diff: ${Number(issue.liquidity_pool.discrepancy).toFixed(2)}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <div className="font-medium mb-1">YES Shares (qy):</div>
-                                      <div className="pl-2 space-y-1">
-                                        <div>Stored: {Number(issue.qy.stored).toFixed(2)}</div>
-                                        <div>Audited: {Number(issue.qy.audited).toFixed(2)}</div>
-                                        <div className="text-red-600 font-semibold">
-                                          Diff: {Number(issue.qy.discrepancy).toFixed(2)}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <div className="font-medium mb-1">NO Shares (qn):</div>
-                                      <div className="pl-2 space-y-1">
-                                        <div>Stored: {Number(issue.qn.stored).toFixed(2)}</div>
-                                        <div>Audited: {Number(issue.qn.audited).toFixed(2)}</div>
-                                        <div className="text-red-600 font-semibold">
-                                          Diff: {Number(issue.qn.discrepancy).toFixed(2)}
-                                        </div>
-                                      </div>
-                                    </div>
+                                    <div className="text-[10px] text-muted-foreground">{issue.user_id}</div>
                                   </div>
                                 </CardContent>
                               </Card>
@@ -872,250 +870,246 @@ export default function AdminPage() {
                   </div>
                 )}
 
+                {reconciliationData && !reconciliationData.user_discrepancies?.length && (
+                  <Card className="border-green-200 bg-green-50/50">
+                    <CardContent className="pt-4">
+                      <p className="text-sm text-green-700">
+                        All user balances reconciled successfully! No discrepancies found.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {!reconciliationData && !isRunningReconciliation && (
                   <p className="text-sm text-muted-foreground">
-                    Click the button above to run a comprehensive audit of all user balances and market states against
-                    the ledger and transaction history.
+                    Click the button above to audit user balances against the ledger.
                   </p>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-purple-200 bg-purple-50/50 dark:bg-purple-900/10">
+            <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-purple-500" />
-                  Comprehensive Settlement Diagnostics
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="w-4 h-4" />
+                  Positions & Market State Audit
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  View detailed information about all markets and why they are or aren't being settled.
+                  Audit user positions and market qy/qn/liquidity against transaction tracking and ledger entries.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Button
-                  onClick={loadComprehensiveDiagnostics}
-                  disabled={isLoadingDiagnostics}
+                  onClick={handleRunPositionsAudit}
+                  disabled={isRunningPositionsAudit}
                   className="bg-purple-600 hover:bg-purple-700"
                 >
-                  {isLoadingDiagnostics ? (
+                  {isRunningPositionsAudit ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Loading Diagnostics...
+                      Running Positions Audit...
                     </>
                   ) : (
-                    "Run Full Diagnostics"
+                    "Run Positions Audit"
                   )}
                 </Button>
 
-                {diagnosticData && (
+                {positionsAuditData && (
                   <div className="space-y-4 mt-4">
-                    {/* Summary */}
-                    <Card className="border-blue-200">
+                    {/* Summary Card */}
+                    <Card
+                      className={
+                        positionsAuditData.summary?.status === "PASS"
+                          ? "border-green-200 bg-green-50/50"
+                          : "border-amber-200 bg-amber-50/50"
+                      }
+                    >
                       <CardHeader>
-                        <CardTitle className="text-sm">Summary</CardTitle>
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          {positionsAuditData.summary?.status === "PASS" ? (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-amber-500" />
+                          )}
+                          Positions Audit Summary
+                        </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
-                            <div className="font-medium text-muted-foreground">Total Markets</div>
-                            <div className="text-2xl font-bold">{diagnosticData.summary?.total_markets || 0}</div>
+                            <div className="font-medium text-muted-foreground">Status</div>
+                            <Badge
+                              variant={positionsAuditData.summary?.status === "PASS" ? "default" : "destructive"}
+                              className="mt-1"
+                            >
+                              {positionsAuditData.summary?.status || "UNKNOWN"}
+                            </Badge>
                           </div>
                           <div>
-                            <div className="font-medium text-muted-foreground">Pending Contest</div>
+                            <div className="font-medium text-muted-foreground">User Position Issues</div>
                             <div className="text-2xl font-bold text-amber-600">
-                              {diagnosticData.summary?.pending_contest_markets || 0}
+                              {positionsAuditData.summary?.position_issues || 0}
                             </div>
                           </div>
                           <div>
-                            <div className="font-medium text-muted-foreground">Contested</div>
+                            <div className="font-medium text-muted-foreground">Market State Issues</div>
+                            <div className="text-2xl font-bold text-amber-600">
+                              {positionsAuditData.summary?.market_share_issues || 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">Total Issues</div>
                             <div className="text-2xl font-bold text-red-600">
-                              {diagnosticData.summary?.contested_markets || 0}
+                              {positionsAuditData.summary?.total_issues || 0}
                             </div>
-                          </div>
-                          <div>
-                            <div className="font-medium text-muted-foreground">Total Contests</div>
-                            <div className="text-2xl font-bold">{diagnosticData.summary?.total_contests || 0}</div>
-                          </div>
-                          <div>
-                            <div className="font-medium text-muted-foreground">Total Bonds</div>
-                            <div className="text-2xl font-bold">{diagnosticData.summary?.total_bonds || 0}</div>
                           </div>
                         </div>
+                        <p className="text-xs text-muted-foreground mt-3">
+                          Last run:{" "}
+                          {positionsAuditData.summary?.timestamp
+                            ? format(new Date(positionsAuditData.summary.timestamp), "MMM d, yyyy 'at' HH:mm:ss")
+                            : "Unknown"}
+                        </p>
                       </CardContent>
                     </Card>
 
-                    {/* Pending Contest Markets */}
-                    {diagnosticData.pending_contest_markets && diagnosticData.pending_contest_markets.length > 0 && (
-                      <Card className="border-amber-200">
-                        <CardHeader>
-                          <CardTitle className="text-sm flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-amber-500" />
-                            Pending Contest Markets ({diagnosticData.pending_contest_markets.length})
-                          </CardTitle>
-                          <p className="text-xs text-muted-foreground">Markets waiting for contest period to expire</p>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {diagnosticData.pending_contest_markets.map((market: any) => (
-                              <Card key={market.id} className="border-amber-100 bg-amber-50/30">
-                                <CardContent className="pt-4 text-xs">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1">
-                                      <h4 className="font-semibold text-sm mb-1">{market.title}</h4>
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                          <span className="font-medium">Status:</span> {market.status}
+                    {/* User Position Discrepancies */}
+                    {positionsAuditData.position_discrepancies &&
+                      positionsAuditData.position_discrepancies.length > 0 && (
+                        <Card className="border-red-200">
+                          <CardHeader>
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-red-500" />
+                              User Position Discrepancies ({positionsAuditData.position_discrepancies.length})
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {positionsAuditData.position_discrepancies.map((issue: any, idx: number) => (
+                                <Card key={idx} className="border-red-100 bg-red-50/30">
+                                  <CardContent className="pt-4 text-xs">
+                                    <h4 className="font-semibold text-sm mb-2">
+                                      {issue.username} - {issue.market_title}
+                                    </h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                      <div>
+                                        <span className="font-medium">Side:</span> {issue.side}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">Positions Table:</span>{" "}
+                                        {Number(issue.position_table_shares).toFixed(4)}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">Transaction Snapshot:</span>{" "}
+                                        {Number(issue.transaction_snapshot_shares).toFixed(4)}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">Calculated:</span>{" "}
+                                        {Number(issue.calculated_shares).toFixed(4)}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">Discrepancy:</span>{" "}
+                                        <span className="text-red-600 font-semibold">
+                                          {Number(issue.discrepancy_vs_snapshot).toFixed(4)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                    {/* Market Share Discrepancies */}
+                    {positionsAuditData.market_share_discrepancies &&
+                      positionsAuditData.market_share_discrepancies.length > 0 && (
+                        <Card className="border-red-200">
+                          <CardHeader>
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-red-500" />
+                              Market State Discrepancies ({positionsAuditData.market_share_discrepancies.length})
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {positionsAuditData.market_share_discrepancies.map((issue: any, idx: number) => (
+                                <Card key={idx} className="border-red-100 bg-red-50/30">
+                                  <CardContent className="pt-4 text-xs">
+                                    <h4 className="font-semibold text-sm mb-2">{issue.market_title}</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                      <div>
+                                        <div className="font-medium mb-1">YES Shares (qy):</div>
+                                        <div className="pl-2 space-y-1">
+                                          <div>Markets Table: {Number(issue.qy?.stored || 0).toFixed(4)}</div>
+                                          <div>
+                                            Transaction Snapshot:{" "}
+                                            {Number(issue.qy?.transaction_snapshot || 0).toFixed(4)}
+                                          </div>
+                                          <div>Calculated: {Number(issue.qy?.calculated || 0).toFixed(4)}</div>
+                                          <div className="text-red-600 font-semibold">
+                                            Diff: {Number(issue.qy?.discrepancy || 0).toFixed(4)}
+                                          </div>
                                         </div>
-                                        <div>
-                                          <span className="font-medium">Settlement Status:</span>{" "}
-                                          {market.settlement_status}
+                                      </div>
+                                      <div>
+                                        <div className="font-medium mb-1">NO Shares (qn):</div>
+                                        <div className="pl-2 space-y-1">
+                                          <div>Markets Table: {Number(issue.qn?.stored || 0).toFixed(4)}</div>
+                                          <div>
+                                            Transaction Snapshot:{" "}
+                                            {Number(issue.qn?.transaction_snapshot || 0).toFixed(4)}
+                                          </div>
+                                          <div>Calculated: {Number(issue.qn?.calculated || 0).toFixed(4)}</div>
+                                          <div className="text-red-600 font-semibold">
+                                            Diff: {Number(issue.qn?.discrepancy || 0).toFixed(4)}
+                                          </div>
                                         </div>
-                                        <div>
-                                          <span className="font-medium">Contest Deadline:</span>{" "}
-                                          {market.contest_deadline || "N/A"}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Expired:</span>{" "}
-                                          <Badge
-                                            variant={market.is_expired ? "destructive" : "secondary"}
-                                            className="text-[10px]"
-                                          >
-                                            {market.is_expired ? "YES" : "NO"}
-                                          </Badge>
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Minutes Since Deadline:</span>{" "}
-                                          {market.minutes_since_deadline || "N/A"}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Has Contest:</span>{" "}
-                                          <Badge
-                                            variant={market.has_contest ? "default" : "secondary"}
-                                            className="text-[10px]"
-                                          >
-                                            {market.has_contest ? "YES" : "NO"}
-                                          </Badge>
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Has Bond:</span>{" "}
-                                          <Badge
-                                            variant={market.has_bond ? "default" : "secondary"}
-                                            className="text-[10px]"
-                                          >
-                                            {market.has_bond ? "YES" : "NO"}
-                                          </Badge>
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Should Auto-Settle:</span>{" "}
-                                          <Badge
-                                            variant={market.should_auto_settle ? "destructive" : "secondary"}
-                                            className="text-[10px]"
-                                          >
-                                            {market.should_auto_settle ? "YES" : "NO"}
-                                          </Badge>
+                                      </div>
+                                      <div>
+                                        <div className="font-medium mb-1">Liquidity Pool:</div>
+                                        <div className="pl-2 space-y-1">
+                                          <div>
+                                            Markets Table: ${Number(issue.liquidity_pool?.stored || 0).toFixed(4)}
+                                          </div>
+                                          <div>
+                                            Transaction Snapshot: $
+                                            {Number(issue.liquidity_pool?.transaction_snapshot || 0).toFixed(4)}
+                                          </div>
+                                          <div>
+                                            Ledger Snapshot: $
+                                            {Number(issue.liquidity_pool?.ledger_snapshot || 0).toFixed(4)}
+                                          </div>
+                                          <div>
+                                            Calculated: ${Number(issue.liquidity_pool?.calculated || 0).toFixed(4)}
+                                          </div>
+                                          <div className="text-red-600 font-semibold">
+                                            Diff vs Txn: $
+                                            {Number(issue.liquidity_pool?.discrepancy_vs_txn || 0).toFixed(4)}
+                                          </div>
+                                          <div className="text-red-600 font-semibold">
+                                            Diff vs Ledger: $
+                                            {Number(issue.liquidity_pool?.discrepancy_vs_ledger || 0).toFixed(4)}
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
-                                    <Button variant="outline" size="sm" asChild className="ml-2 text-xs bg-transparent">
-                                      <a href={`/market/${market.id}`} target="_blank" rel="noopener noreferrer">
-                                        View
-                                      </a>
-                                    </Button>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                    {/* Contested Markets */}
-                    {diagnosticData.contested_markets && diagnosticData.contested_markets.length > 0 && (
-                      <Card className="border-red-200">
-                        <CardHeader>
-                          <CardTitle className="text-sm flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4 text-red-500" />
-                            Contested Markets ({diagnosticData.contested_markets.length})
-                          </CardTitle>
-                          <p className="text-xs text-muted-foreground">
-                            Markets with active contests waiting for vote deadline
-                          </p>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {diagnosticData.contested_markets.map((market: any) => (
-                              <Card key={market.id} className="border-red-100 bg-red-50/30">
-                                <CardContent className="pt-4 text-xs">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1">
-                                      <h4 className="font-semibold text-sm mb-1">{market.title}</h4>
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                          <span className="font-medium">Status:</span> {market.status}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Settlement Status:</span>{" "}
-                                          {market.settlement_status}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Contest ID:</span> {market.contest_id || "N/A"}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Contest Status:</span>{" "}
-                                          {market.contest_status || "N/A"}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Vote Deadline:</span>{" "}
-                                          {market.vote_deadline || "N/A"}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Expired:</span>{" "}
-                                          <Badge
-                                            variant={market.is_expired ? "destructive" : "secondary"}
-                                            className="text-[10px]"
-                                          >
-                                            {market.is_expired ? "YES" : "NO"}
-                                          </Badge>
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Minutes Past Deadline:</span>{" "}
-                                          {market.minutes_since_deadline || "N/A"}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Should Resolve:</span>{" "}
-                                          <Badge
-                                            variant={market.should_resolve ? "destructive" : "secondary"}
-                                            className="text-[10px]"
-                                          >
-                                            {market.should_resolve ? "YES" : "NO"}
-                                          </Badge>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <Button variant="outline" size="sm" asChild className="ml-2 text-xs bg-transparent">
-                                      <a href={`/market/${market.id}`} target="_blank" rel="noopener noreferrer">
-                                        View
-                                      </a>
-                                    </Button>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* No markets found */}
-                    {diagnosticData.summary?.pending_contest_markets === 0 &&
-                      diagnosticData.summary?.contested_markets === 0 && (
+                    {positionsAuditData &&
+                      !positionsAuditData.position_discrepancies?.length &&
+                      !positionsAuditData.market_share_discrepancies?.length && (
                         <Card className="border-green-200 bg-green-50/50">
-                          <CardContent className="pt-6 text-center">
-                            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold mb-2">No Markets Need Settlement</h3>
-                            <p className="text-sm text-muted-foreground">
-                              All markets are either active or already settled.
+                          <CardContent className="pt-4">
+                            <p className="text-sm text-green-700">
+                              All positions and market states reconciled successfully! No discrepancies found.
                             </p>
                           </CardContent>
                         </Card>
@@ -1123,14 +1117,15 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {!diagnosticData && !isLoadingDiagnostics && (
+                {!positionsAuditData && !isRunningPositionsAudit && (
                   <p className="text-sm text-muted-foreground">
-                    Click the button above to run comprehensive diagnostics and see exactly what markets exist and why
-                    they are or aren't being settled.
+                    Click the button above to audit user positions and market state against transaction tracking and
+                    ledger entries.
                   </p>
                 )}
               </CardContent>
             </Card>
+            {/* End of Positions Audit Card */}
 
             <Card>
               <CardHeader>
@@ -1145,7 +1140,8 @@ export default function AdminPage() {
               <CardContent className="space-y-4">
                 {/* Button and logic for loading bonds were removed as per updates */}
                 <p className="text-sm text-muted-foreground">
-                  Bond diagnostic functionality has been updated. Please refer to the Balance Reconciliation section for related checks.
+                  Bond diagnostic functionality has been updated. Please refer to the Balance Reconciliation section for
+                  related checks.
                 </p>
               </CardContent>
             </Card>
@@ -1231,9 +1227,7 @@ export default function AdminPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold text-green-600 mb-1">
-                          ${feesSummary.siteFees.toFixed(2)}
-                        </div>
+                        <div className="text-2xl font-bold text-green-600 mb-1">${feesSummary.siteFees.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">From platform_ledger</p>
                       </CardContent>
                     </Card>
@@ -1261,7 +1255,9 @@ export default function AdminPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className={`text-2xl font-bold mb-1 ${feesSummary.creatorRewardBalance >= 0 ? 'text-amber-600' : 'text-red-600'}`}>
+                        <div
+                          className={`text-2xl font-bold mb-1 ${feesSummary.creatorRewardBalance >= 0 ? "text-amber-600" : "text-red-600"}`}
+                        >
                           ${feesSummary.creatorRewardBalance.toFixed(2)}
                         </div>
                         <p className="text-xs text-muted-foreground">$10 per market created</p>
@@ -1276,7 +1272,9 @@ export default function AdminPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className={`text-2xl font-bold mb-1 ${feesSummary.totalPosition >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                        <div
+                          className={`text-2xl font-bold mb-1 ${feesSummary.totalPosition >= 0 ? "text-purple-600" : "text-red-600"}`}
+                        >
                           ${feesSummary.totalPosition.toFixed(2)}
                         </div>
                         <p className="text-xs text-muted-foreground">Platform ledger balance</p>

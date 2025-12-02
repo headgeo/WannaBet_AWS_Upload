@@ -68,6 +68,7 @@ interface Market {
   blockchain_status?: string | null
   uma_request_id?: string | null
   uma_liveness_ends_at?: string | null
+  creator_settlement_outcome_text?: string
 }
 
 interface Group {
@@ -469,6 +470,25 @@ export function MarketDetailClient({
     return "Unknown"
   }
 
+  const getCreatorOutcomeDisplay = () => {
+    // First try text values which are more reliable
+    if (settlementStatus?.creator_outcome_text) {
+      return settlementStatus.creator_outcome_text.toUpperCase()
+    }
+    // Then try boolean with proper null check
+    if (settlementStatus?.creator_outcome !== null && settlementStatus?.creator_outcome !== undefined) {
+      return settlementStatus.creator_outcome ? "YES" : "NO"
+    }
+    // Fall back to market data
+    if (market.creator_settlement_outcome_text) {
+      return market.creator_settlement_outcome_text.toUpperCase()
+    }
+    if (market.creator_settlement_outcome !== null && market.creator_settlement_outcome !== undefined) {
+      return market.creator_settlement_outcome ? "YES" : "NO"
+    }
+    return "UNKNOWN"
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
@@ -618,17 +638,7 @@ export function MarketDetailClient({
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-orange-700 dark:text-orange-300">
-                    The creator has proposed settling this market as{" "}
-                    <strong>
-                      {settlementStatus?.creator_outcome !== undefined
-                        ? settlementStatus.creator_outcome
-                          ? "YES"
-                          : "NO"
-                        : market.creator_settlement_outcome
-                          ? "YES"
-                          : "NO"}
-                    </strong>
-                    .
+                    The creator has proposed settling this market as <strong>{getCreatorOutcomeDisplay()}</strong>.
                     {currentUserId === market.creator_id
                       ? " Waiting for the 1-hour contest period to expire."
                       : " You can contest this decision if you disagree."}
@@ -637,15 +647,7 @@ export function MarketDetailClient({
                   <div className="p-3 bg-white dark:bg-gray-800 rounded border space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Proposed Outcome:</span>
-                      <span className="font-semibold">
-                        {settlementStatus?.creator_outcome !== undefined
-                          ? settlementStatus.creator_outcome
-                            ? "YES"
-                            : "NO"
-                          : market.creator_settlement_outcome
-                            ? "YES"
-                            : "NO"}
-                      </span>
+                      <span className="font-semibold">{getCreatorOutcomeDisplay()}</span>
                     </div>
                     {currentUserId === market.creator_id && (
                       <div className="flex justify-between text-sm">

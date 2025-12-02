@@ -439,18 +439,27 @@ export async function runPositionsAudit() {
       userPositionRows.length,
     )
 
-    // Build position discrepancies
-    const position_discrepancies = userPositionRows.map((row: any) => ({
-      user_id: row.user_id,
-      market_id: row.market_id,
-      username: row.user_id?.substring(0, 8) || "Unknown",
-      market_title: row.market_id?.substring(0, 8) || "Unknown",
-      side: row.position_side ? "YES" : "NO",
-      position_table_shares: row.positions_table || 0,
-      transaction_snapshot_shares: row.transactions_snapshot || 0,
-      calculated_shares: row.calculated || 0,
-      discrepancy_vs_snapshot: row.discrepancy || 0,
-    }))
+    const position_discrepancies = userPositionRows
+      .map((row: any) => {
+        const posTable = Number(Number(row.positions_table || 0).toFixed(4))
+        const txnSnapshot = Number(Number(row.transactions_snapshot || 0).toFixed(4))
+        const calculated = Number(Number(row.calculated || 0).toFixed(4))
+        const discrepancy = Math.abs(posTable - txnSnapshot)
+
+        return {
+          user_id: row.user_id,
+          market_id: row.market_id,
+          username: row.user_id?.substring(0, 8) || "Unknown",
+          market_title: row.market_id?.substring(0, 8) || "Unknown",
+          side: row.position_side ? "YES" : "NO",
+          position_table_shares: posTable,
+          transaction_snapshot_shares: txnSnapshot,
+          calculated_shares: calculated,
+          discrepancy_vs_snapshot: discrepancy,
+          has_discrepancy: discrepancy > 0.0001, // 4dp threshold
+        }
+      })
+      .filter((p) => p.has_discrepancy) // Only include rows with actual discrepancies
 
     // Build market share discrepancies - group by market_id
     const marketIds = [
@@ -466,24 +475,27 @@ export async function runPositionsAudit() {
       const qyRow = marketQyRows.find((r: any) => r.market_id === marketId)
       const qnRow = marketQnRows.find((r: any) => r.market_id === marketId)
 
-      const lpStored = Number(lpRow?.positions_table || 0)
-      const lpTxnSnapshot = Number(lpRow?.transactions_snapshot || 0)
-      const lpLedgerSnapshot = Number(lpRow?.ledger_snapshot || 0)
+      const lpStored = Number(Number(lpRow?.positions_table || 0).toFixed(4))
+      const lpTxnSnapshot = Number(Number(lpRow?.transactions_snapshot || 0).toFixed(4))
+      const lpLedgerSnapshot = Number(Number(lpRow?.ledger_snapshot || 0).toFixed(4))
+      const lpCalculated = Number(Number(lpRow?.calculated || 0).toFixed(4))
 
-      // Discrepancy if ANY of these don't match
+      // Discrepancy if ANY of these don't match (using 4dp threshold)
       const lpDiscrepancyVsTxn = Math.abs(lpStored - lpTxnSnapshot)
       const lpDiscrepancyVsLedger = Math.abs(lpStored - lpLedgerSnapshot)
-      const hasLpDiscrepancy = lpDiscrepancyVsTxn > 0.01 || lpDiscrepancyVsLedger > 0.01
+      const hasLpDiscrepancy = lpDiscrepancyVsTxn > 0.0001 || lpDiscrepancyVsLedger > 0.0001
 
-      const qyStored = Number(qyRow?.positions_table || 0)
-      const qyTxnSnapshot = Number(qyRow?.transactions_snapshot || 0)
+      const qyStored = Number(Number(qyRow?.positions_table || 0).toFixed(4))
+      const qyTxnSnapshot = Number(Number(qyRow?.transactions_snapshot || 0).toFixed(4))
+      const qyCalculated = Number(Number(qyRow?.calculated || 0).toFixed(4))
       const qyDiscrepancy = Math.abs(qyStored - qyTxnSnapshot)
 
-      const qnStored = Number(qnRow?.positions_table || 0)
-      const qnTxnSnapshot = Number(qnRow?.transactions_snapshot || 0)
+      const qnStored = Number(Number(qnRow?.positions_table || 0).toFixed(4))
+      const qnTxnSnapshot = Number(Number(qnRow?.transactions_snapshot || 0).toFixed(4))
+      const qnCalculated = Number(Number(qnRow?.calculated || 0).toFixed(4))
       const qnDiscrepancy = Math.abs(qnStored - qnTxnSnapshot)
 
-      const hasDiscrepancy = hasLpDiscrepancy || qyDiscrepancy > 0.01 || qnDiscrepancy > 0.01
+      const hasDiscrepancy = hasLpDiscrepancy || qyDiscrepancy > 0.0001 || qnDiscrepancy > 0.0001
 
       console.log("[v0] Market discrepancy check:", {
         marketId: marketId?.substring(0, 8),
@@ -503,20 +515,20 @@ export async function runPositionsAudit() {
         qy: {
           stored: qyStored,
           transaction_snapshot: qyTxnSnapshot,
-          calculated: Number(qyRow?.calculated || 0),
+          calculated: qyCalculated,
           discrepancy: qyDiscrepancy,
         },
         qn: {
           stored: qnStored,
           transaction_snapshot: qnTxnSnapshot,
-          calculated: Number(qnRow?.calculated || 0),
+          calculated: qnCalculated,
           discrepancy: qnDiscrepancy,
         },
         liquidity_pool: {
           stored: lpStored,
           transaction_snapshot: lpTxnSnapshot,
           ledger_snapshot: lpLedgerSnapshot,
-          calculated: Number(lpRow?.calculated || 0),
+          calculated: lpCalculated,
           discrepancy_vs_txn: lpDiscrepancyVsTxn,
           discrepancy_vs_ledger: lpDiscrepancyVsLedger,
         },
@@ -539,7 +551,7 @@ export async function runPositionsAudit() {
         timestamp: new Date().toISOString(),
       },
       position_discrepancies,
-      market_share_discrepancies: marketsWithIssues, // Only return markets with issues
+      market_share_discrepancies: marketsWithIssues,
     }
 
     console.log("[v0] Positions audit transformed:", auditData)
@@ -551,5 +563,113 @@ export async function runPositionsAudit() {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
     }
+  }
+}
+
+export async function getPrivateMarketSettlements() {
+  try {
+    await requireAdmin()
+
+    console.log("[v0] Fetching private market settlements...")
+
+    const { data: markets, error } = await selectWithJoin("markets", {
+      select: `
+        id,
+        title,
+        status,
+        is_private,
+        settlement_status,
+        contest_deadline,
+        creator_settlement_outcome,
+        creator_settlement_outcome_text,
+        end_date,
+        created_at,
+        creator_id
+      `,
+      where: [
+        { column: "is_private", value: true },
+        {
+          column: "settlement_status",
+          operator: "IN",
+          value: ["proposed", "contested", "pending_contest", "ending_contest"],
+        },
+      ],
+      orderBy: { column: "contest_deadline", ascending: true },
+    })
+
+    if (error) {
+      throw new Error(`Failed to fetch private market settlements: ${error.message}`)
+    }
+
+    // Get creator profiles
+    const creatorIds = [...new Set((markets || []).map((m: any) => m.creator_id).filter(Boolean))]
+
+    let profiles: any[] = []
+    if (creatorIds.length > 0) {
+      const { data: profilesData } = await selectWithJoin("profiles", {
+        select: "id, username, display_name",
+        where: [{ column: "id", operator: "IN", value: creatorIds }],
+      })
+      profiles = profilesData || []
+    }
+
+    const now = new Date()
+
+    const marketsWithDeadlines = (markets || []).map((market: any) => {
+      const creator = profiles.find((p: any) => p.id === market.creator_id)
+      const contestDeadline = market.contest_deadline ? new Date(market.contest_deadline) : null
+      const isPastDeadline = contestDeadline ? contestDeadline < now : false
+      const timeRemaining = contestDeadline ? contestDeadline.getTime() - now.getTime() : null
+
+      return {
+        ...market,
+        creator: creator || { username: "Unknown", display_name: "Unknown" },
+        is_past_deadline: isPastDeadline,
+        time_remaining_ms: timeRemaining,
+        time_remaining_formatted: timeRemaining ? formatTimeRemaining(timeRemaining) : "No deadline set",
+      }
+    })
+
+    console.log("[v0] Found", marketsWithDeadlines.length, "private markets with settlement status")
+
+    return {
+      success: true,
+      data: {
+        markets: marketsWithDeadlines,
+        summary: {
+          total: marketsWithDeadlines.length,
+          proposed: marketsWithDeadlines.filter((m: any) => m.settlement_status === "proposed").length,
+          contested: marketsWithDeadlines.filter((m: any) => m.settlement_status === "contested").length,
+          pending_contest: marketsWithDeadlines.filter((m: any) => m.settlement_status === "pending_contest").length,
+          ending_contest: marketsWithDeadlines.filter((m: any) => m.settlement_status === "ending_contest").length,
+          past_deadline: marketsWithDeadlines.filter((m: any) => m.is_past_deadline).length,
+        },
+      },
+    }
+  } catch (error) {
+    console.error("Error fetching private market settlements:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+}
+
+function formatTimeRemaining(ms: number): string {
+  if (ms <= 0) return "EXPIRED"
+
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) {
+    return `${days}d ${hours % 24}h remaining`
+  } else if (hours > 0) {
+    return `${hours}h ${minutes % 60}m remaining`
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s remaining`
+  } else {
+    return `${seconds}s remaining`
   }
 }

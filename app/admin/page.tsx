@@ -27,6 +27,7 @@ import {
   getFeesAndLiquiditySummary,
   runBalanceReconciliation,
   runPositionsAudit,
+  getPrivateMarketSettlements, // Add new import
 } from "@/app/actions/admin"
 import { createGroupsTables } from "@/app/actions/database"
 import { getMarketStatusDisplay } from "@/lib/market-status"
@@ -47,6 +48,7 @@ interface Market {
     username: string
     display_name: string
   }
+  settlement_status?: string // Add settlement_status for private markets
 }
 
 interface FeesSummary {
@@ -72,6 +74,8 @@ export default function AdminPage() {
   const [isRunningReconciliation, setIsRunningReconciliation] = useState(false)
   const [positionsAuditData, setPositionsAuditData] = useState<any>(null)
   const [isRunningPositionsAudit, setIsRunningPositionsAudit] = useState(false)
+  const [privateSettlementData, setPrivateSettlementData] = useState<any>(null)
+  const [isLoadingPrivateSettlements, setIsLoadingPrivateSettlements] = useState(false)
 
   const { isAdmin, isLoading: adminLoading } = useIsAdmin()
   const router = useRouter()
@@ -305,6 +309,28 @@ export default function AdminPage() {
     }
   }
 
+  const handlePrivateSettlementAudit = async () => {
+    setIsLoadingPrivateSettlements(true)
+    setError(null)
+
+    try {
+      console.log("[v0] Admin: Running private market settlement audit...")
+      const result = await getPrivateMarketSettlements()
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch private market settlements")
+      }
+
+      setPrivateSettlementData(result.data)
+      console.log("[v0] Admin: Private settlement audit complete:", result.data)
+    } catch (error: any) {
+      console.error("[v0] Admin: Private settlement audit error:", error)
+      setError(`Failed to run private settlement audit: ${error.message}`)
+    } finally {
+      setIsLoadingPrivateSettlements(false)
+    }
+  }
+
   if (adminLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
@@ -338,7 +364,11 @@ export default function AdminPage() {
   const activeMarkets = allMarkets.filter((m) => {
     const isActive = m.status === "active"
     const notExpired = new Date(m.end_date) > now
-    return isActive && notExpired
+    // Also include suspended markets that are in settlement process
+    const isSuspendedWithSettlement =
+      m.status === "suspended" &&
+      ["pending_contest", "ending_contest", "contested", "proposed"].includes(m.settlement_status)
+    return (isActive && notExpired) || isSuspendedWithSettlement
   })
   const settledMarkets = allMarkets.filter((m) => m.status === "settled")
 
@@ -1128,7 +1158,121 @@ export default function AdminPage() {
             </Card>
             {/* End of Positions Audit Card */}
 
-            {/* Removed Bonds Diagnostic card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-orange-500" />
+                  Private Market Settlement Audit
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Check private markets with proposed or contested settlements and their deadlines.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={handlePrivateSettlementAudit} disabled={isLoadingPrivateSettlements} variant="outline">
+                  {isLoadingPrivateSettlements ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                      Loading...
+                    </>
+                  ) : (
+                    "Run Settlement Audit"
+                  )}
+                </Button>
+
+                {privateSettlementData && (
+                  <div className="mt-4 space-y-4">
+                    {/* Summary */}
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="p-3 bg-muted rounded-lg text-center">
+                        <div className="text-2xl font-bold">{privateSettlementData.summary.total}</div>
+                        <div className="text-xs text-muted-foreground">Total</div>
+                      </div>
+                      <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-center">
+                        <div className="text-2xl font-bold text-yellow-600">
+                          {privateSettlementData.summary.proposed}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Proposed</div>
+                      </div>
+                      <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-center">
+                        <div className="text-2xl font-bold text-orange-600">
+                          {privateSettlementData.summary.contested}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Contested</div>
+                      </div>
+                      <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-center">
+                        <div className="text-2xl font-bold text-red-600">
+                          {privateSettlementData.summary.past_deadline}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Past Deadline</div>
+                      </div>
+                    </div>
+
+                    {/* Markets List */}
+                    {privateSettlementData.markets.length > 0 ? (
+                      <div className="space-y-3">
+                        <h4 className="font-medium text-sm">Markets with Settlement Status:</h4>
+                        {privateSettlementData.markets.map((market: any) => (
+                          <div
+                            key={market.id}
+                            className={`p-4 border rounded-lg ${
+                              market.is_past_deadline ? "border-red-300 bg-red-50 dark:bg-red-900/20" : "border-border"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{market.title}</span>
+                                  <Badge
+                                    variant={market.settlement_status === "proposed" ? "secondary" : "destructive"}
+                                  >
+                                    {market.settlement_status}
+                                  </Badge>
+                                  {market.is_past_deadline && <Badge variant="destructive">EXPIRED</Badge>}
+                                </div>
+                                <div className="text-sm text-muted-foreground mt-1">
+                                  Creator: {market.creator.display_name || market.creator.username}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  Proposed outcome:{" "}
+                                  {market.creator_settlement_outcome === true
+                                    ? "YES"
+                                    : market.creator_settlement_outcome === false
+                                      ? "NO"
+                                      : "Not set"}
+                                  {market.creator_settlement_outcome_text &&
+                                    ` (${market.creator_settlement_outcome_text})`}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div
+                                  className={`text-sm font-medium ${
+                                    market.is_past_deadline ? "text-red-600" : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {market.time_remaining_formatted}
+                                </div>
+                                {market.contest_deadline && (
+                                  <div className="text-xs text-muted-foreground">
+                                    Deadline: {format(new Date(market.contest_deadline), "MMM d, yyyy HH:mm")}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-2 text-xs text-muted-foreground">ID: {market.id}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                        <p>No private markets with pending settlements</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>

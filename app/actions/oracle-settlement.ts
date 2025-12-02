@@ -337,19 +337,35 @@ export async function getSettlementStatus(marketId: string) {
     let hasVoted = false
 
     if (user && contest) {
+      // Check if user received a vote_requested notification for this market
       const notifications = await select<any>(
-        "settlement_notifications",
-        ["responded_at", "vote_submitted"],
+        "notifications",
+        ["id", "type"],
         [
-          { column: "contest_id", value: contest.id },
+          { column: "market_id", value: marketId },
           { column: "user_id", value: user.id },
+          { column: "type", value: "vote_requested" },
         ],
       )
 
       if (notifications && notifications.length > 0) {
-        const notification = notifications[0]
         isNotifiedVoter = true
-        hasVoted = notification.vote_submitted || false
+        console.log("[v0] getSettlementStatus: User is notified voter")
+      }
+
+      // Check if user has already voted in this contest
+      const existingVotes = await select<any>(
+        "settlement_votes",
+        ["id"],
+        [
+          { column: "contest_id", value: contest.id },
+          { column: "voter_id", value: user.id },
+        ],
+      )
+
+      if (existingVotes && existingVotes.length > 0) {
+        hasVoted = true
+        console.log("[v0] getSettlementStatus: User has already voted")
       }
     }
 
@@ -367,15 +383,42 @@ export async function getSettlementStatus(marketId: string) {
       }
     }
 
-    const creatorOutcomeText =
-      market.creator_settlement_outcome_text || booleanToOutcome(market.creator_settlement_outcome)
+    // Priority: 1. market.creator_settlement_outcome_text, 2. bond.outcome_chosen_text, 3. convert boolean
+    let creatorOutcomeText: string | null = null
+    let creatorOutcome: boolean | null = null
+
+    // First try to get from market table
+    if (market.creator_settlement_outcome_text) {
+      creatorOutcomeText = market.creator_settlement_outcome_text
+      creatorOutcome = market.creator_settlement_outcome
+    }
+    // Then try from bond table
+    else if (bond?.outcome_chosen_text) {
+      creatorOutcomeText = bond.outcome_chosen_text
+      creatorOutcome = bond.outcome_chosen
+    }
+    // Finally try boolean conversion
+    else if (market.creator_settlement_outcome !== null && market.creator_settlement_outcome !== undefined) {
+      creatorOutcome = market.creator_settlement_outcome
+      creatorOutcomeText = booleanToOutcome(market.creator_settlement_outcome)
+    } else if (bond?.outcome_chosen !== null && bond?.outcome_chosen !== undefined) {
+      creatorOutcome = bond.outcome_chosen
+      creatorOutcomeText = booleanToOutcome(bond.outcome_chosen)
+    }
+
+    console.log(
+      "[v0] getSettlementStatus: Resolved creatorOutcome:",
+      creatorOutcome,
+      "creatorOutcomeText:",
+      creatorOutcomeText,
+    )
 
     const result = {
       status: market.settlement_status,
       initiatedAt: market.settlement_initiated_at,
       contestDeadline: market.contest_deadline,
       timeRemaining,
-      creatorOutcome: market.creator_settlement_outcome,
+      creatorOutcome: creatorOutcome,
       creatorOutcomeText: creatorOutcomeText,
       bondAmount: bond?.bond_amount,
       bond,
@@ -388,7 +431,7 @@ export async function getSettlementStatus(marketId: string) {
         : null,
       is_notified_voter: isNotifiedVoter,
       has_voted: hasVoted,
-      creator_outcome: market.creator_settlement_outcome,
+      creator_outcome: creatorOutcome,
       creator_outcome_text: creatorOutcomeText,
       vote_counts: voteCounts,
       voting_deadline: contest?.vote_deadline ? new Date(contest.vote_deadline).toLocaleString() : null,

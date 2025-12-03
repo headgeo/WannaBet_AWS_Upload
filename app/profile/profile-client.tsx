@@ -15,6 +15,7 @@ import Link from "next/link"
 import { MobileHeader } from "@/components/mobile-header"
 import type { Profile, UserStats } from "./actions"
 import { Slider } from "@/components/ui/slider"
+import { updateSlippageTolerance } from "@/app/actions/profile"
 
 interface ProfileClientProps {
   profile: Profile
@@ -114,26 +115,19 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
   }
 
   const handleSaveSlippage = async () => {
-    console.log("[v0] handleSaveSlippage called, slippageTolerance:", slippageTolerance)
     setIsSavingSlippage(true)
+    setError(null)
     try {
-      const supabase = createClient()
-      console.log("[v0] Updating slippage_tolerance for profile:", profile.id)
-      const { error, data } = await supabase
-        .from("profiles")
-        .update({ slippage_tolerance: slippageTolerance })
-        .eq("id", profile.id)
-        .select()
+      const result = await updateSlippageTolerance(slippageTolerance)
 
-      console.log("[v0] Supabase update result - error:", error, "data:", data)
+      if (!result.success) {
+        throw new Error(result.error || "Failed to save slippage tolerance")
+      }
 
-      if (error) throw error
-
-      console.log("[v0] Setting isSlippageLocked to true")
       setIsSlippageLocked(true)
       router.refresh()
     } catch (error: any) {
-      console.log("[v0] Error saving slippage:", error)
+      console.error("[v0] Error saving slippage:", error)
       setError(error.message)
     } finally {
       setIsSavingSlippage(false)

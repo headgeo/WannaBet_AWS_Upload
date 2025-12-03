@@ -137,10 +137,11 @@ export function MarketDetailClient({
         feeAmount: result.feeAmount,
         netAmount: result.netAmount,
         effectiveAmount: result.effectiveAmount,
+        pricePerShare: result.pricePerShare, // Added pricePerShare to return object
       }
     } catch (error) {
       console.error("Error calculating price:", error)
-      return { shares: 0, avgPrice: 0, feeAmount: 0, netAmount: 0, effectiveAmount: 0 }
+      return { shares: 0, avgPrice: 0, feeAmount: 0, netAmount: 0, effectiveAmount: 0, pricePerShare: 0 }
     }
   }
 
@@ -210,6 +211,7 @@ export function MarketDetailClient({
         newLiquidityPool,
         feeAmount: pricing.feeAmount,
         netAmount: pricing.netAmount,
+        expectedPrice: pricing.pricePerShare, // Added expectedPrice to log for debugging
       })
 
       const result = await executeTrade(
@@ -226,6 +228,8 @@ export function MarketDetailClient({
         newLiquidityPool,
         pricing.feeAmount,
         pricing.netAmount,
+        5, // maxSlippagePercent (2% default enforced by SQL function)
+        pricing.pricePerShare, // expectedPrice for slippage validation
       )
 
       if (!result.success) {

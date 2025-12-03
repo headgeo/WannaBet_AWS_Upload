@@ -13,6 +13,8 @@ DECLARE
     v_settlement_contests_count INT;
     v_settlement_votes_count INT;
     v_profiles_count INT;
+    -- Added shares_ledger count variable
+    v_shares_ledger_count INT;
 BEGIN
     RAISE NOTICE '=== SAFE DATA RESET (Preserving Profiles & Functions) ===';
     RAISE NOTICE ' ';
@@ -47,6 +49,10 @@ BEGIN
     BEGIN SELECT COUNT(*) INTO v_settlement_votes_count FROM settlement_votes;
     EXCEPTION WHEN undefined_table THEN v_settlement_votes_count := 0; END;
     
+    -- Added shares_ledger count
+    BEGIN SELECT COUNT(*) INTO v_shares_ledger_count FROM shares_ledger;
+    EXCEPTION WHEN undefined_table THEN v_shares_ledger_count := 0; END;
+    
     RAISE NOTICE '   - Profiles: % (will preserve, reset balance to 0)', v_profiles_count;
     RAISE NOTICE '   - Markets: %', v_markets_count;
     RAISE NOTICE '   - Transactions: %', v_transactions_count;
@@ -60,6 +66,8 @@ BEGIN
     RAISE NOTICE '   - Ledger snapshots: %', v_ledger_snapshots_count;
     RAISE NOTICE '   - Ledger accounts: %', v_ledger_accounts_count;
     RAISE NOTICE '   - Deposit/Withdraw: %', v_deposit_withdraw_count;
+    -- Added shares_ledger to output
+    RAISE NOTICE '   - Shares ledger: %', v_shares_ledger_count;
     RAISE NOTICE ' ';
     
     RAISE NOTICE '2. Deleting data (correct FK order - children first, then parents)...';
@@ -73,6 +81,12 @@ BEGIN
     
     DELETE FROM ledger_accounts;
     RAISE NOTICE '   ✓ Deleted ledger_accounts';
+    
+    -- Added shares_ledger deletion (references transactions, so delete before transactions)
+    IF v_shares_ledger_count > 0 THEN
+        DELETE FROM shares_ledger;
+        RAISE NOTICE '   ✓ Deleted shares_ledger';
+    END IF;
     
     -- LEVEL 2: Tables that reference markets/profiles
     DELETE FROM deposit_withdraw;
@@ -135,6 +149,8 @@ BEGIN
     RAISE NOTICE '   - Markets: %', (SELECT COUNT(*) FROM markets);
     RAISE NOTICE '   - Transactions: %', (SELECT COUNT(*) FROM transactions);
     RAISE NOTICE '   - Ledger entries: %', (SELECT COUNT(*) FROM ledger_entries);
+    -- Added shares_ledger verification
+    RAISE NOTICE '   - Shares ledger: %', (SELECT COALESCE((SELECT COUNT(*) FROM shares_ledger), 0));
     RAISE NOTICE '   - Profiles: % (PRESERVED, balances = 0)', (SELECT COUNT(*) FROM profiles);
     RAISE NOTICE ' ';
     
@@ -159,7 +175,7 @@ BEGIN
     RAISE NOTICE ' ';
     RAISE NOTICE 'Summary:';
     RAISE NOTICE '✓ All market/transaction data cleared';
-    RAISE NOTICE '✓ All ledger data cleared';
+    RAISE NOTICE '✓ All ledger data cleared (money + shares)';
     RAISE NOTICE '✓ All settlement data cleared';
     RAISE NOTICE '✓ User profiles preserved (balances reset to 0)';
     RAISE NOTICE '✓ All functions and triggers intact';

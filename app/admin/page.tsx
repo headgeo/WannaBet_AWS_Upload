@@ -962,11 +962,11 @@ export default function AdminPage() {
                           ) : (
                             <AlertTriangle className="w-4 h-4 text-amber-500" />
                           )}
-                          Positions Audit Summary
+                          Audit Summary
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                           <div>
                             <div className="font-medium text-muted-foreground">Status</div>
                             <Badge
@@ -977,21 +977,27 @@ export default function AdminPage() {
                             </Badge>
                           </div>
                           <div>
-                            <div className="font-medium text-muted-foreground">User Position Issues</div>
+                            <div className="font-medium text-muted-foreground">Position Issues</div>
                             <div className="text-2xl font-bold text-amber-600">
                               {positionsAuditData.summary?.position_issues || 0}
                             </div>
                           </div>
                           <div>
-                            <div className="font-medium text-muted-foreground">Market State Issues</div>
+                            <div className="font-medium text-muted-foreground">Market qy Issues</div>
                             <div className="text-2xl font-bold text-amber-600">
-                              {positionsAuditData.summary?.market_share_issues || 0}
+                              {positionsAuditData.summary?.market_qy_issues || 0}
                             </div>
                           </div>
                           <div>
-                            <div className="font-medium text-muted-foreground">Total Issues</div>
-                            <div className="text-2xl font-bold text-red-600">
-                              {positionsAuditData.summary?.total_issues || 0}
+                            <div className="font-medium text-muted-foreground">Market qn Issues</div>
+                            <div className="text-2xl font-bold text-amber-600">
+                              {positionsAuditData.summary?.market_qn_issues || 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground">Liquidity Issues</div>
+                            <div className="text-2xl font-bold text-amber-600">
+                              {positionsAuditData.summary?.liquidity_issues || 0}
                             </div>
                           </div>
                         </div>
@@ -999,54 +1005,50 @@ export default function AdminPage() {
                           Last run:{" "}
                           {positionsAuditData.summary?.timestamp
                             ? format(new Date(positionsAuditData.summary.timestamp), "MMM d, yyyy 'at' HH:mm:ss")
-                            : "Unknown"}
+                            : "N/A"}
                         </p>
                       </CardContent>
                     </Card>
 
-                    {/* User Position Discrepancies */}
+                    {/* Position Discrepancies */}
                     {positionsAuditData.position_discrepancies &&
                       positionsAuditData.position_discrepancies.length > 0 && (
-                        <Card className="border-red-200">
+                        <Card className="border-amber-200">
                           <CardHeader>
-                            <CardTitle className="text-sm flex items-center gap-2">
-                              <AlertTriangle className="w-4 h-4 text-red-500" />
-                              User Position Discrepancies ({positionsAuditData.position_discrepancies.length})
+                            <CardTitle className="text-sm text-amber-700">
+                              Position Discrepancies ({positionsAuditData.position_discrepancies.length})
                             </CardTitle>
+                            <p className="text-xs text-muted-foreground">Positions table vs Transactions calculated</p>
                           </CardHeader>
                           <CardContent>
                             <div className="space-y-2">
                               {positionsAuditData.position_discrepancies.map((issue: any, idx: number) => (
-                                <Card key={idx} className="border-red-100 bg-red-50/30">
-                                  <CardContent className="pt-4 text-xs">
-                                    <h4 className="font-semibold text-sm mb-2">
-                                      {issue.username} - {issue.market_title}
-                                    </h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                                      <div>
-                                        <span className="font-medium">Side:</span> {issue.side}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Positions Table:</span>{" "}
-                                        {Number(issue.position_table_shares).toFixed(4)}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Transaction Snapshot:</span>{" "}
-                                        {Number(issue.transaction_snapshot_shares).toFixed(4)}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Calculated:</span>{" "}
-                                        {Number(issue.calculated_shares).toFixed(4)}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Discrepancy:</span>{" "}
-                                        <span className="text-red-600 font-semibold">
-                                          {Number(issue.discrepancy_vs_snapshot).toFixed(4)}
-                                        </span>
-                                      </div>
+                                <div key={idx} className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-sm">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <span className="font-medium">User:</span> {issue.user_id?.substring(0, 8)}...
+                                      <span className="ml-2 font-medium">Market:</span>{" "}
+                                      {issue.market_id?.substring(0, 8)}...
+                                      <Badge variant="outline" className="ml-2">
+                                        {issue.side}
+                                      </Badge>
                                     </div>
-                                  </CardContent>
-                                </Card>
+                                  </div>
+                                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                                    <div>
+                                      <span className="text-muted-foreground">Positions Table:</span>
+                                      <span className="ml-1 font-mono">{issue.positions_shares}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">Transactions Calc:</span>
+                                      <span className="ml-1 font-mono">{issue.transactions_shares}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">Difference:</span>
+                                      <span className="ml-1 font-mono text-red-600">{issue.difference}</span>
+                                    </div>
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </CardContent>
@@ -1056,92 +1058,94 @@ export default function AdminPage() {
                     {/* Market Share Discrepancies */}
                     {positionsAuditData.market_share_discrepancies &&
                       positionsAuditData.market_share_discrepancies.length > 0 && (
-                        <Card className="border-red-200">
+                        <Card className="border-amber-200">
                           <CardHeader>
-                            <CardTitle className="text-sm flex items-center gap-2">
-                              <AlertTriangle className="w-4 h-4 text-red-500" />
-                              Market State Discrepancies ({positionsAuditData.market_share_discrepancies.length})
+                            <CardTitle className="text-sm text-amber-700">
+                              Market Share Discrepancies ({positionsAuditData.market_share_discrepancies.length})
                             </CardTitle>
+                            <p className="text-xs text-muted-foreground">
+                              Markets table vs Transactions vs Shares Ledger
+                            </p>
                           </CardHeader>
                           <CardContent>
                             <div className="space-y-2">
                               {positionsAuditData.market_share_discrepancies.map((issue: any, idx: number) => (
-                                <Card key={idx} className="border-red-100 bg-red-50/30">
-                                  <CardContent className="pt-4 text-xs">
-                                    <h4 className="font-semibold text-sm mb-2">{issue.market_title}</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                      <div>
-                                        <div className="font-medium mb-1">YES Shares (qy):</div>
-                                        <div className="pl-2 space-y-1">
-                                          <div>Markets Table: {Number(issue.qy?.stored || 0).toFixed(4)}</div>
-                                          <div>
-                                            Transaction Snapshot:{" "}
-                                            {Number(issue.qy?.transaction_snapshot || 0).toFixed(4)}
-                                          </div>
-                                          <div>Calculated: {Number(issue.qy?.calculated || 0).toFixed(4)}</div>
-                                          <div className="text-red-600 font-semibold">
-                                            Diff: {Number(issue.qy?.discrepancy || 0).toFixed(4)}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <div className="font-medium mb-1">NO Shares (qn):</div>
-                                        <div className="pl-2 space-y-1">
-                                          <div>Markets Table: {Number(issue.qn?.stored || 0).toFixed(4)}</div>
-                                          <div>
-                                            Transaction Snapshot:{" "}
-                                            {Number(issue.qn?.transaction_snapshot || 0).toFixed(4)}
-                                          </div>
-                                          <div>Calculated: {Number(issue.qn?.calculated || 0).toFixed(4)}</div>
-                                          <div className="text-red-600 font-semibold">
-                                            Diff: {Number(issue.qn?.discrepancy || 0).toFixed(4)}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <div className="font-medium mb-1">Liquidity Pool:</div>
-                                        <div className="pl-2 space-y-1">
-                                          <div>
-                                            Markets Table: ${Number(issue.liquidity_pool?.stored || 0).toFixed(4)}
-                                          </div>
-                                          <div>
-                                            Transaction Snapshot: $
-                                            {Number(issue.liquidity_pool?.transaction_snapshot || 0).toFixed(4)}
-                                          </div>
-                                          <div>
-                                            Ledger Snapshot: $
-                                            {Number(issue.liquidity_pool?.ledger_snapshot || 0).toFixed(4)}
-                                          </div>
-                                          <div>
-                                            Calculated: ${Number(issue.liquidity_pool?.calculated || 0).toFixed(4)}
-                                          </div>
-                                          <div className="text-red-600 font-semibold">
-                                            Diff vs Txn: $
-                                            {Number(issue.liquidity_pool?.discrepancy_vs_txn || 0).toFixed(4)}
-                                          </div>
-                                          <div className="text-red-600 font-semibold">
-                                            Diff vs Ledger: $
-                                            {Number(issue.liquidity_pool?.discrepancy_vs_ledger || 0).toFixed(4)}
-                                          </div>
-                                        </div>
-                                      </div>
+                                <div key={idx} className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-sm">
+                                  <div className="font-medium mb-2">
+                                    {issue.market_title} ({issue.market_id?.substring(0, 8)}...)
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4 text-xs">
+                                    <div className={issue.qy?.has_mismatch ? "text-red-600" : ""}>
+                                      <div className="font-medium">qy (YES shares)</div>
+                                      <div>Markets: {issue.qy?.markets}</div>
+                                      <div>Transactions: {issue.qy?.transactions}</div>
+                                      <div>Ledger: {issue.qy?.ledger}</div>
                                     </div>
-                                  </CardContent>
-                                </Card>
+                                    <div className={issue.qn?.has_mismatch ? "text-red-600" : ""}>
+                                      <div className="font-medium">qn (NO shares)</div>
+                                      <div>Markets: {issue.qn?.markets}</div>
+                                      <div>Transactions: {issue.qn?.transactions}</div>
+                                      <div>Ledger: {issue.qn?.ledger}</div>
+                                    </div>
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </CardContent>
                         </Card>
                       )}
 
+                    {/* Liquidity Discrepancies */}
+                    {positionsAuditData.liquidity_discrepancies &&
+                      positionsAuditData.liquidity_discrepancies.length > 0 && (
+                        <Card className="border-amber-200">
+                          <CardHeader>
+                            <CardTitle className="text-sm text-amber-700">
+                              Liquidity Discrepancies ({positionsAuditData.liquidity_discrepancies.length})
+                            </CardTitle>
+                            <p className="text-xs text-muted-foreground">
+                              Markets table vs Ledger vs Transactions calculated
+                            </p>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {positionsAuditData.liquidity_discrepancies.map((issue: any, idx: number) => (
+                                <div key={idx} className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-sm">
+                                  <div className="font-medium mb-2">
+                                    {issue.market_title} ({issue.market_id?.substring(0, 8)}...)
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-4 text-xs">
+                                    <div>
+                                      <span className="text-muted-foreground">Markets Table:</span>
+                                      <span className="ml-1 font-mono">${issue.markets}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">Ledger:</span>
+                                      <span className="ml-1 font-mono">${issue.ledger}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">Transactions Calc:</span>
+                                      <span className="ml-1 font-mono">${issue.transactions}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                    {/* No Issues Found */}
                     {positionsAuditData &&
                       !positionsAuditData.position_discrepancies?.length &&
-                      !positionsAuditData.market_share_discrepancies?.length && (
+                      !positionsAuditData.market_share_discrepancies?.length &&
+                      !positionsAuditData.liquidity_discrepancies?.length && (
                         <Card className="border-green-200 bg-green-50/50">
-                          <CardContent className="pt-4">
-                            <p className="text-sm text-green-700">
-                              All positions and market states reconciled successfully! No discrepancies found.
-                            </p>
+                          <CardContent className="py-6">
+                            <div className="flex items-center gap-2 text-green-700">
+                              <CheckCircle className="w-5 h-5" />
+                              <span>All positions, market shares, and liquidity reconciled successfully!</span>
+                            </div>
                           </CardContent>
                         </Card>
                       )}
@@ -1149,9 +1153,9 @@ export default function AdminPage() {
                 )}
 
                 {!positionsAuditData && !isRunningPositionsAudit && (
-                  <p className="text-sm text-muted-foreground">
-                    Click the button above to audit user positions and market state against transaction tracking and
-                    ledger entries.
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Click the button above to audit positions, market shares, and liquidity against transaction tracking
+                    and ledger entries.
                   </p>
                 )}
               </CardContent>

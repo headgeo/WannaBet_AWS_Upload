@@ -411,158 +411,82 @@ export async function runPositionsAudit() {
 
     console.log("[v0] Starting positions audit...")
 
-    const { rows, error } = await query("SELECT * FROM run_positions_audit()", [])
+    // Run all three audits in parallel
+    const [positionsResult, marketSharesResult, liquidityResult, summaryResult] = await Promise.all([
+      query("SELECT * FROM run_positions_audit()", []),
+      query("SELECT * FROM run_market_shares_audit()", []),
+      query("SELECT * FROM run_liquidity_audit()", []),
+      query("SELECT * FROM run_audit_summary()", []),
+    ])
 
-    if (error) {
-      throw new Error(`Positions audit failed: ${error.message}`)
+    if (positionsResult.error) throw new Error(`Positions audit failed: ${positionsResult.error.message}`)
+    if (marketSharesResult.error) throw new Error(`Market shares audit failed: ${marketSharesResult.error.message}`)
+    if (liquidityResult.error) throw new Error(`Liquidity audit failed: ${liquidityResult.error.message}`)
+    if (summaryResult.error) throw new Error(`Summary audit failed: ${summaryResult.error.message}`)
+
+    const summary = summaryResult.rows?.[0] || {
+      positions_mismatches: 0,
+      market_qy_mismatches: 0,
+      market_qn_mismatches: 0,
+      liquidity_mismatches: 0,
+      total_issues: 0,
+      status: "PASS",
     }
 
-    console.log("[v0] Positions audit raw result:", rows)
-    console.log("[v0] Positions audit rows count:", rows?.length || 0)
-
-    const allRows = rows || []
-
-    // Separate user position discrepancies from market state discrepancies
-    const userPositionRows = allRows.filter((r: any) => r.audit_type === "user_position")
-    const marketLiquidityRows = allRows.filter((r: any) => r.audit_type === "market_liquidity_pool")
-    const marketQyRows = allRows.filter((r: any) => r.audit_type === "market_qy")
-    const marketQnRows = allRows.filter((r: any) => r.audit_type === "market_qn")
-
-    console.log(
-      "[v0] Filtered rows - LP:",
-      marketLiquidityRows.length,
-      "QY:",
-      marketQyRows.length,
-      "QN:",
-      marketQnRows.length,
-      "User:",
-      userPositionRows.length,
-    )
-
-    const position_discrepancies = userPositionRows
-      .map((row: any) => {
-        const posTable = Number(Number(row.positions_table || 0).toFixed(4))
-        const txnSnapshot = Number(Number(row.transactions_snapshot || 0).toFixed(4))
-        const calculated = Number(Number(row.calculated || 0).toFixed(4))
-        const discrepancy = Math.abs(posTable - txnSnapshot)
-
-        return {
+    return {
+      success: true,
+      data: {
+        summary: {
+          status: summary.status,
+          position_issues: summary.positions_mismatches,
+          market_qy_issues: summary.market_qy_mismatches,
+          market_qn_issues: summary.market_qn_mismatches,
+          liquidity_issues: summary.liquidity_mismatches,
+          total_issues: summary.total_issues,
+          timestamp: new Date().toISOString(),
+        },
+        position_discrepancies: (positionsResult.rows || []).map((row: any) => ({
           user_id: row.user_id,
           market_id: row.market_id,
-          username: row.user_id?.substring(0, 8) || "Unknown",
-          market_title: row.market_id?.substring(0, 8) || "Unknown",
-          side: row.position_side ? "YES" : "NO",
-          position_table_shares: posTable,
-          transaction_snapshot_shares: txnSnapshot,
-          calculated_shares: calculated,
-          discrepancy_vs_snapshot: discrepancy,
-          has_discrepancy: discrepancy > 0.0001, // 4dp threshold
-        }
-      })
-      .filter((p) => p.has_discrepancy) // Only include rows with actual discrepancies
-
-    // Build market share discrepancies - group by market_id
-    const marketIds = [
-      ...new Set([
-        ...marketLiquidityRows.map((r: any) => r.market_id),
-        ...marketQyRows.map((r: any) => r.market_id),
-        ...marketQnRows.map((r: any) => r.market_id),
-      ]),
-    ]
-
-    const market_share_discrepancies = marketIds.map((marketId: string) => {
-      const lpRow = marketLiquidityRows.find((r: any) => r.market_id === marketId)
-      const qyRow = marketQyRows.find((r: any) => r.market_id === marketId)
-      const qnRow = marketQnRows.find((r: any) => r.market_id === marketId)
-
-      const lpStored = Number(Number(lpRow?.positions_table || 0).toFixed(4))
-      const lpTxnSnapshot = Number(Number(lpRow?.transactions_snapshot || 0).toFixed(4))
-      const lpLedgerSnapshot = Number(Number(lpRow?.ledger_snapshot || 0).toFixed(4))
-      const lpCalculated = Number(Number(lpRow?.calculated || 0).toFixed(4))
-
-      // Discrepancy if ANY of these don't match (using 4dp threshold)
-      const lpDiscrepancyVsTxn = Math.abs(lpStored - lpTxnSnapshot)
-      const lpDiscrepancyVsLedger = Math.abs(lpStored - lpLedgerSnapshot)
-      const hasLpDiscrepancy = lpDiscrepancyVsTxn > 0.0001 || lpDiscrepancyVsLedger > 0.0001
-
-      const qyStored = Number(Number(qyRow?.positions_table || 0).toFixed(4))
-      const qyTxnSnapshot = Number(Number(qyRow?.transactions_snapshot || 0).toFixed(4))
-      const qyCalculated = Number(Number(qyRow?.calculated || 0).toFixed(4))
-      const qyDiscrepancy = Math.abs(qyStored - qyTxnSnapshot)
-
-      const qnStored = Number(Number(qnRow?.positions_table || 0).toFixed(4))
-      const qnTxnSnapshot = Number(Number(qnRow?.transactions_snapshot || 0).toFixed(4))
-      const qnCalculated = Number(Number(qnRow?.calculated || 0).toFixed(4))
-      const qnDiscrepancy = Math.abs(qnStored - qnTxnSnapshot)
-
-      const hasDiscrepancy = hasLpDiscrepancy || qyDiscrepancy > 0.0001 || qnDiscrepancy > 0.0001
-
-      console.log("[v0] Market discrepancy check:", {
-        marketId: marketId?.substring(0, 8),
-        lpStored,
-        lpTxnSnapshot,
-        lpLedgerSnapshot,
-        lpDiscrepancyVsTxn,
-        lpDiscrepancyVsLedger,
-        hasLpDiscrepancy,
-        hasDiscrepancy,
-      })
-
-      return {
-        market_id: marketId,
-        market_title: marketId?.substring(0, 8) || "Unknown",
-        has_discrepancy: hasDiscrepancy,
-        qy: {
-          stored: qyStored,
-          transaction_snapshot: qyTxnSnapshot,
-          calculated: qyCalculated,
-          discrepancy: qyDiscrepancy,
-        },
-        qn: {
-          stored: qnStored,
-          transaction_snapshot: qnTxnSnapshot,
-          calculated: qnCalculated,
-          discrepancy: qnDiscrepancy,
-        },
-        liquidity_pool: {
-          stored: lpStored,
-          transaction_snapshot: lpTxnSnapshot,
-          ledger_snapshot: lpLedgerSnapshot,
-          calculated: lpCalculated,
-          discrepancy_vs_txn: lpDiscrepancyVsTxn,
-          discrepancy_vs_ledger: lpDiscrepancyVsLedger,
-        },
-      }
-    })
-
-    const marketsWithIssues = market_share_discrepancies.filter((m) => m.has_discrepancy)
-
-    // Build summary
-    const position_issues = position_discrepancies.length
-    const market_share_issues = marketsWithIssues.length
-    const total_issues = position_issues + market_share_issues
-
-    const auditData = {
-      summary: {
-        status: total_issues === 0 ? "PASS" : "FAIL",
-        position_issues,
-        market_share_issues,
-        total_issues,
-        timestamp: new Date().toISOString(),
+          side: row.side_display,
+          positions_shares: Number(row.positions_shares),
+          transactions_shares: Number(row.transactions_shares),
+          difference: Number(row.difference),
+          has_mismatch: row.has_mismatch,
+        })),
+        market_share_discrepancies: (marketSharesResult.rows || [])
+          .filter((row: any) => row.qy_mismatch || row.qn_mismatch)
+          .map((row: any) => ({
+            market_id: row.market_id,
+            market_title: row.market_title,
+            qy: {
+              markets: Number(row.qy_markets),
+              transactions: Number(row.qy_transactions),
+              ledger: Number(row.qy_ledger),
+              has_mismatch: row.qy_mismatch,
+            },
+            qn: {
+              markets: Number(row.qn_markets),
+              transactions: Number(row.qn_transactions),
+              ledger: Number(row.qn_ledger),
+              has_mismatch: row.qn_mismatch,
+            },
+          })),
+        liquidity_discrepancies: (liquidityResult.rows || [])
+          .filter((row: any) => row.lp_mismatch)
+          .map((row: any) => ({
+            market_id: row.market_id,
+            market_title: row.market_title,
+            markets: Number(row.lp_markets),
+            ledger: Number(row.lp_ledger),
+            transactions: Number(row.lp_transactions),
+            has_mismatch: row.lp_mismatch,
+          })),
       },
-      position_discrepancies,
-      market_share_discrepancies: marketsWithIssues,
     }
-
-    console.log("[v0] Positions audit transformed:", auditData)
-
-    return { success: true, data: auditData }
-  } catch (error) {
-    console.error("Positions audit error:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    }
+  } catch (error: any) {
+    console.error("[v0] Positions audit error:", error)
+    return { success: false, error: error.message }
   }
 }
 

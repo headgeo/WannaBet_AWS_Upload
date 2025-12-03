@@ -36,17 +36,21 @@ export function calculateSharesAfterFee(
   feeAmount: number
   netAmount: number
   effectiveAmount: number
+  pricePerShare: number // Added pricePerShare to return object
 } {
   const { feeAmount, netAmount } = calculateFeeAndNetAmount(originalAmount)
 
   // Use net amount (after fee) for share calculation
   const shares = calculateSharesToBuy(netAmount, qy, qn, b, side)
 
+  const pricePerShare = shares > 0 ? originalAmount / shares : 0
+
   return {
     shares,
     feeAmount,
     netAmount,
     effectiveAmount: netAmount,
+    pricePerShare, // Return execution price (gross amount / shares)
   }
 }
 

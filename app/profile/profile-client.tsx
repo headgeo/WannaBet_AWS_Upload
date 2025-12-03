@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { User, DollarSign, TrendingUp, LogOut, ArrowLeft } from 'lucide-react'
+import { User, DollarSign, TrendingUp, LogOut, ArrowLeft, Settings, Lock, Unlock } from "lucide-react"
 import GroupsSection from "@/components/groups-section"
 import Link from "next/link"
 import { MobileHeader } from "@/components/mobile-header"
 import type { Profile, UserStats } from "./actions"
+import { Slider } from "@/components/ui/slider"
 
 interface ProfileClientProps {
   profile: Profile
@@ -32,6 +33,14 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(initialError)
   const router = useRouter()
+
+  const [slippageTolerance, setSlippageTolerance] = useState<number>(() => {
+    const val = (initialProfile as any).slippage_tolerance
+    const parsed = Number(val)
+    return isNaN(parsed) ? 5 : parsed
+  })
+  const [isSlippageLocked, setIsSlippageLocked] = useState(true)
+  const [isSavingSlippage, setIsSavingSlippage] = useState(false)
 
   const checkUsernameUniqueness = async (newUsername: string) => {
     if (!newUsername || newUsername === profile.username) {
@@ -102,6 +111,33 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push("/auth/login")
+  }
+
+  const handleSaveSlippage = async () => {
+    console.log("[v0] handleSaveSlippage called, slippageTolerance:", slippageTolerance)
+    setIsSavingSlippage(true)
+    try {
+      const supabase = createClient()
+      console.log("[v0] Updating slippage_tolerance for profile:", profile.id)
+      const { error, data } = await supabase
+        .from("profiles")
+        .update({ slippage_tolerance: slippageTolerance })
+        .eq("id", profile.id)
+        .select()
+
+      console.log("[v0] Supabase update result - error:", error, "data:", data)
+
+      if (error) throw error
+
+      console.log("[v0] Setting isSlippageLocked to true")
+      setIsSlippageLocked(true)
+      router.refresh()
+    } catch (error: any) {
+      console.log("[v0] Error saving slippage:", error)
+      setError(error.message)
+    } finally {
+      setIsSavingSlippage(false)
+    }
   }
 
   return (
@@ -218,8 +254,70 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
             </Card>
 
             <GroupsSection userId={profile.id} />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Trading Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="slippage">Slippage Tolerance</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (!isSlippageLocked) {
+                          handleSaveSlippage()
+                        } else {
+                          setIsSlippageLocked(false)
+                        }
+                      }}
+                      disabled={isSavingSlippage}
+                    >
+                      {isSlippageLocked ? (
+                        <>
+                          <Lock className="w-4 h-4 mr-1" />
+                          Unlock to Edit
+                        </>
+                      ) : (
+                        <>
+                          <Unlock className="w-4 h-4 mr-1" />
+                          {isSavingSlippage ? "Saving..." : "Save & Lock"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Maximum price change allowed between quote and execution. Higher tolerance = more trades succeed but
+                    at potentially worse prices.
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <Slider
+                      id="slippage"
+                      min={0.5}
+                      max={30}
+                      step={0.5}
+                      value={[slippageTolerance]}
+                      onValueChange={(value) => setSlippageTolerance(value[0])}
+                      disabled={isSlippageLocked}
+                      className="flex-1"
+                    />
+                    <div className="w-16 text-right font-semibold">{slippageTolerance.toFixed(1)}%</div>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>0.5% (Strict)</span>
+                    <span>30% (Lenient)</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
+          {/* ... existing code for right column ... */}
           <div className="space-y-6">
             <Card>
               <CardHeader>

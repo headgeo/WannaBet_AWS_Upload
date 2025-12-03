@@ -17,6 +17,7 @@ console.log("[Adapter] Environment check:", {
 })
 
 export interface QueryResult<T = any> {
+  [x: string]: any
   rows: T[]
   rowCount: number
 }

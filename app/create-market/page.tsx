@@ -255,7 +255,7 @@ export default function CreateMarketPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="endDate">End Date & Time *</Label>
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col gap-2">
                   <Input
                     id="endDate"
                     type="date"
@@ -263,11 +263,11 @@ export default function CreateMarketPage() {
                     onChange={(e) => setEndDate(e.target.value)}
                     min={getMinDate()}
                     required
-                    className="w-full sm:flex-1"
+                    className="w-full"
                   />
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 w-full">
                     <Select value={endHour} onValueChange={setEndHour}>
-                      <SelectTrigger className="w-20">
+                      <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Hour" />
                       </SelectTrigger>
                       <SelectContent>
@@ -280,7 +280,7 @@ export default function CreateMarketPage() {
                     </Select>
                     <span className="flex items-center text-muted-foreground">:</span>
                     <Select value={endMinute} onValueChange={setEndMinute}>
-                      <SelectTrigger className="w-20">
+                      <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Min" />
                       </SelectTrigger>
                       <SelectContent>

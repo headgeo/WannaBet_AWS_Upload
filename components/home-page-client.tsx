@@ -4,7 +4,21 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, Plus, Shield, LogOut, Wallet, BarChart, AlertTriangle, CheckCircle2 } from "lucide-react"
+import {
+  TrendingUp,
+  Plus,
+  Shield,
+  LogOut,
+  Wallet,
+  BarChart,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  Home,
+  Search,
+  Briefcase,
+  User,
+} from "lucide-react"
 import Link from "next/link"
 import { NotificationBell } from "@/components/notifications"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -104,10 +118,10 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
   }
 
   const navItems = [
-    { href: "/", label: "Home" },
-    { href: "/markets", label: "Browse Markets" },
-    { href: "/my-bets", label: "My Bets" },
-    { href: "/profile", label: "Profile" },
+    { href: "/", label: "Home", icon: Home },
+    { href: "/markets", label: "Browse Markets", icon: Search },
+    { href: "/my-bets", label: "My Bets", icon: Briefcase },
+    { href: "/profile", label: "Profile", icon: User },
   ]
 
   return (
@@ -127,27 +141,34 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                   Beta
                 </Badge>
               </Link>
-              <div className="hidden lg:block">
+              <div className="hidden xl:block">
                 <ModeToggle onModeChange={setMode} />
               </div>
             </div>
 
             <nav className="hidden md:flex items-center space-x-1">
-              {navItems.map((item) => (
-                <Button
-                  key={item.href}
-                  variant="ghost"
-                  asChild
-                  className={cn(
-                    "text-xs font-medium transition-colors",
-                    pathname === item.href
-                      ? "text-blue-600 dark:text-blue-400"
-                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white",
-                  )}
-                >
-                  <Link href={item.href}>{item.label}</Link>
-                </Button>
-              ))}
+              {navItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <Button
+                    key={item.href}
+                    variant="ghost"
+                    asChild
+                    className={cn(
+                      "text-xs font-medium transition-colors",
+                      pathname === item.href
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white",
+                    )}
+                  >
+                    <Link href={item.href} className="flex items-center gap-1.5">
+                      <Icon className="w-4 h-4 lg:hidden" />
+                      <span className="hidden lg:inline">{item.label}</span>
+                      <Icon className="w-3.5 h-3.5 hidden" />
+                    </Link>
+                  </Button>
+                )
+              })}
               {userIsAdmin && (
                 <Button
                   variant="ghost"
@@ -160,8 +181,8 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                   )}
                 >
                   <Link href="/admin" className="flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5" />
-                    Admin
+                    <Shield className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+                    <span className="hidden lg:inline">Admin</span>
                   </Link>
                 </Button>
               )}
@@ -380,6 +401,9 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                                     )}
                                   </div>
                                 </div>
+                                <Button variant="ghost" size="sm">
+                                  <ChevronDown className="w-4 h-4" />
+                                </Button>
                               </div>
 
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">

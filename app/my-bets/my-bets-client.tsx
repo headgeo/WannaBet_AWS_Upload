@@ -1403,10 +1403,10 @@ export default function MyBetsClient({
         )}
 
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className="w-full grid grid-cols-3 gap-1 bg-white border border-gray-100 p-1 mb-5 rounded-lg shadow-sm">
+          <TabsList className="w-full grid grid-cols-3 gap-1 bg-white border border-gray-100 p-1 mb-5 rounded-lg shadow-sm h-auto">
             <TabsTrigger
               value="active"
-              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-1.5 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
+              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-2 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
             >
               <Activity className="w-3 h-3 md:w-3.5 md:h-3.5" />
               <span>Active</span>
@@ -1414,7 +1414,7 @@ export default function MyBetsClient({
             </TabsTrigger>
             <TabsTrigger
               value="leveraged-positions"
-              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-1.5 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
+              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-2 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
             >
               <Users className="w-3 h-3 md:w-3.5 md:h-3.5" />
               <span className="hidden md:inline">Settlement Bonds</span>
@@ -1422,9 +1422,9 @@ export default function MyBetsClient({
             </TabsTrigger>
             <TabsTrigger
               value="pnl-history"
-              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-1.5 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
+              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-2 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
             >
-              <DollarSign className="w-3 h-3 md:w-3.5 md:h-3.5" />
+              <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5" />
               <span>P&L</span>
               <span className="ml-0.5">({pnlHistory.length})</span>
             </TabsTrigger>

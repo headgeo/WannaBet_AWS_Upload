@@ -18,7 +18,7 @@ export function MobileBottomNav() {
   ]
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm border-t pb-[env(safe-area-inset-bottom,0.75rem)]">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 pb-[env(safe-area-inset-bottom,0.5rem)]">
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           const Icon = item.icon
@@ -30,10 +30,10 @@ export function MobileBottomNav() {
                 key={item.href}
                 asChild
                 size="sm"
-                className="h-12 w-12 rounded-lg bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200"
+                className="h-11 w-11 rounded-full bg-gray-900 hover:bg-gray-800 shadow-md"
               >
                 <Link href={item.href} prefetch={true}>
-                  <Icon className="w-5 h-5 text-white dark:text-black" />
+                  <Icon className="w-5 h-5 text-white" />
                 </Link>
               </Button>
             )
@@ -46,13 +46,13 @@ export function MobileBottomNav() {
               variant="ghost"
               size="sm"
               className={cn(
-                "flex flex-col items-center gap-1 h-14 px-3",
-                isActive && "text-blue-600 dark:text-blue-400",
+                "flex flex-col items-center gap-0.5 h-14 px-3 rounded-lg",
+                isActive ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-gray-500",
               )}
             >
               <Link href={item.href} prefetch={true}>
-                <Icon className={cn("w-5 h-5", isActive && "text-blue-600 dark:text-blue-400")} />
-                <span className="text-xs">{item.label}</span>
+                <Icon className="w-4 h-4" />
+                <span className="text-[9px] font-medium">{item.label}</span>
               </Link>
             </Button>
           )

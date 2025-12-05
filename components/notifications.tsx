@@ -202,13 +202,15 @@ export function NotificationBell() {
                                     <p className="text-[11px] md:text-xs text-muted-foreground">
                                       {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                                     </p>
-                                    <Link
-                                      href={`/market/${notification.market_id}`}
-                                      className="text-[11px] md:text-xs text-blue-600 hover:text-blue-700"
-                                      onClick={() => setIsOpen(false)}
-                                    >
-                                      View Market
-                                    </Link>
+                                    {notification.market_id && (
+                                      <Link
+                                        href={`/market/${notification.market_id}`}
+                                        className="text-[11px] md:text-xs text-blue-600 hover:text-blue-700"
+                                        onClick={() => setIsOpen(false)}
+                                      >
+                                        View Market
+                                      </Link>
+                                    )}
                                   </div>
                                 </div>
                               </div>

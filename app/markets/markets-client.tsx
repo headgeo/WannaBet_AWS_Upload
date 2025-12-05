@@ -95,12 +95,14 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen bg-gray-50 dark:from-gray-900 dark:to-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Card>
+          <Card className="shadow-sm border-gray-100">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <p className="text-red-500 mb-4">{error}</p>
-              <Button onClick={() => router.refresh()}>Try Again</Button>
+              <Button onClick={() => router.refresh()} className="bg-gray-900 hover:bg-gray-800 text-white">
+                Try Again
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -109,35 +111,47 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <MobileHeader />
 
-      {/* Header */}
-      <header className="hidden md:block bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
+      <header className="hidden md:block bg-white dark:bg-gray-900 border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-14">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm" asChild className="hidden md:flex">
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                className="hidden md:flex text-xs text-gray-600 hover:text-gray-900"
+              >
                 <Link href="/">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Dashboard
+                  <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+                  Back
                 </Link>
               </Button>
-              <h1 className="hidden md:block text-2xl font-bold text-blue-900 dark:text-blue-100">Browse Markets</h1>
-              <Badge variant="secondary" className="hidden sm:inline-flex">
+              <h1 className="hidden md:block text-base font-semibold text-gray-900 dark:text-gray-100">
+                Browse Markets
+              </h1>
+              <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] bg-gray-100 text-gray-600">
                 {filteredMarkets.length} markets
               </Badge>
             </div>
 
-            <div className="hidden md:flex items-center space-x-4">
-              <Button variant="ghost" asChild className="hidden md:inline-flex">
-                <Link href="/">Home</Link>
-              </Button>
+            <div className="hidden md:flex items-center space-x-3">
+              <Link href="/" className="text-xs text-gray-500 hover:text-gray-900 transition-colors">
+                Home
+              </Link>
+              <Link href="/markets" className="text-xs text-blue-600 font-medium">
+                Browse
+              </Link>
+              <Link href="/my-bets" className="text-xs text-gray-500 hover:text-gray-900 transition-colors">
+                My Bets
+              </Link>
               <NotificationBell />
-              <Button asChild className="hidden md:inline-flex">
+              <Button asChild size="sm" className="h-8 text-xs bg-gray-900 hover:bg-gray-800 text-white">
                 <Link href="/create-market">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Market
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Create
                 </Link>
               </Button>
             </div>
@@ -145,34 +159,34 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-blue-900 dark:text-blue-100 mb-6">Browse Markets</h1>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <h1 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Browse Markets</h1>
 
         {/* Search and Filter Section */}
-        <div className="mb-8 space-y-4">
-          <div className="flex flex-col gap-4">
+        <div className="mb-6 space-y-3">
+          <div className="flex flex-col gap-3">
             {/* Search Bar - Full Width */}
             <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 h-9 text-sm bg-white border-gray-200"
               />
             </div>
 
             {/* Category Filter and Sort Options - Side by Side */}
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               {/* Category Filter */}
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="flex-1 text-xs md:text-sm">
-                  <Filter className="w-4 h-4 mr-2" />
+                <SelectTrigger className="flex-1 text-xs h-9 bg-white border-gray-200">
+                  <Filter className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((category) => (
-                    <SelectItem key={category} value={category} className="text-xs md:text-sm">
+                    <SelectItem key={category} value={category} className="text-xs">
                       {category}
                     </SelectItem>
                   ))}
@@ -181,20 +195,20 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
 
               {/* Sort Options */}
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="flex-1 text-xs md:text-sm">
+                <SelectTrigger className="flex-1 text-xs h-9 bg-white border-gray-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="newest" className="text-xs md:text-sm">
+                  <SelectItem value="newest" className="text-xs">
                     Newest
                   </SelectItem>
-                  <SelectItem value="oldest" className="text-xs md:text-sm">
+                  <SelectItem value="oldest" className="text-xs">
                     Oldest
                   </SelectItem>
-                  <SelectItem value="volume" className="text-xs md:text-sm">
+                  <SelectItem value="volume" className="text-xs">
                     Highest Volume
                   </SelectItem>
-                  <SelectItem value="ending_soon" className="text-xs md:text-sm">
+                  <SelectItem value="ending_soon" className="text-xs">
                     Ending Soon
                   </SelectItem>
                 </SelectContent>
@@ -205,24 +219,21 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
           {/* Active Filters Display */}
           {(searchQuery || selectedCategory !== "All Categories") && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-muted-foreground">Active filters:</span>
+              <span className="text-xs text-gray-500">Active filters:</span>
               {searchQuery && (
-                <Badge variant="secondary" className="gap-1">
+                <Badge variant="secondary" className="gap-1 text-[10px] bg-gray-100">
                   Search: "{searchQuery}"
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                  >
+                  <button onClick={() => setSearchQuery("")} className="ml-1 hover:bg-gray-200 rounded-full p-0.5">
                     ×
                   </button>
                 </Badge>
               )}
               {selectedCategory !== "All Categories" && (
-                <Badge variant="secondary" className="gap-1">
+                <Badge variant="secondary" className="gap-1 text-[10px] bg-gray-100">
                   Category: {selectedCategory}
                   <button
                     onClick={() => setSelectedCategory("All Categories")}
-                    className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                    className="ml-1 hover:bg-gray-200 rounded-full p-0.5"
                   >
                     ×
                   </button>
@@ -235,7 +246,7 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
                   setSearchQuery("")
                   setSelectedCategory("All Categories")
                 }}
-                className="text-xs"
+                className="text-[10px] h-6 text-gray-500 hover:text-gray-900"
               >
                 Clear all
               </Button>
@@ -245,19 +256,19 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
 
         {/* Markets Grid */}
         {filteredMarkets.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredMarkets.map((market) => (
               <MarketCard key={market.id} market={market} />
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">
+          <Card className="shadow-sm border-gray-100">
+            <CardContent className="flex flex-col items-center justify-center py-10">
+              <TrendingUp className="h-10 w-10 text-gray-300 mb-3" />
+              <h3 className="text-sm font-semibold mb-1 text-gray-900">
                 {searchQuery || selectedCategory !== "All Categories" ? "No markets found" : "No active markets"}
               </h3>
-              <p className="text-muted-foreground text-center mb-4">
+              <p className="text-xs text-gray-500 text-center mb-3">
                 {searchQuery || selectedCategory !== "All Categories"
                   ? "Try adjusting your search criteria or browse all categories."
                   : "Be the first to create a prediction market!"}
@@ -265,6 +276,8 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
               {searchQuery || selectedCategory !== "All Categories" ? (
                 <Button
                   variant="outline"
+                  size="sm"
+                  className="text-xs h-8 bg-transparent"
                   onClick={() => {
                     setSearchQuery("")
                     setSelectedCategory("All Categories")
@@ -273,7 +286,7 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
                   Clear Filters
                 </Button>
               ) : (
-                <Button asChild>
+                <Button asChild size="sm" className="text-xs h-8 bg-gray-900 hover:bg-gray-800 text-white">
                   <Link href="/create-market">Create Market</Link>
                 </Button>
               )}

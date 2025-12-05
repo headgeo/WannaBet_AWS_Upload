@@ -77,8 +77,16 @@ export async function GET(request: NextRequest) {
 
     const endTime = new Date().toISOString()
     console.log("[v0] Settlement cron completed successfully!")
-    console.log("[v0] Settlement cron: Markets checked:", checkResult.data)
-    console.log("[v0] Settlement cron: Settlement result:", settleResult.data)
+    console.log("[v0] Settlement cron: Markets checked:", JSON.stringify(checkResult.data, null, 2))
+    console.log("[v0] Settlement cron: Settlement result (full):", JSON.stringify(settleResult.data, null, 2))
+    // Log each individual result to see success/failure and errors
+    if (settleResult.data?.force_settle_pending_settlements?.results) {
+      const results = settleResult.data.force_settle_pending_settlements.results
+      console.log("[v0] Settlement cron: Individual results:")
+      results.forEach((r: any, i: number) => {
+        console.log(`[v0]   Result ${i + 1}:`, JSON.stringify(r, null, 2))
+      })
+    }
     console.log("[v0] ========================================")
     console.log("[v0] Settlement cron job completed at:", endTime)
     console.log("[v0] ========================================")

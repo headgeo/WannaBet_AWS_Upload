@@ -16,22 +16,22 @@ export function MobileHeader({ showModeToggle = false, onModeChange }: MobileHea
   const { isAdmin } = useIsAdmin()
 
   return (
-    <header className="md:hidden bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
+    <header className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-50">
       <div className="px-4">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center space-x-2 flex-shrink-0">
             {showModeToggle && onModeChange && <ModeToggle onModeChange={onModeChange} />}
           </div>
 
-          <nav className="flex items-center gap-2">
+          <nav className="flex items-center gap-1">
             {isAdmin && (
-              <Button variant="ghost" asChild size="sm">
+              <Button variant="ghost" asChild size="sm" className="text-gray-500">
                 <Link href="/admin" className="px-2">
                   <Shield className="w-4 h-4 text-blue-600" />
                 </Link>
               </Button>
             )}
-            <Button variant="ghost" asChild size="sm">
+            <Button variant="ghost" asChild size="sm" className="text-gray-500">
               <Link href="/wallet" className="px-2">
                 <Wallet className="w-4 h-4" />
               </Link>

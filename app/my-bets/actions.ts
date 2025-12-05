@@ -94,6 +94,7 @@ export interface PnLHistory {
   created_at: string
   market_status: string
   market_outcome: boolean | null
+  close_type?: "sell" | "settlement_win" | "settlement_loss" | "cancellation_refund"
 }
 
 export interface Bond {
@@ -262,50 +263,43 @@ export async function getUserPnLHistory() {
   try {
     console.log("[v0] Fetching P&L history for user:", user.id)
 
-    const pnlResult = await selectWithJoin<any>("transactions", {
-      select: `
-        transactions.id,
-        transactions.market_id,
-        transactions.shares,
-        transactions.price_per_share,
-        transactions.cost_basis,
-        transactions.realized_pnl,
-        transactions.amount,
-        transactions.side,
-        transactions.created_at,
-        markets.title as market_title,
-        markets.status as market_status,
-        markets.outcome as market_outcome
-      `,
-      joins: [{ table: "markets", on: "transactions.market_id = markets.id", type: "INNER" }],
-      where: [
-        { column: "transactions.user_id", value: user.id },
-        { column: "transactions.type", value: "sell" },
+    const pnlResult = await select<any>(
+      "closed_positions",
+      [
+        "id",
+        "market_id",
+        "market_title",
+        "side",
+        "shares",
+        "exit_price",
+        "cost_basis",
+        "proceeds",
+        "realized_pnl",
+        "close_type",
+        "created_at",
+        "market_status",
+        "market_outcome",
       ],
-      orderBy: { column: "transactions.created_at", ascending: false },
-    })
+      [{ column: "user_id", value: user.id }],
+      { column: "created_at", ascending: false },
+    )
 
-    if (pnlResult.error) {
-      console.error("[v0] Error fetching P&L history:", pnlResult.error)
-      throw pnlResult.error
-    }
+    console.log("[v0] P&L history fetched:", pnlResult.length)
 
-    const pnlData = Array.isArray(pnlResult.data) ? pnlResult.data : []
-    console.log("[v0] P&L history fetched:", pnlData.length)
-
-    const pnlHistory: PnLHistory[] = pnlData.map((tx: any) => ({
-      id: tx.id,
-      market_id: tx.market_id,
-      market_title: tx.market_title,
-      side: tx.side === true || tx.side === "true" || tx.side === "YES" || tx.side === "Yes" ? "Yes" : "No",
-      shares: Number.parseFloat(tx.shares) || 0,
-      price_per_share: Number.parseFloat(tx.price_per_share) || 0,
-      cost_basis: Number.parseFloat(tx.cost_basis) || 0,
-      realized_pnl: Number.parseFloat(tx.realized_pnl) || 0,
-      total_amount: Number.parseFloat(tx.amount) || 0,
-      created_at: tx.created_at,
-      market_status: tx.market_status,
-      market_outcome: tx.market_outcome,
+    const pnlHistory: PnLHistory[] = pnlResult.map((cp: any) => ({
+      id: cp.id,
+      market_id: cp.market_id,
+      market_title: cp.market_title || "Unknown Market",
+      side: cp.side === "yes" ? "Yes" : "No",
+      shares: Number.parseFloat(cp.shares) || 0,
+      price_per_share: Number.parseFloat(cp.exit_price) || 0,
+      cost_basis: Number.parseFloat(cp.cost_basis) || 0,
+      realized_pnl: Number.parseFloat(cp.realized_pnl) || 0,
+      total_amount: Number.parseFloat(cp.proceeds) || 0,
+      created_at: cp.created_at,
+      market_status: cp.market_status || "unknown",
+      market_outcome: cp.market_outcome,
+      close_type: cp.close_type,
     }))
 
     console.log("[v0] P&L history processed:", pnlHistory.length)
@@ -444,10 +438,22 @@ export async function getMyBetsData() {
 
     console.log("[v0] Created markets fetched:", createdMarkets.length)
 
+    createdMarkets.forEach((m: any) => {
+      console.log(`[v0] Market ${m.id}: creator_fees_earned = ${m.creator_fees_earned}`)
+    })
+
     const transformedCreatedMarkets: CreatedMarket[] = createdMarkets.map((m: any) => ({
       ...m,
       cumulative_creator_fees: m.creator_fees_earned || 0,
     }))
+
+    console.log(
+      "[v0] Transformed markets:",
+      transformedCreatedMarkets.map((m) => ({
+        id: m.id,
+        cumulative_creator_fees: m.cumulative_creator_fees,
+      })),
+    )
 
     const userGroups = await select<any>("user_groups", ["group_id"], [{ column: "user_id", value: user.id }])
 

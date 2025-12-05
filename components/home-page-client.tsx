@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, Plus, Shield, LogOut, Wallet, BarChart, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { TrendingUp, Plus, Shield, LogOut, Wallet, BarChart, AlertTriangle, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
 import { NotificationBell } from "@/components/notifications"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -13,7 +13,8 @@ import { MobileHeader } from "@/components/mobile-header"
 import { useMarkets } from "@/lib/hooks/use-markets"
 import { initiateSettlement } from "@/app/actions/oracle-settlement"
 import { cancelPrivateMarket } from "@/app/actions/admin"
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 interface HomePageProps {
   userId: string
@@ -27,6 +28,7 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
   const [isCancelling, setIsCancelling] = useState<string | null>(null)
   const { markets, totalVolume, activeMarkets, isLoading, createdMarkets, privateMarkets, mutate } = useMarkets()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     console.log("[v0] HomePage useEffect - Data updated:")
@@ -101,165 +103,178 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
     }
   }
 
+  const navItems = [
+    { href: "/", label: "Home" },
+    { href: "/markets", label: "Browse Markets" },
+    { href: "/my-bets", label: "My Bets" },
+    { href: "/profile", label: "Profile" },
+  ]
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 pb-20 md:pb-0">
       <MobileHeader showModeToggle={true} onModeChange={setMode} />
 
-      {/* Header */}
-      <header className="hidden md:block bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b sticky top-0 z-50">
+      <header className="hidden md:block bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 md:h-16">
-            <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
-              <div className="hidden md:block">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-6 flex-shrink-0">
+              <Link href="/" className="flex items-center space-x-2">
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">WannaBet</h1>
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border-0"
+                >
+                  Beta
+                </Badge>
+              </Link>
+              <div className="hidden lg:block">
                 <ModeToggle onModeChange={setMode} />
               </div>
-              <h1 className="hidden md:block text-lg md:text-2xl font-bold text-blue-900 dark:text-blue-100">
-                WannaBet
-              </h1>
-              <Badge variant="secondary" className="hidden sm:inline-flex text-xs">
-                Beta
-              </Badge>
             </div>
 
-            <nav className="hidden md:flex items-center space-x-4">
-              <Button variant="ghost" asChild>
-                <Link href="/markets">Browse Markets</Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/profile">Profile</Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/my-bets">My Bets</Link>
-              </Button>
+            <nav className="hidden md:flex items-center space-x-1">
+              {navItems.map((item) => (
+                <Button
+                  key={item.href}
+                  variant="ghost"
+                  asChild
+                  className={cn(
+                    "text-xs font-medium transition-colors",
+                    pathname === item.href
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white",
+                  )}
+                >
+                  <Link href={item.href}>{item.label}</Link>
+                </Button>
+              ))}
               {userIsAdmin && (
-                <Button variant="ghost" asChild className="text-blue-600 hover:text-blue-700">
-                  <Link href="/admin" className="flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
+                <Button
+                  variant="ghost"
+                  asChild
+                  className={cn(
+                    "text-xs font-medium",
+                    pathname === "/admin"
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white",
+                  )}
+                >
+                  <Link href="/admin" className="flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5" />
                     Admin
                   </Link>
                 </Button>
               )}
-              <Button variant="ghost" asChild size="sm">
+            </nav>
+
+            <div className="flex items-center space-x-2">
+              <Button variant="ghost" asChild size="sm" className="text-gray-600 dark:text-gray-400">
                 <Link href="/wallet" className="px-2">
                   <Wallet className="w-4 h-4" />
                 </Link>
               </Button>
               <NotificationBell />
-              <Button asChild>
+              <Button asChild size="sm" className="bg-gray-900 hover:bg-gray-800 text-white shadow-sm">
                 <Link href="/create-market">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Market
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Create
                 </Link>
               </Button>
               <form action="/auth/logout" method="post">
-                <Button variant="outline" type="submit" className="flex items-center gap-2 bg-transparent">
+                <Button
+                  variant="ghost"
+                  type="submit"
+                  size="sm"
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
                   <LogOut className="w-4 h-4" />
-                  Logout
                 </Button>
               </form>
-            </nav>
-
-            <nav className="hidden items-center gap-2">
-              {userIsAdmin && (
-                <Button variant="ghost" asChild size="sm">
-                  <Link href="/admin" className="px-2">
-                    <Shield className="w-4 h-4" />
-                  </Link>
-                </Button>
-              )}
-              <Button variant="ghost" asChild size="sm">
-                <Link href="/wallet" className="px-2">
-                  <Wallet className="w-4 h-4" />
-                </Link>
-              </Button>
-              <NotificationBell />
-            </nav>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         <div className="md:hidden mb-8 flex flex-col items-center justify-center">
-          <h1
-            className="text-5xl font-bold tracking-tight bg-gradient-to-r from-blue-800 via-indigo-800 to-purple-800 bg-clip-text text-transparent opacity-90 animate-in fade-in duration-1000 drop-shadow-2xl"
-            style={{
-              filter:
-                "drop-shadow(0 10px 25px rgba(59, 130, 246, 0.3)) drop-shadow(0 5px 15px rgba(139, 92, 246, 0.2))",
-            }}
-          >
-            WannaBet
-          </h1>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
-            Make Markets. Trade Odds. Earn Fees.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">WannaBet</h1>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">Make Markets. Trade Odds. Earn Fees.</p>
         </div>
 
-        <div className="hidden md:block mb-6 md:mb-8">
-          <h2 className="text-sm md:text-3xl font-medium md:font-bold text-gray-400 md:text-gray-900 dark:text-gray-500 dark:md:text-white mb-2">
-            Welcome back, {initialProfile?.display_name || initialProfile?.username || "User"}!
+        <div className="hidden md:block mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Welcome back, {initialProfile?.display_name || initialProfile?.username || "User"}
           </h2>
-          <p className="hidden md:block text-sm text-gray-500 dark:text-gray-400">
-            Make Markets. Trade Odds. Earn Fees.
-          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Make Markets. Trade Odds. Earn Fees.</p>
         </div>
 
-        {/* Reduced stats card padding and sizes */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
-          <Card className="overflow-hidden">
-            <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center space-y-1 md:space-y-1.5">
-              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <Wallet className="w-3 h-3 md:w-4 md:h-4 text-green-600 dark:text-green-400" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <Card className="bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-4 flex flex-col items-center justify-center space-y-2">
+              <div className="w-9 h-9 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
+                <Wallet className="w-4 h-4 text-green-600 dark:text-green-400" />
               </div>
-              <p className="text-xs md:text-sm font-medium text-gray-600 dark:text-gray-400">Your Balance</p>
-              <p className="text-lg md:text-2xl font-bold text-green-600 dark:text-green-400">
+              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                Your Balance
+              </p>
+              <p className="text-xl font-bold text-green-600 dark:text-green-400">
                 ${Number.parseFloat(initialProfile?.balance || "0").toFixed(2)}
               </p>
             </CardContent>
           </Card>
 
-          <Card className="hidden md:block overflow-hidden">
-            <CardContent className="p-4 flex flex-col items-center justify-center space-y-1.5">
-              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+          <Card className="hidden md:block bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-4 flex flex-col items-center justify-center space-y-2">
+              <div className="w-9 h-9 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Markets</p>
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{isLoading ? "..." : activeMarkets}</p>
+              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                Active Markets
+              </p>
+              <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{isLoading ? "..." : activeMarkets}</p>
             </CardContent>
           </Card>
 
-          <Card className="hidden md:block overflow-hidden">
-            <CardContent className="p-4 flex flex-col items-center justify-center space-y-1.5">
-              <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+          <Card className="hidden md:block bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-4 flex flex-col items-center justify-center space-y-2">
+              <div className="w-9 h-9 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
                 <BarChart className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               </div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Volume</p>
-              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                Total Volume
+              </p>
+              <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
                 {isLoading ? "..." : `$${(totalVolume || 0).toFixed(2)}`}
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Reduced grid gap for tighter layout */}
+        {/* Markets section */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4 md:mb-6">
-            <h3 className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white">
               {mode === "Trader" ? "Active Markets" : "My Markets"}
             </h3>
             {mode === "Trader" && (
-              <Button variant="outline" asChild size="sm" className="text-xs md:text-sm bg-transparent">
+              <Button
+                variant="outline"
+                asChild
+                size="sm"
+                className="text-xs border-gray-200 dark:border-gray-700 bg-transparent"
+              >
                 <Link href="/markets">View All</Link>
               </Button>
             )}
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Card key={i} className="animate-pulse">
+                <Card key={i} className="animate-pulse bg-white dark:bg-gray-900">
                   <CardContent className="p-6">
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-4"></div>
-                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                    <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-3/4 mb-4"></div>
+                    <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-1/2"></div>
                   </CardContent>
                 </Card>
               ))}
@@ -269,20 +284,20 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
               {mode === "Trader" && (
                 <>
                   {traderMarkets && traderMarkets.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {traderMarkets.map((market) => (
                         <MarketCard key={market.id} market={market} />
                       ))}
                     </div>
                   ) : (
-                    <Card>
-                      <CardContent className="flex flex-col items-center justify-center py-12">
-                        <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">No Active Markets</h3>
-                        <p className="text-muted-foreground text-center mb-4">
+                    <Card className="bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800">
+                      <CardContent className="flex flex-col items-center justify-center py-16">
+                        <TrendingUp className="h-10 w-10 text-gray-300 dark:text-gray-600 mb-4" />
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">No Active Markets</h3>
+                        <p className="text-gray-500 dark:text-gray-400 text-center mb-6 text-xs">
                           Be the first to create a prediction market!
                         </p>
-                        <Button asChild>
+                        <Button asChild size="sm" className="bg-gray-900 hover:bg-gray-800 text-xs">
                           <Link href="/create-market">Create Market</Link>
                         </Button>
                       </CardContent>
@@ -309,35 +324,38 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                         return (
                           <Card
                             key={market.id}
-                            className={`hover:shadow-lg transition-shadow ${
-                              isSettled ? "opacity-75 bg-gray-50 dark:bg-gray-900/50" : ""
-                            }`}
+                            className={cn(
+                              "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all",
+                              isSettled && "opacity-60",
+                            )}
                           >
-                            <CardContent className="p-3 md:p-6">
-                              <div className="flex items-start justify-between mb-2 md:mb-4">
+                            <CardContent className="p-4 md:p-5">
+                              <div className="flex items-start justify-between mb-3">
                                 <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1 md:mb-2">
-                                    <h3 className="font-semibold text-sm md:text-lg">{market.title}</h3>
-                                    {isSettled && (
-                                      <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                                        <CheckCircle2 className="w-4 h-4" />
-                                      </div>
-                                    )}
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                      {market.title}
+                                    </h3>
+                                    {isSettled && <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
                                   </div>
-                                  <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-3">
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 line-clamp-2">
                                     {market.description}
                                   </p>
-                                  <div className="flex items-center gap-1 md:gap-2 flex-wrap">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <Badge
                                       variant="secondary"
-                                      className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
+                                      className="text-[9px] bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
                                     >
                                       {market.category}
                                     </Badge>
                                     {!isSettled && (
                                       <Badge
                                         variant={market.status === "active" ? "default" : "secondary"}
-                                        className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
+                                        className={cn(
+                                          "text-[9px]",
+                                          market.status === "active" &&
+                                            "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400",
+                                        )}
                                       >
                                         {market.status === "active" ? "Active" : "Pending"}
                                       </Badge>
@@ -345,24 +363,18 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                                     {isPendingSettlement && !isSettled && (
                                       <Badge
                                         variant="outline"
-                                        className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300"
+                                        className="text-[9px] bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"
                                       >
                                         Settlement Pending
                                       </Badge>
                                     )}
                                     {isExpired && !isSettled && (
-                                      <Badge
-                                        variant="destructive"
-                                        className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
-                                      >
+                                      <Badge variant="destructive" className="text-[9px]">
                                         Expired
                                       </Badge>
                                     )}
                                     {market.is_private && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
-                                      >
+                                      <Badge variant="outline" className="text-[9px]">
                                         Private
                                       </Badge>
                                     )}
@@ -370,24 +382,26 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 pt-2 md:pt-4 border-t">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                                 <div>
-                                  <div className="text-xs md:text-sm text-muted-foreground">Total Volume</div>
-                                  <div className="font-semibold text-xs md:text-base">
+                                  <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+                                    Total Volume
+                                  </div>
+                                  <div className="text-sm font-semibold text-gray-900 dark:text-white">
                                     ${Number.parseFloat(market.total_volume.toString()).toFixed(2)}
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-xs md:text-sm text-muted-foreground">Fees Earned</div>
-                                  <div className="font-semibold text-xs md:text-base text-green-600">
+                                  <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">Fees Earned</div>
+                                  <div className="text-sm font-semibold text-green-600 dark:text-green-400">
                                     ${Number.parseFloat(market.cumulative_creator_fees?.toString() || "0").toFixed(2)}
                                   </div>
                                 </div>
                                 <div className="col-span-2 md:col-span-1">
-                                  <div className="text-xs md:text-sm text-muted-foreground">
+                                  <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
                                     {isSettled ? "Settled On" : "Ends"}
                                   </div>
-                                  <div className="font-semibold text-xs md:text-base">
+                                  <div className="text-sm font-semibold text-gray-900 dark:text-white">
                                     {isSettled
                                       ? new Date(market.settled_at).toLocaleDateString()
                                       : new Date(market.end_date).toLocaleDateString()}
@@ -396,84 +410,69 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                               </div>
 
                               {canSettle && (
-                                <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                                <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-lg">
                                   {market.settlement_status === "pending_contest" ||
                                   market.settlement_status === "contested" ? (
                                     <div className="flex items-center gap-2">
-                                      <AlertTriangle className="w-5 h-5 text-blue-600" />
-                                      <span className="font-medium text-blue-800 dark:text-blue-200">
+                                      <AlertTriangle className="w-4 h-4 text-blue-600" />
+                                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
                                         Settlement in Progress
                                       </span>
                                     </div>
                                   ) : (
                                     <>
-                                      <div className="flex items-center gap-2 mb-3">
-                                        <AlertTriangle className="w-5 h-5 text-orange-600" />
-                                        <span className="font-medium text-orange-800 dark:text-orange-200">
-                                          {isExpired ? "Ready to Settle or Cancel" : "Settle or Cancel Market"}
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <AlertTriangle className="w-4 h-4 text-orange-600" />
+                                        <span className="text-xs font-medium text-orange-700 dark:text-orange-300">
+                                          Ready for Settlement
                                         </span>
                                       </div>
-                                      <p className="text-sm text-orange-700 dark:text-orange-300 mb-3">
-                                        {isExpired
-                                          ? "This private market has expired. Choose the winning outcome to settle it, or cancel to refund all participants:"
-                                          : "As the creator, you can settle this private market at any time, or cancel it to refund all participants:"}
-                                      </p>
-                                      <div className="flex gap-3 mb-2">
+                                      <div className="grid grid-cols-3 gap-2">
                                         <Button
+                                          size="sm"
+                                          className="bg-green-600 hover:bg-green-700 text-xs h-8 w-full"
                                           onClick={() => handleSettleMarket(market.id, true)}
                                           disabled={isSettling === market.id || isCancelling === market.id}
-                                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                                         >
-                                          {isSettling === market.id ? "Settling..." : "Settle as YES"}
+                                          {isSettling === market.id ? "..." : "Settle YES"}
                                         </Button>
                                         <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          className="text-xs h-8 w-full"
                                           onClick={() => handleSettleMarket(market.id, false)}
                                           disabled={isSettling === market.id || isCancelling === market.id}
-                                          className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                                         >
-                                          {isSettling === market.id ? "Settling..." : "Settle as NO"}
+                                          {isSettling === market.id ? "..." : "Settle NO"}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="text-xs h-8 w-full bg-transparent"
+                                          onClick={() => handleCancelMarket(market.id)}
+                                          disabled={isSettling === market.id || isCancelling === market.id}
+                                        >
+                                          {isCancelling === market.id ? "..." : "Cancel"}
                                         </Button>
                                       </div>
-                                      <Button
-                                        onClick={() => handleCancelMarket(market.id)}
-                                        disabled={isSettling === market.id || isCancelling === market.id}
-                                        variant="outline"
-                                        className="w-full border-gray-300 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800"
-                                      >
-                                        {isCancelling === market.id ? "Cancelling..." : "Cancel Market (Refund All)"}
-                                      </Button>
-                                      <p className="text-xs text-muted-foreground mt-2">
-                                        Cancelling will refund all participants at their average purchase price.
-                                      </p>
                                     </>
                                   )}
                                 </div>
                               )}
-
-                              <div className="mt-2 md:mt-4">
-                                <Button
-                                  variant="outline"
-                                  asChild
-                                  size="sm"
-                                  className="text-xs md:text-sm bg-transparent"
-                                >
-                                  <Link href={`/market/${market.id}`}>View Market</Link>
-                                </Button>
-                              </div>
                             </CardContent>
                           </Card>
                         )
                       })}
                     </div>
                   ) : (
-                    <Card>
-                      <CardContent className="flex flex-col items-center justify-center py-12">
-                        <DollarSign className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">No Markets Created</h3>
-                        <p className="text-muted-foreground text-center mb-4">
-                          Create markets to earn 50% of trading fees!
+                    <Card className="bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800">
+                      <CardContent className="flex flex-col items-center justify-center py-16">
+                        <BarChart className="h-10 w-10 text-gray-300 dark:text-gray-600 mb-4" />
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">No Markets Created</h3>
+                        <p className="text-gray-500 dark:text-gray-400 text-center mb-6 text-xs">
+                          Create your first market to start earning fees!
                         </p>
-                        <Button asChild>
+                        <Button asChild size="sm" className="bg-gray-900 hover:bg-gray-800 text-xs">
                           <Link href="/create-market">Create Market</Link>
                         </Button>
                       </CardContent>

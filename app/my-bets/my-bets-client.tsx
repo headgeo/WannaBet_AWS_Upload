@@ -1,12 +1,28 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, TrendingDown, History, Activity, Users, Building2, AlertTriangle, ChevronDown, ChevronUp, Receipt, DollarSign, ArrowLeft } from 'lucide-react'
+import {
+  TrendingUp,
+  TrendingDown,
+  History,
+  Activity,
+  Users,
+  Building2,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Receipt,
+  DollarSign,
+  ArrowLeft,
+  Trophy,
+  XCircle,
+  RefreshCw,
+} from "lucide-react"
 import Link from "next/link"
 import { SellSharesDialog } from "@/components/sell-shares-dialog"
 import { sellShares } from "@/app/actions/trade"
@@ -411,9 +427,7 @@ export default function MyBetsClient({
                     <>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">Refund</div>
-                        <div className="font-semibold text-base text-blue-600">
-                          ${refundAmount.toFixed(2)}
-                        </div>
+                        <div className="font-semibold text-base text-blue-600">${refundAmount.toFixed(2)}</div>
                       </div>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">Status</div>
@@ -436,9 +450,7 @@ export default function MyBetsClient({
                       </div>
                       <div>
                         <div className="text-xs md:text-sm text-muted-foreground">P&L</div>
-                        <div
-                          className={`font-semibold text-base ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}
-                        >
+                        <div className={`font-semibold text-base ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
                           {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                         </div>
                         <div className="text-[10px] md:text-xs text-muted-foreground">
@@ -538,6 +550,15 @@ export default function MyBetsClient({
         </Card>
       )
     }
+
+    console.log(
+      "[v0] Created markets with fees:",
+      markets.map((m) => ({
+        id: m.id,
+        title: m.title,
+        cumulative_creator_fees: m.cumulative_creator_fees,
+      })),
+    )
 
     return (
       <div className="space-y-4">
@@ -839,7 +860,7 @@ export default function MyBetsClient({
             <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No P&L History</h3>
             <p className="text-muted-foreground">
-              Your realized profits and losses from selling shares will appear here.
+              Your realized profits and losses from trades and settlements will appear here.
             </p>
           </CardContent>
         </Card>
@@ -858,6 +879,11 @@ export default function MyBetsClient({
     const avgLoss =
       losingTrades.length > 0 ? losingTrades.reduce((sum, pnl) => sum + pnl.realized_pnl, 0) / losingTrades.length : 0
 
+    const sellTrades = pnlHistory.filter((pnl) => pnl.close_type === "sell")
+    const settlementWins = pnlHistory.filter((pnl) => pnl.close_type === "settlement_win")
+    const settlementLosses = pnlHistory.filter((pnl) => pnl.close_type === "settlement_loss")
+    const refunds = pnlHistory.filter((pnl) => pnl.close_type === "cancellation_refund")
+
     // Group by market for better organization
     const pnlByMarket = pnlHistory.reduce(
       (acc, pnl) => {
@@ -872,6 +898,36 @@ export default function MyBetsClient({
       },
       {} as Record<string, { market_title: string; pnls: PnLHistory[] }>,
     )
+
+    const getCloseTypeBadge = (closeType?: string) => {
+      switch (closeType) {
+        case "settlement_win":
+          return (
+            <Badge variant="default" className="bg-green-600 text-xs">
+              Won
+            </Badge>
+          )
+        case "settlement_loss":
+          return (
+            <Badge variant="destructive" className="text-xs">
+              Lost
+            </Badge>
+          )
+        case "cancellation_refund":
+          return (
+            <Badge variant="secondary" className="text-xs">
+              Refund
+            </Badge>
+          )
+        case "sell":
+        default:
+          return (
+            <Badge variant="outline" className="text-xs">
+              Sold
+            </Badge>
+          )
+      }
+    }
 
     return (
       <div className="space-y-6">
@@ -895,38 +951,47 @@ export default function MyBetsClient({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-muted/50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-4 h-4 text-green-600" />
-                  <span className="text-xs font-medium text-muted-foreground">Winning Trades</span>
+                  <Trophy className="w-4 h-4 text-green-600" />
+                  <span className="text-xs font-medium text-muted-foreground">Settlement Wins</span>
                 </div>
-                <div className="text-2xl font-bold">{winningTrades.length}</div>
-                <div className="text-xs text-muted-foreground mt-1">Avg: +${avgWin.toFixed(2)}</div>
+                <div className="text-2xl font-bold">{settlementWins.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  +${settlementWins.reduce((s, p) => s + p.realized_pnl, 0).toFixed(2)}
+                </div>
               </div>
 
               <div className="bg-muted/50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <TrendingDown className="w-4 h-4 text-red-600" />
-                  <span className="text-xs font-medium text-muted-foreground">Losing Trades</span>
+                  <XCircle className="w-4 h-4 text-red-600" />
+                  <span className="text-xs font-medium text-muted-foreground">Settlement Losses</span>
                 </div>
-                <div className="text-2xl font-bold">{losingTrades.length}</div>
-                <div className="text-xs text-muted-foreground mt-1">Avg: ${avgLoss.toFixed(2)}</div>
+                <div className="text-2xl font-bold">{settlementLosses.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  ${settlementLosses.reduce((s, p) => s + p.realized_pnl, 0).toFixed(2)}
+                </div>
               </div>
 
               <div className="bg-muted/50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Activity className="w-4 h-4 text-blue-600" />
-                  <span className="text-xs font-medium text-muted-foreground">Win Rate</span>
+                  <span className="text-xs font-medium text-muted-foreground">Sells</span>
                 </div>
-                <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
-                <div className="text-xs text-muted-foreground mt-1">{pnlHistory.length} total</div>
+                <div className="text-2xl font-bold">{sellTrades.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {sellTrades.reduce((s, p) => s + p.realized_pnl, 0) >= 0 ? "+" : ""}$
+                  {sellTrades.reduce((s, p) => s + p.realized_pnl, 0).toFixed(2)}
+                </div>
               </div>
 
               <div className="bg-muted/50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <DollarSign className="w-4 h-4 text-purple-600" />
-                  <span className="text-xs font-medium text-muted-foreground">Total Volume</span>
+                  <RefreshCw className="w-4 h-4 text-gray-600" />
+                  <span className="text-xs font-medium text-muted-foreground">Refunds</span>
                 </div>
-                <div className="text-2xl font-bold">${totalVolume.toFixed(0)}</div>
-                <div className="text-xs text-muted-foreground mt-1">Traded</div>
+                <div className="text-2xl font-bold">{refunds.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  ${refunds.reduce((s, p) => s + p.total_amount, 0).toFixed(2)} returned
+                </div>
               </div>
             </div>
           </CardContent>
@@ -949,6 +1014,11 @@ export default function MyBetsClient({
                           <div className="flex items-center gap-1.5">
                             <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
                             <span className="text-sm text-muted-foreground">{pnls.length} trades</span>
+                          </div>
+                          <div
+                            className={`text-sm font-medium ${marketTotalPnL >= 0 ? "text-green-600" : "text-red-600"}`}
+                          >
+                            {marketTotalPnL >= 0 ? "+" : ""}${marketTotalPnL.toFixed(2)}
                           </div>
                         </div>
                       </div>
@@ -980,33 +1050,24 @@ export default function MyBetsClient({
                                   >
                                     {pnl.side.toUpperCase()}
                                   </Badge>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium">
-                                      {pnl.shares.toFixed(2)} shares @ ${displayPricePerShare.toFixed(3)}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      Cost basis: ${(pnl.cost_basis * pnl.shares).toFixed(2)}
-                                    </div>
-                                  </div>
+                                  {getCloseTypeBadge(pnl.close_type)}
+                                  <span className="text-sm text-muted-foreground truncate">
+                                    {pnl.shares.toFixed(2)} shares @ ${displayPricePerShare.toFixed(3)}
+                                  </span>
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">
-                                  <div className="text-right">
-                                    <div
-                                      className={`text-base font-bold ${
-                                        isWin
-                                          ? "text-green-600 dark:text-green-400"
-                                          : isBreakEven
-                                            ? "text-muted-foreground"
-                                            : "text-red-600 dark:text-red-400"
-                                      }`}
-                                    >
-                                      {pnl.realized_pnl >= 0 ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      ${pnl.total_amount.toFixed(2)} received
-                                    </div>
+                                  <div
+                                    className={`font-semibold text-sm ${
+                                      isWin
+                                        ? "text-green-600 dark:text-green-400"
+                                        : isLoss
+                                          ? "text-red-600 dark:text-red-400"
+                                          : "text-muted-foreground"
+                                    }`}
+                                  >
+                                    {isWin ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
                                   </div>
-                                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
                                 </div>
                               </div>
                             ) : (
@@ -1051,7 +1112,9 @@ export default function MyBetsClient({
                                     </div>
                                     <div>
                                       <div className="text-xs font-medium text-muted-foreground mb-1">Cost Basis</div>
-                                      <div className="text-base font-bold">${(pnl.cost_basis * pnl.shares).toFixed(2)}</div>
+                                      <div className="text-base font-bold">
+                                        ${(pnl.cost_basis * pnl.shares).toFixed(2)}
+                                      </div>
                                     </div>
                                     <div>
                                       <div className="text-xs font-medium text-muted-foreground mb-1">
@@ -1313,69 +1376,69 @@ export default function MyBetsClient({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <MobileHeader />
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-4 hidden md:block">
-          <Button variant="ghost" asChild className="w-fit">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="mb-3 hidden md:block">
+          <Button variant="ghost" asChild className="w-fit h-8 text-xs text-gray-600 hover:text-gray-900">
             <Link href="/">
-              <ArrowLeft className="w-4 h-4 mr-2" />
+              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
               Back to Dashboard
             </Link>
           </Button>
         </div>
 
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Bets</h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-2">Track all your prediction market positions</p>
+        <div className="mb-5">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">My Bets</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Track all your prediction market positions</p>
         </div>
 
         {error && (
-          <Card className="mb-6">
-            <CardContent className="text-center py-8">
-              <p className="text-red-500">{error}</p>
+          <Card className="mb-5 shadow-sm border-gray-100">
+            <CardContent className="text-center py-6">
+              <p className="text-red-500 text-sm">{error}</p>
             </CardContent>
           </Card>
         )}
 
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className="w-full grid grid-cols-3 gap-1.5 bg-muted p-1 mb-6 rounded-lg">
+          <TabsList className="w-full grid grid-cols-3 gap-1 bg-white border border-gray-100 p-1 mb-5 rounded-lg shadow-sm">
             <TabsTrigger
               value="active"
-              className="flex items-center justify-center gap-1 text-xs md:text-sm px-2 md:px-3 py-1 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-1.5 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
             >
-              <Activity className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <Activity className="w-3 h-3 md:w-3.5 md:h-3.5" />
               <span>Active</span>
               <span className="ml-0.5">({activePositions.length})</span>
             </TabsTrigger>
             <TabsTrigger
               value="leveraged-positions"
-              className="flex items-center justify-center gap-1 text-xs md:text-sm px-2 md:px-3 py-1 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-1.5 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
             >
-              <Users className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <Users className="w-3 h-3 md:w-3.5 md:h-3.5" />
               <span className="hidden md:inline">Settlement Bonds</span>
               <span className="md:hidden">Bonds</span>
             </TabsTrigger>
             <TabsTrigger
               value="pnl-history"
-              className="flex items-center justify-center gap-1 text-xs md:text-sm px-2 md:px-3 py-1 whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+              className="flex items-center justify-center gap-1 text-[10px] md:text-xs px-2 py-1.5 whitespace-nowrap data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all"
             >
-              <DollarSign className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <DollarSign className="w-3 h-3 md:w-3.5 md:h-3.5" />
               <span>P&L</span>
               <span className="ml-0.5">({pnlHistory.length})</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="active" className="mt-6">
+          <TabsContent value="active" className="mt-5">
             {renderPositions(activePositions, false)}
           </TabsContent>
 
-          <TabsContent value="leveraged-positions" className="mt-6">
+          <TabsContent value="leveraged-positions" className="mt-5">
             {renderBonds(bonds)}
           </TabsContent>
 
-          <TabsContent value="pnl-history" className="mt-6">
+          <TabsContent value="pnl-history" className="mt-5">
             {renderPnLHistory(pnlHistory)}
           </TabsContent>
         </Tabs>

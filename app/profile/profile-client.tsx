@@ -135,56 +135,60 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <MobileHeader />
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-4 hidden md:block">
-          <Button variant="ghost" asChild className="w-fit">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="mb-3 hidden md:block">
+          <Button variant="ghost" asChild className="w-fit text-xs">
             <Link href="/">
-              <ArrowLeft className="w-4 h-4 mr-2" />
+              <ArrowLeft className="w-3 h-3 mr-1" />
               Back to Dashboard
             </Link>
           </Button>
         </div>
 
-        <div className="mb-6">
+        <div className="mb-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Profile</h1>
-            <Button variant="outline" onClick={handleSignOut} className="flex items-center gap-2 bg-transparent">
-              <LogOut className="w-4 h-4" />
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Profile</h1>
+            <Button
+              variant="outline"
+              onClick={handleSignOut}
+              className="flex items-center gap-1 bg-transparent text-xs h-8"
+            >
+              <LogOut className="w-3 h-3" />
               Sign Out
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4">
+            <Card className="shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4" />
                   Profile Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 {!isEditing ? (
                   <>
                     <div>
-                      <Label className="text-sm text-muted-foreground">Username</Label>
-                      <div className="font-medium">{profile.username}</div>
+                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Username</Label>
+                      <div className="text-sm font-medium">{profile.username}</div>
                     </div>
                     <div>
-                      <Label className="text-sm text-muted-foreground">Display Name</Label>
-                      <div className="font-medium">{profile.display_name || "Not set"}</div>
+                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Display Name</Label>
+                      <div className="text-sm font-medium">{profile.display_name || "Not set"}</div>
                     </div>
                     <div>
-                      <Label className="text-sm text-muted-foreground">Bio</Label>
-                      <div className="font-medium">{profile.bio || "No bio provided"}</div>
+                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Bio</Label>
+                      <div className="text-sm font-medium">{profile.bio || "No bio provided"}</div>
                     </div>
                     <div>
-                      <Label className="text-sm text-muted-foreground">Member Since</Label>
-                      <div className="font-medium">
+                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Member Since</Label>
+                      <div className="text-sm font-medium">
                         {new Date(profile.created_at).toLocaleDateString("en-US", {
                           year: "numeric",
                           month: "long",
@@ -192,12 +196,19 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                         })}
                       </div>
                     </div>
-                    <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
+                    <Button
+                      onClick={() => setIsEditing(true)}
+                      className="bg-gray-900 hover:bg-gray-800 text-white text-xs h-8"
+                    >
+                      Edit Profile
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Username</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor="username" className="text-xs">
+                        Username
+                      </Label>
                       <Input
                         id="username"
                         value={username}
@@ -208,37 +219,50 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                         onBlur={() => checkUsernameUniqueness(username)}
                         placeholder="Your unique username"
                         disabled={isCheckingUsername}
+                        className="text-sm h-9"
                       />
-                      {isCheckingUsername && <p className="text-xs text-muted-foreground">Checking availability...</p>}
-                      {usernameError && <p className="text-xs text-red-500">{usernameError}</p>}
+                      {isCheckingUsername && (
+                        <p className="text-[10px] text-muted-foreground">Checking availability...</p>
+                      )}
+                      {usernameError && <p className="text-[10px] text-red-500">{usernameError}</p>}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="displayName">Display Name</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor="displayName" className="text-xs">
+                        Display Name
+                      </Label>
                       <Input
                         id="displayName"
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
                         placeholder="Your display name"
+                        className="text-sm h-9"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bio">Bio</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor="bio" className="text-xs">
+                        Bio
+                      </Label>
                       <Textarea
                         id="bio"
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
                         placeholder="Tell us about yourself..."
                         rows={3}
+                        className="text-sm"
                       />
                     </div>
                     {error && (
-                      <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded">{error}</div>
+                      <div className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 p-2 rounded">{error}</div>
                     )}
                     <div className="flex gap-2">
-                      <Button onClick={handleSave} disabled={isSaving || !!usernameError || isCheckingUsername}>
+                      <Button
+                        onClick={handleSave}
+                        disabled={isSaving || !!usernameError || isCheckingUsername}
+                        className="bg-gray-900 hover:bg-gray-800 text-white text-xs h-8"
+                      >
                         {isSaving ? "Saving..." : "Save Changes"}
                       </Button>
-                      <Button variant="outline" onClick={() => setIsEditing(false)}>
+                      <Button variant="outline" onClick={() => setIsEditing(false)} className="text-xs h-8">
                         Cancel
                       </Button>
                     </div>
@@ -249,17 +273,19 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
 
             <GroupsSection userId={profile.id} />
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="w-5 h-5" />
+            <Card className="shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Settings className="w-4 h-4" />
                   Trading Settings
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="slippage">Slippage Tolerance</Label>
+                    <Label htmlFor="slippage" className="text-xs">
+                      Slippage Tolerance
+                    </Label>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -271,23 +297,23 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                         }
                       }}
                       disabled={isSavingSlippage}
+                      className="text-xs h-7"
                     >
                       {isSlippageLocked ? (
                         <>
-                          <Lock className="w-4 h-4 mr-1" />
+                          <Lock className="w-3 h-3 mr-1" />
                           Unlock to Edit
                         </>
                       ) : (
                         <>
-                          <Unlock className="w-4 h-4 mr-1" />
+                          <Unlock className="w-3 h-3 mr-1" />
                           {isSavingSlippage ? "Saving..." : "Save & Lock"}
                         </>
                       )}
                     </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Maximum price change allowed between quote and execution. Higher tolerance = more trades succeed but
-                    at potentially worse prices.
+                  <p className="text-[10px] text-muted-foreground">
+                    Maximum price change allowed between quote and execution.
                   </p>
                   <div className="flex items-center gap-4">
                     <Slider
@@ -300,9 +326,9 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
                       disabled={isSlippageLocked}
                       className="flex-1"
                     />
-                    <div className="w-16 text-right font-semibold">{slippageTolerance.toFixed(1)}%</div>
+                    <div className="w-14 text-right text-sm font-semibold">{slippageTolerance.toFixed(1)}%</div>
                   </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
                     <span>0.5% (Strict)</span>
                     <span>30% (Lenient)</span>
                   </div>
@@ -311,41 +337,40 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
             </Card>
           </div>
 
-          {/* ... existing code for right column ... */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
+          <div className="space-y-4">
+            <Card className="shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4" />
                   Balance
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-green-600">
                   ${Number.parseFloat(profile.balance.toString()).toFixed(2)}
                 </div>
-                <p className="text-sm text-muted-foreground mt-1">Available for trading</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Available for trading</p>
               </CardContent>
             </Card>
 
             {stats && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5" />
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <TrendingUp className="w-4 h-4" />
                     Trading Stats
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between">
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Total Bets</span>
                     <span className="font-semibold">{stats.totalBets}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Markets Created</span>
                     <span className="font-semibold">{stats.marketsCreated}</span>
                   </div>
-                  <div className="flex justify-between border-t pt-4">
+                  <div className="flex justify-between border-t pt-3 text-xs">
                     <span className="text-muted-foreground">Total Fees Earned</span>
                     <span className="font-semibold text-green-600">
                       ${Number.parseFloat(stats.totalFeesEarned.toString()).toFixed(2)}
@@ -355,15 +380,15 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
               </Card>
             )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Status</CardTitle>
+            <Card className="shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Account Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <Badge variant="default" className="mb-2">
+                <Badge variant="default" className="mb-2 text-[10px]">
                   Active
                 </Badge>
-                <p className="text-sm text-muted-foreground">Your account is in good standing</p>
+                <p className="text-[10px] text-muted-foreground">Your account is in good standing</p>
               </CardContent>
             </Card>
           </div>

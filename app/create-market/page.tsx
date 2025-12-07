@@ -169,7 +169,7 @@ export default function CreateMarketPage() {
   const minuteOptions = ["00", "10", "20", "30", "40", "50"]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 md:pb-0">
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="mb-4 hidden md:block">
           <Button variant="ghost" asChild className="w-fit">
@@ -182,7 +182,7 @@ export default function CreateMarketPage() {
 
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create New Market</h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-2">Create a prediction market for others to trade on</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">Create a prediction market for others to trade on</p>
         </div>
 
         <Card className="mb-6">

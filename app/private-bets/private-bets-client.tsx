@@ -19,7 +19,7 @@ export default function PrivateBetsClient({ myActive: initialMyActive, initialEr
   const [error] = useState<string | null>(initialError)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 md:pb-0">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4 hidden md:flex">
@@ -29,7 +29,7 @@ export default function PrivateBetsClient({ myActive: initialMyActive, initialEr
             </Link>
           </Button>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Private Bets</h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-2">Manage your private prediction markets</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">Manage your private prediction markets</p>
         </div>
 
         {error && (

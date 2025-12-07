@@ -494,7 +494,7 @@ export function MarketDetailClient({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 md:pb-0">
       <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
         <div className="mb-3 md:mb-4 hidden md:block">
           <Button variant="ghost" asChild className="w-fit h-8 text-sm">

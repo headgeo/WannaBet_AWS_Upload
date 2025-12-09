@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,7 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign } from "lucide-react"
 import { calculateSellValueWithFee } from "@/lib/lmsr"
 import { FEE_PERCENTAGE } from "@/lib/fees"
 
@@ -57,7 +57,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
         b: position.market.b,
         side: position.side,
       })
-      
+
       const result = calculateSellValueWithFee(
         sharesToSell,
         position.market.qy,
@@ -65,7 +65,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
         position.market.b,
         position.side,
       )
-      
+
       console.log("[v0] Sell calculation result:", result)
       return result
     } catch (error) {
@@ -100,13 +100,16 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
 
   const handleSellAll = () => {
     setIsSellingAll(true)
-    const sharesToSet = Math.max(0, exactShares - 0.0001)
+    // Round down to 2dp for sell all
+    const sharesToSet = Math.floor(exactShares * 100) / 100
     setSharesToSell(sharesToSet)
   }
 
   const handleSharesChange = (value: number) => {
     setIsSellingAll(false)
-    setSharesToSell(value)
+    // Limit to 4dp max
+    const rounded = Math.floor(value * 10000) / 10000
+    setSharesToSell(rounded)
   }
 
   return (
@@ -146,7 +149,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
               type="number"
               min="0"
               max={displayShares}
-              step="0.01"
+              step="0.0001"
               value={sharesToSell || ""}
               onChange={(e) => handleSharesChange(Number.parseFloat(e.target.value) || 0)}
               placeholder="Enter number of shares"
@@ -165,7 +168,7 @@ export function SellSharesDialog({ position, onSell }: SellSharesDialogProps) {
                 <div className="flex justify-between">
                   <span className="text-sm">Shares to sell:</span>
                   <span className="font-medium">
-                    {sharesToSell.toFixed(2)}
+                    {sharesToSell.toFixed(4)}
                     {isSellingAll && " (all)"}
                   </span>
                 </div>

@@ -9,6 +9,7 @@ export interface MarketWithStatus {
   settled_at?: string | null
   winning_side?: boolean | null
   outcome?: boolean | null
+  outcome_text?: string | null
 }
 
 export function getMarketStatus(market: MarketWithStatus): MarketStatus {
@@ -87,7 +88,14 @@ export function getMarketStatusDisplay(market: MarketWithStatus): {
         color: "secondary",
       }
     case "settled":
-      const winningSide = market.winning_side !== undefined ? (market.winning_side ? "YES" : "NO") : "Unknown"
+      let winningSide = "Unknown"
+      if (market.outcome_text) {
+        winningSide = market.outcome_text.toUpperCase()
+      } else if (market.winning_side !== undefined && market.winning_side !== null) {
+        winningSide = market.winning_side ? "YES" : "NO"
+      } else if (market.outcome !== undefined && market.outcome !== null) {
+        winningSide = market.outcome ? "YES" : "NO"
+      }
       return {
         status: "settled",
         label: `Settled - ${winningSide} Won`,

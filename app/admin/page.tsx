@@ -17,6 +17,7 @@ import {
   Shield,
   Play,
   BarChart3,
+  Scale,
 } from "lucide-react"
 import { format } from "date-fns"
 import { useIsAdmin } from "@/lib/auth/admin-client"
@@ -28,6 +29,7 @@ import {
   runBalanceReconciliation,
   runPositionsAudit,
   getPrivateMarketSettlements,
+  runLedgerBalanceAudit, // <-- Added import for new ledger audit
 } from "@/app/actions/admin"
 import { createGroupsTables } from "@/app/actions/database"
 import { getMarketStatusDisplay } from "@/lib/market-status"
@@ -44,6 +46,7 @@ interface Market {
   status: string
   settled_at?: string
   winning_side?: boolean
+  outcome_text?: string // Added outcome_text to Market interface
   creator: {
     username: string
     display_name: string
@@ -76,6 +79,8 @@ export default function AdminPage() {
   const [isRunningPositionsAudit, setIsRunningPositionsAudit] = useState(false)
   const [privateSettlementData, setPrivateSettlementData] = useState<any>(null)
   const [isLoadingPrivateSettlements, setIsLoadingPrivateSettlements] = useState(false)
+  const [ledgerAuditData, setLedgerAuditData] = useState<any>(null) // <-- Added state for ledger balance audit
+  const [isRunningLedgerAudit, setIsRunningLedgerAudit] = useState(false) // <-- Added state for ledger balance audit
 
   const { isAdmin, isLoading: adminLoading } = useIsAdmin()
   const router = useRouter()
@@ -194,10 +199,12 @@ export default function AdminPage() {
         throw new Error(result.error || "Failed to run settlement")
       }
 
-      const processed = result.processed?.check_pending_settlements || result.processed || {}
-      const autoSettled = processed.auto_settled || 0
-      const contestsResolved = processed.contests_resolved || 0
-      const totalProcessed = processed.total_processed || autoSettled + contestsResolved
+      // API returns { checked, settled } but we also support { processed }
+      const settled = result.settled?.force_settle_pending_settlements || result.settled || []
+      const settledResults = Array.isArray(settled) ? settled : settled.results || []
+      const autoSettled = settledResults.filter((r: any) => r.type === "uncontested" && r.success).length
+      const contestsResolved = settledResults.filter((r: any) => r.type === "contested" && r.success).length
+      const totalProcessed = settledResults.filter((r: any) => r.success).length
 
       setSuccessMessage(
         `Settlement complete! Processed ${totalProcessed} market(s): ${autoSettled} auto-settled, ${contestsResolved} contests resolved. ${result.mode === "development" ? "(Local testing mode)" : ""}`,
@@ -231,6 +238,34 @@ export default function AdminPage() {
       setError(`Failed to load diagnostics: ${error.message}`)
     } finally {
       setIsLoadingDiagnostics(false)
+    }
+  }
+
+  // <-- Added handler for ledger balance audit
+  const handleRunLedgerAudit = async () => {
+    setIsRunningLedgerAudit(true)
+    setError(null)
+    setSuccessMessage(null)
+    setLedgerAuditData(null)
+
+    try {
+      const result = await runLedgerBalanceAudit()
+
+      if (!result.success) {
+        throw new Error(result.error)
+      }
+
+      setLedgerAuditData(result.data)
+
+      if (result.data?.is_balanced) {
+        setSuccessMessage("Ledger is balanced! Total credits equal total debits.")
+      } else {
+        setError(`Ledger imbalance detected: $${Math.abs(result.data?.difference || 0).toFixed(2)} discrepancy.`)
+      }
+    } catch (error: any) {
+      setError(`Ledger audit failed: ${error.message}`)
+    } finally {
+      setIsRunningLedgerAudit(false)
     }
   }
 
@@ -805,6 +840,130 @@ export default function AdminPage() {
           </TabsContent>
 
           <TabsContent value="summary" className="space-y-4">
+            {/* Ledger Balance Audit */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Scale className="w-4 h-4 text-purple-600" />
+                  Ledger Balance Audit
+                </CardTitle>
+                <p className="text-[10px] text-muted-foreground">
+                  Verify total credits equal total debits in ledger_entries.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  onClick={handleRunLedgerAudit}
+                  disabled={isRunningLedgerAudit}
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8"
+                >
+                  {isRunningLedgerAudit ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                      Running Audit...
+                    </>
+                  ) : (
+                    "Run Ledger Audit"
+                  )}
+                </Button>
+
+                {ledgerAuditData && (
+                  <div className="space-y-3 mt-3">
+                    <Card
+                      className={
+                        ledgerAuditData.status === "PASS"
+                          ? "border-green-200 bg-green-50/50 shadow-sm"
+                          : "border-red-200 bg-red-50/50 shadow-sm"
+                      }
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-xs flex items-center gap-2">
+                          {ledgerAuditData.status === "PASS" ? (
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <AlertTriangle className="w-3 h-3 text-red-500" />
+                          )}
+                          Ledger Audit Summary
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">Status</div>
+                            <Badge
+                              variant={ledgerAuditData.status === "PASS" ? "default" : "destructive"}
+                              className="mt-1 text-[9px]"
+                            >
+                              {ledgerAuditData.status}
+                            </Badge>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">Total Credits</div>
+                            <div className="text-lg font-bold text-green-600">
+                              ${Number(ledgerAuditData.total_credits).toFixed(2)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">Total Debits</div>
+                            <div className="text-lg font-bold text-blue-600">
+                              ${Number(ledgerAuditData.total_debits).toFixed(2)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">Difference</div>
+                            <div
+                              className={`text-lg font-bold ${ledgerAuditData.is_balanced ? "text-green-600" : "text-red-600"}`}
+                            >
+                              ${Math.abs(Number(ledgerAuditData.difference)).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <p className="text-[9px] text-muted-foreground">
+                            Total Entries: {ledgerAuditData.total_entries?.toLocaleString() || 0}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground">
+                            Last run:{" "}
+                            {ledgerAuditData.timestamp
+                              ? format(new Date(ledgerAuditData.timestamp), "MMM d, yyyy 'at' HH:mm:ss")
+                              : "Unknown"}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {!ledgerAuditData.is_balanced && (
+                      <Card className="border-red-200 bg-red-50/30 shadow-sm">
+                        <CardContent className="pt-3">
+                          <p className="text-xs text-red-700">
+                            <strong>Warning:</strong> The ledger is not balanced. Total credits and debits should be
+                            equal. A discrepancy of ${Math.abs(Number(ledgerAuditData.difference)).toFixed(2)} was
+                            detected.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {ledgerAuditData.is_balanced && (
+                      <Card className="border-green-200 bg-green-50/50 shadow-sm">
+                        <CardContent className="pt-3">
+                          <p className="text-xs text-green-700">
+                            Ledger is balanced! Total credits equal total debits (double-entry accounting verified).
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {!ledgerAuditData && !isRunningLedgerAudit && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Click the button above to verify ledger balance (credits = debits).
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
             {/* User Balance Reconciliation */}
             <Card className="shadow-sm">
               <CardHeader className="pb-2">

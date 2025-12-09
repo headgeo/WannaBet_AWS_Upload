@@ -1112,9 +1112,7 @@ export default function MyBetsClient({
                                     </div>
                                     <div>
                                       <div className="text-xs font-medium text-muted-foreground mb-1">Cost Basis</div>
-                                      <div className="text-base font-bold">
-                                        ${(pnl.cost_basis * pnl.shares).toFixed(2)}
-                                      </div>
+                                      <div className="text-base font-bold">${pnl.cost_basis.toFixed(2)}</div>
                                     </div>
                                     <div>
                                       <div className="text-xs font-medium text-muted-foreground mb-1">
@@ -1152,7 +1150,7 @@ export default function MyBetsClient({
                                       {pnl.realized_pnl >= 0 ? "+" : ""}${pnl.realized_pnl.toFixed(2)}
                                     </div>
                                     <div className="text-xs text-muted-foreground mt-2">
-                                      {((pnl.realized_pnl / (pnl.shares * pnl.cost_basis)) * 100).toFixed(2)}% return
+                                      {((pnl.realized_pnl / pnl.cost_basis) * 100).toFixed(2)}% return
                                     </div>
                                   </div>
                                 </div>

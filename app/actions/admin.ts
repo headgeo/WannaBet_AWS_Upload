@@ -405,6 +405,60 @@ export async function runBalanceReconciliation() {
   }
 }
 
+export async function runLedgerBalanceAudit() {
+  try {
+    await requireAdmin()
+
+    console.log("[v0] Starting ledger balance audit...")
+
+    // Sum all credits and debits from ledger_entries - they should equal zero
+    const { rows, error } = await query(
+      `SELECT 
+        COALESCE(SUM(credit), 0) as total_credits,
+        COALESCE(SUM(debit), 0) as total_debits,
+        COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) as difference,
+        COUNT(*) as total_entries
+      FROM ledger_entries`,
+      [],
+    )
+
+    if (error) {
+      throw new Error(`Ledger balance audit failed: ${error.message}`)
+    }
+
+    const result = rows?.[0] || { total_credits: 0, total_debits: 0, difference: 0, total_entries: 0 }
+
+    // Convert cents to dollars for display
+    const totalCredits = Number(result.total_credits) / 100
+    const totalDebits = Number(result.total_debits) / 100
+    const difference = Number(result.difference) / 100
+    const totalEntries = Number(result.total_entries)
+
+    const isBalanced = Math.abs(difference) < 0.01 // Allow for rounding errors up to 1 cent
+
+    console.log("[v0] Ledger balance audit complete:", { totalCredits, totalDebits, difference, isBalanced })
+
+    return {
+      success: true,
+      data: {
+        total_credits: totalCredits,
+        total_debits: totalDebits,
+        difference: difference,
+        total_entries: totalEntries,
+        is_balanced: isBalanced,
+        status: isBalanced ? "PASS" : "FAIL",
+        timestamp: new Date().toISOString(),
+      },
+    }
+  } catch (error) {
+    console.error("Ledger balance audit error:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+}
+
 export async function runPositionsAudit() {
   try {
     await requireAdmin()

@@ -657,66 +657,52 @@ export async function runSiteNetAudit() {
 
     console.log("[v0] Starting site net audit...")
 
-    // Get total deposits
-    const { rows: depositRows, error: depositError } = await query(
-      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'deposit'`,
+    // In double-entry accounting, the sum of all account balances should equal zero
+    const { rows, error } = await query(
+      `SELECT 
+        la.account_type,
+        COALESCE(SUM(lbs.balance_cents), 0) as total_cents,
+        COUNT(*) as account_count
+      FROM ledger_balance_snapshots lbs
+      JOIN ledger_accounts la ON la.id = lbs.account_id
+      GROUP BY la.account_type
+      ORDER BY la.account_type`,
       [],
     )
-    if (depositError) throw new Error(`Failed to get deposits: ${depositError.message}`)
-    const totalDeposits = Number(depositRows?.[0]?.total || 0)
 
-    // Get total withdrawals
-    const { rows: withdrawalRows, error: withdrawalError } = await query(
-      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'withdrawal'`,
+    if (error) {
+      throw new Error(`Site net audit failed: ${error.message}`)
+    }
+
+    // Also get the grand total
+    const { rows: totalRows, error: totalError } = await query(
+      `SELECT COALESCE(SUM(balance_cents), 0) as grand_total FROM ledger_balance_snapshots`,
       [],
     )
-    if (withdrawalError) throw new Error(`Failed to get withdrawals: ${withdrawalError.message}`)
-    const totalWithdrawals = Number(withdrawalRows?.[0]?.total || 0)
 
-    // Get platform account balance from ledger_balance_snapshots
-    const { rows: platformRows, error: platformError } = await query(
-      `SELECT COALESCE(SUM(lbs.balance), 0) as total 
-       FROM ledger_balance_snapshots lbs
-       JOIN ledger_accounts la ON lbs.account_id = la.id
-       WHERE la.account_type = 'platform'`,
-      [],
-    )
-    if (platformError) throw new Error(`Failed to get platform balance: ${platformError.message}`)
-    const platformBalance = Number(platformRows?.[0]?.total || 0)
+    if (totalError) {
+      throw new Error(`Site net audit failed: ${totalError.message}`)
+    }
 
-    // Get all user balances from profiles
-    const { rows: userBalanceRows, error: userBalanceError } = await query(
-      `SELECT COALESCE(SUM(balance), 0) as total FROM profiles`,
-      [],
-    )
-    if (userBalanceError) throw new Error(`Failed to get user balances: ${userBalanceError.message}`)
-    const totalUserBalances = Number(userBalanceRows?.[0]?.total || 0)
+    const grandTotal = Number(totalRows?.[0]?.grand_total || 0) / 100
+    const isBalanced = Math.abs(grandTotal) < 0.01
 
-    // Site Net = Deposits - Withdrawals - Platform Balance - User Balances
-    // This should equal zero if all money is accounted for
-    const siteNet = totalDeposits - totalWithdrawals - platformBalance - totalUserBalances
+    // Build breakdown by account type
+    const breakdown = (rows || []).map((row: any) => ({
+      account_type: row.account_type,
+      total: Number(row.total_cents) / 100,
+      count: Number(row.account_count),
+    }))
 
-    const isBalanced = Math.abs(siteNet) < 0.01 // Allow for rounding errors
-
-    console.log("[v0] Site net audit complete:", {
-      totalDeposits,
-      totalWithdrawals,
-      platformBalance,
-      totalUserBalances,
-      siteNet,
-      isBalanced,
-    })
+    console.log("[v0] Site net audit complete:", { grandTotal, isBalanced, breakdown })
 
     return {
       success: true,
       data: {
-        total_deposits: totalDeposits,
-        total_withdrawals: totalWithdrawals,
-        platform_balance: platformBalance,
-        total_user_balances: totalUserBalances,
-        site_net: siteNet,
+        grand_total: grandTotal,
         is_balanced: isBalanced,
         status: isBalanced ? "PASS" : "FAIL",
+        breakdown,
         timestamp: new Date().toISOString(),
       },
     }

@@ -29,7 +29,8 @@ import {
   runBalanceReconciliation,
   runPositionsAudit,
   getPrivateMarketSettlements,
-  runLedgerBalanceAudit, // <-- Added import for new ledger audit
+  runLedgerBalanceAudit,
+  runSiteNetAudit, // <-- Added import for new site net audit
 } from "@/app/actions/admin"
 import { createGroupsTables } from "@/app/actions/database"
 import { getMarketStatusDisplay } from "@/lib/market-status"
@@ -81,6 +82,8 @@ export default function AdminPage() {
   const [isLoadingPrivateSettlements, setIsLoadingPrivateSettlements] = useState(false)
   const [ledgerAuditData, setLedgerAuditData] = useState<any>(null) // <-- Added state for ledger balance audit
   const [isRunningLedgerAudit, setIsRunningLedgerAudit] = useState(false) // <-- Added state for ledger balance audit
+  const [siteNetAuditData, setSiteNetAuditData] = useState<any>(null) // <-- Added state for site net audit
+  const [isRunningSiteNetAudit, setIsRunningSiteNetAudit] = useState(false) // <-- Added state for site net audit
 
   const { isAdmin, isLoading: adminLoading } = useIsAdmin()
   const router = useRouter()
@@ -266,6 +269,33 @@ export default function AdminPage() {
       setError(`Ledger audit failed: ${error.message}`)
     } finally {
       setIsRunningLedgerAudit(false)
+    }
+  }
+
+  const handleRunSiteNetAudit = async () => {
+    setIsRunningSiteNetAudit(true)
+    setError(null)
+    setSuccessMessage(null)
+    setSiteNetAuditData(null)
+
+    try {
+      const result = await runSiteNetAudit()
+
+      if (!result.success) {
+        throw new Error(result.error)
+      }
+
+      setSiteNetAuditData(result.data)
+
+      if (result.data?.is_balanced) {
+        setSuccessMessage("Site net is balanced! All funds are accounted for.")
+      } else {
+        setError(`Site net imbalance detected: $${Math.abs(result.data?.site_net || 0).toFixed(2)} discrepancy.`)
+      }
+    } catch (error: any) {
+      setError(`Site net audit failed: ${error.message}`)
+    } finally {
+      setIsRunningSiteNetAudit(false)
     }
   }
 
@@ -959,6 +989,140 @@ export default function AdminPage() {
                 {!ledgerAuditData && !isRunningLedgerAudit && (
                   <p className="text-[10px] text-muted-foreground">
                     Click the button above to verify ledger balance (credits = debits).
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-amber-600" />
+                  Site Net Audit
+                </CardTitle>
+                <p className="text-[10px] text-muted-foreground">
+                  Verify: Deposits - Withdrawals = Platform Balance + All User Balances
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  onClick={handleRunSiteNetAudit}
+                  disabled={isRunningSiteNetAudit}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8"
+                >
+                  {isRunningSiteNetAudit ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                      Running Audit...
+                    </>
+                  ) : (
+                    "Run Site Net Audit"
+                  )}
+                </Button>
+
+                {siteNetAuditData && (
+                  <div className="space-y-3 mt-3">
+                    <Card
+                      className={
+                        siteNetAuditData.status === "PASS"
+                          ? "border-green-200 bg-green-50/50 shadow-sm"
+                          : "border-red-200 bg-red-50/50 shadow-sm"
+                      }
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-xs flex items-center gap-2">
+                          {siteNetAuditData.status === "PASS" ? (
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <AlertTriangle className="w-3 h-3 text-red-500" />
+                          )}
+                          Site Net Audit Summary
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">Status</div>
+                            <Badge
+                              variant={siteNetAuditData.status === "PASS" ? "default" : "destructive"}
+                              className="mt-1 text-[9px]"
+                            >
+                              {siteNetAuditData.status}
+                            </Badge>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">Total Deposits</div>
+                            <div className="text-lg font-bold text-green-600">
+                              ${Number(siteNetAuditData.total_deposits).toFixed(2)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">Total Withdrawals</div>
+                            <div className="text-lg font-bold text-red-600">
+                              ${Number(siteNetAuditData.total_withdrawals).toFixed(2)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">Platform Balance</div>
+                            <div className="text-lg font-bold text-purple-600">
+                              ${Number(siteNetAuditData.platform_balance).toFixed(2)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">User Balances</div>
+                            <div className="text-lg font-bold text-blue-600">
+                              ${Number(siteNetAuditData.total_user_balances).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-[10px] text-muted-foreground">Site Net (should be $0.00)</div>
+                              <div
+                                className={`text-xl font-bold ${siteNetAuditData.is_balanced ? "text-green-600" : "text-red-600"}`}
+                              >
+                                ${Number(siteNetAuditData.site_net).toFixed(2)}
+                              </div>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground">
+                              Last run:{" "}
+                              {siteNetAuditData.timestamp
+                                ? format(new Date(siteNetAuditData.timestamp), "MMM d, yyyy 'at' HH:mm:ss")
+                                : "Unknown"}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {!siteNetAuditData.is_balanced && (
+                      <Card className="border-red-200 bg-red-50/30 shadow-sm">
+                        <CardContent className="pt-3">
+                          <p className="text-xs text-red-700">
+                            <strong>Warning:</strong> Site net is not balanced. Deposits minus withdrawals should equal
+                            platform balance plus all user balances. A discrepancy of $
+                            {Math.abs(Number(siteNetAuditData.site_net)).toFixed(2)} was detected.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {siteNetAuditData.is_balanced && (
+                      <Card className="border-green-200 bg-green-50/50 shadow-sm">
+                        <CardContent className="pt-3">
+                          <p className="text-xs text-green-700">
+                            Site net is balanced! All deposited funds are accounted for in platform and user balances.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {!siteNetAuditData && !isRunningSiteNetAudit && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Click the button above to verify that all funds on the site are accounted for.
                   </p>
                 )}
               </CardContent>

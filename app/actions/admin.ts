@@ -428,10 +428,9 @@ export async function runLedgerBalanceAudit() {
 
     const result = rows?.[0] || { total_credits: 0, total_debits: 0, difference: 0, total_entries: 0 }
 
-    // Convert cents to dollars for display
-    const totalCredits = Number(result.total_credits) / 100
-    const totalDebits = Number(result.total_debits) / 100
-    const difference = Number(result.difference) / 100
+    const totalCredits = Number(result.total_credits)
+    const totalDebits = Number(result.total_debits)
+    const difference = Number(result.difference)
     const totalEntries = Number(result.total_entries)
 
     const isBalanced = Math.abs(difference) < 0.01 // Allow for rounding errors up to 1 cent
@@ -649,5 +648,83 @@ function formatTimeRemaining(ms: number): string {
     return `${minutes}m ${seconds % 60}s remaining`
   } else {
     return `${seconds}s remaining`
+  }
+}
+
+export async function runSiteNetAudit() {
+  try {
+    await requireAdmin()
+
+    console.log("[v0] Starting site net audit...")
+
+    // Get total deposits
+    const { rows: depositRows, error: depositError } = await query(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'deposit'`,
+      [],
+    )
+    if (depositError) throw new Error(`Failed to get deposits: ${depositError.message}`)
+    const totalDeposits = Number(depositRows?.[0]?.total || 0)
+
+    // Get total withdrawals
+    const { rows: withdrawalRows, error: withdrawalError } = await query(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'withdrawal'`,
+      [],
+    )
+    if (withdrawalError) throw new Error(`Failed to get withdrawals: ${withdrawalError.message}`)
+    const totalWithdrawals = Number(withdrawalRows?.[0]?.total || 0)
+
+    // Get platform account balance from ledger_balance_snapshots
+    const { rows: platformRows, error: platformError } = await query(
+      `SELECT COALESCE(SUM(lbs.balance), 0) as total 
+       FROM ledger_balance_snapshots lbs
+       JOIN ledger_accounts la ON lbs.account_id = la.id
+       WHERE la.account_type = 'platform'`,
+      [],
+    )
+    if (platformError) throw new Error(`Failed to get platform balance: ${platformError.message}`)
+    const platformBalance = Number(platformRows?.[0]?.total || 0)
+
+    // Get all user balances from profiles
+    const { rows: userBalanceRows, error: userBalanceError } = await query(
+      `SELECT COALESCE(SUM(balance), 0) as total FROM profiles`,
+      [],
+    )
+    if (userBalanceError) throw new Error(`Failed to get user balances: ${userBalanceError.message}`)
+    const totalUserBalances = Number(userBalanceRows?.[0]?.total || 0)
+
+    // Site Net = Deposits - Withdrawals - Platform Balance - User Balances
+    // This should equal zero if all money is accounted for
+    const siteNet = totalDeposits - totalWithdrawals - platformBalance - totalUserBalances
+
+    const isBalanced = Math.abs(siteNet) < 0.01 // Allow for rounding errors
+
+    console.log("[v0] Site net audit complete:", {
+      totalDeposits,
+      totalWithdrawals,
+      platformBalance,
+      totalUserBalances,
+      siteNet,
+      isBalanced,
+    })
+
+    return {
+      success: true,
+      data: {
+        total_deposits: totalDeposits,
+        total_withdrawals: totalWithdrawals,
+        platform_balance: platformBalance,
+        total_user_balances: totalUserBalances,
+        site_net: siteNet,
+        is_balanced: isBalanced,
+        status: isBalanced ? "PASS" : "FAIL",
+        timestamp: new Date().toISOString(),
+      },
+    }
+  } catch (error) {
+    console.error("Site net audit error:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
   }
 }

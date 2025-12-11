@@ -18,7 +18,6 @@ export async function depositFunds() {
   }
 
   try {
-    // Get current profile
     const profiles = await select("profiles", "*", [{ column: "id", value: user.id }])
     if (!profiles || profiles.length === 0) {
       return { success: false, error: "Profile not found" }
@@ -28,13 +27,8 @@ export async function depositFunds() {
     const balanceBefore = Number(profile.balance)
     const balanceAfter = balanceBefore + DEPOSIT_AMOUNT
 
-    console.log("[v0] Deposit starting:", { userId: user.id, balanceBefore, balanceAfter })
-
-    // Update balance
     await update("profiles", { balance: balanceAfter }, { column: "id", value: user.id })
-    console.log("[v0] Profile balance updated")
 
-    // Record in deposit_withdraw table
     try {
       await insert("deposit_withdraw", {
         user_id: user.id,
@@ -44,13 +38,10 @@ export async function depositFunds() {
         balance_after: balanceAfter,
         metadata: JSON.stringify({ method: "manual_deposit" }),
       })
-      console.log("[v0] Deposit record created in deposit_withdraw table")
     } catch (error) {
-      console.error("[v0] Error inserting into deposit_withdraw:", error)
       // Continue execution - ledger entry will still be created by trigger if table exists
     }
 
-    // Create notification
     await insert("notifications", {
       user_id: user.id,
       type: "deposit",
@@ -60,10 +51,9 @@ export async function depositFunds() {
     })
 
     revalidatePath("/wallet")
-    console.log("[v0] Deposit completed successfully")
     return { success: true, newBalance: balanceAfter }
   } catch (error) {
-    console.error("[v0] Deposit error:", error)
+    console.error("Deposit error:", error)
     return { success: false, error: "Failed to process deposit" }
   }
 }
@@ -79,7 +69,6 @@ export async function withdrawFunds() {
   }
 
   try {
-    // Get current profile
     const profiles = await select("profiles", "*", [{ column: "id", value: user.id }])
     if (!profiles || profiles.length === 0) {
       return { success: false, error: "Profile not found" }
@@ -94,13 +83,8 @@ export async function withdrawFunds() {
 
     const balanceAfter = balanceBefore - WITHDRAW_AMOUNT
 
-    console.log("[v0] Withdrawal starting:", { userId: user.id, balanceBefore, balanceAfter })
-
-    // Update balance
     await update("profiles", { balance: balanceAfter }, { column: "id", value: user.id })
-    console.log("[v0] Profile balance updated")
 
-    // Record in deposit_withdraw table
     try {
       await insert("deposit_withdraw", {
         user_id: user.id,
@@ -110,13 +94,10 @@ export async function withdrawFunds() {
         balance_after: balanceAfter,
         metadata: JSON.stringify({ method: "manual_withdraw" }),
       })
-      console.log("[v0] Withdrawal record created in deposit_withdraw table")
     } catch (error) {
-      console.error("[v0] Error inserting into deposit_withdraw:", error)
       // Continue execution
     }
 
-    // Create notification
     await insert("notifications", {
       user_id: user.id,
       type: "withdraw",
@@ -126,10 +107,9 @@ export async function withdrawFunds() {
     })
 
     revalidatePath("/wallet")
-    console.log("[v0] Withdrawal completed successfully")
     return { success: true, newBalance: balanceAfter }
   } catch (error) {
-    console.error("[v0] Withdrawal error:", error)
+    console.error("Withdrawal error:", error)
     return { success: false, error: "Failed to process withdrawal" }
   }
 }
@@ -145,12 +125,7 @@ export async function getDepositWithdrawHistory() {
   }
 
   try {
-    const history = await select(
-      "deposit_withdraw",
-      "*",
-      [{ column: "user_id", value: user.id }],
-      "created_at DESC"
-    )
+    const history = await select("deposit_withdraw", "*", [{ column: "user_id", value: user.id }], "created_at DESC")
     return history || []
   } catch (error) {
     console.error("Error fetching history:", error)

@@ -70,14 +70,12 @@ export class UMABlockchainClient {
 
     if (addresses.umaOracle) {
       this.optimisticOracle = new ethers.Contract(addresses.umaOracle, OptimisticOracleV3ABI, this.signer)
-      console.log("[v0] OptimisticOracleV3 initialized at:", addresses.umaOracle)
     } else {
       throw new Error(`OptimisticOracleV3 address not configured for network: ${this.network}`)
     }
 
     if (addresses.usdc) {
       this.usdc = new ethers.Contract(addresses.usdc, ERC20ABI, this.signer)
-      console.log("[v0] USDC initialized at:", addresses.usdc)
     } else {
       throw new Error(`USDC address not configured for network: ${this.network}`)
     }
@@ -144,23 +142,15 @@ export class UMABlockchainClient {
     expiryTimestamp: number,
     rewardAmount = "10", // $10 USD
   ): Promise<MarketDeploymentResult> {
-    console.log("[v0] ===== MARKET PREPARATION START =====")
-    console.log("[v0] Market ID:", marketId)
-    console.log("[v0] Question:", question)
-    console.log("[v0] Expiry:", new Date(expiryTimestamp * 1000).toISOString())
-    console.log("[v0] Reward amount:", rewardAmount, "USDC")
-
     if (!this.usdc || !this.optimisticOracle) {
       throw new Error("Contracts not initialized")
     }
 
     try {
       const signerAddress = await this.signer.getAddress()
-      console.log("[v0] Platform wallet:", signerAddress)
 
       const rewardWei = ethers.parseUnits(rewardAmount, 6)
       const balance = await this.usdc.balanceOf(signerAddress)
-      console.log("[v0] Platform USDC balance:", ethers.formatUnits(balance, 6), "USDC")
 
       if (balance < rewardWei) {
         throw new Error(
@@ -171,30 +161,21 @@ export class UMABlockchainClient {
       const oracleAddress = await this.optimisticOracle.getAddress()
 
       const currentAllowance = await this.usdc.allowance(signerAddress, oracleAddress)
-      console.log("[v0] Current allowance:", ethers.formatUnits(currentAllowance, 6), "USDC")
 
       let transactionHash: string
 
       if (currentAllowance < rewardWei) {
-        console.log("[v0] Approving $10 USDC reward to OptimisticOracleV3...")
         const approveTx = await this.usdc.approve(oracleAddress, rewardWei, {
           gasLimit: GAS_LIMITS.USDC_APPROVAL,
         })
-        console.log("[v0] Approval tx sent:", approveTx.hash)
         const receipt = await approveTx.wait()
-        console.log("[v0] Approval confirmed in block:", receipt!.blockNumber)
         transactionHash = receipt!.hash
       } else {
-        console.log("[v0] Sufficient allowance already exists, no approval needed")
         transactionHash = "0x" + "1".repeat(64)
       }
 
       const marketAddressHash = ethers.keccak256(ethers.toUtf8Bytes(marketId))
       const pseudoAddress = "0x" + marketAddressHash.slice(26)
-
-      console.log("[v0] ===== MARKET PREPARATION COMPLETE =====")
-      console.log("[v0] Market identifier:", pseudoAddress)
-      console.log("[v0] Transaction hash:", transactionHash)
 
       return {
         marketAddress: pseudoAddress,
@@ -202,13 +183,7 @@ export class UMABlockchainClient {
         marketId,
       }
     } catch (error: any) {
-      console.error("[v0] ===== MARKET PREPARATION FAILED =====")
-      console.error("[v0] Error:", error.message)
-      console.error("[v0] Blockchain deployment failed:", {
-        error: error.message,
-        code: error.code,
-        reason: error.reason,
-      })
+      console.error("[Blockchain] Market deployment failed:", error.message)
       throw new Error(`Deployment failed: ${error.message}`)
     }
   }
@@ -223,10 +198,6 @@ export class UMABlockchainClient {
     outcome: boolean,
     expiryTimestamp: number,
   ): Promise<ProposalResult> {
-    console.log("[v0] ===== PROPOSAL START =====")
-    console.log("[v0] Market ID:", marketId)
-    console.log("[v0] Proposed outcome:", outcome ? "YES" : "NO")
-
     if (!this.optimisticOracle || !this.usdc) {
       throw new Error("Contracts not initialized")
     }
@@ -236,7 +207,6 @@ export class UMABlockchainClient {
       const bondAmount = ethers.parseUnits("500", 6) // $500 bond
 
       const balance = await this.usdc.balanceOf(signerAddress)
-      console.log("[v0] Proposer USDC balance:", ethers.formatUnits(balance, 6), "USDC")
 
       if (balance < bondAmount) {
         throw new Error(`Insufficient USDC. Need 500 USDC to propose, have ${ethers.formatUnits(balance, 6)} USDC`)
@@ -246,26 +216,21 @@ export class UMABlockchainClient {
       const allowance = await this.usdc.allowance(signerAddress, oracleAddress)
 
       if (allowance < bondAmount) {
-        console.log("[v0] Approving $500 USDC bond...")
         const approveTx = await this.usdc.approve(oracleAddress, bondAmount, {
           gasLimit: GAS_LIMITS.USDC_APPROVAL,
         })
         await approveTx.wait()
-        console.log("[v0] Bond approved")
       }
 
       const outcomeText = outcome ? "YES" : "NO"
       const claim = `The outcome of market "${question}" (ID: ${marketId}) is ${outcomeText}.`
       const claimBytes = ethers.toUtf8Bytes(claim)
 
-      console.log("[v0] Assertion claim:", claim)
-
       const currentTime = Math.floor(Date.now() / 1000)
       const liveness = UMA_CONSTANTS.DEFAULT_LIVENESS // 2 hours in seconds
 
       const usdcAddress = await this.usdc.getAddress()
 
-      console.log("[v0] Calling assertTruth...")
       const tx = await this.optimisticOracle.assertTruth(
         claimBytes,
         signerAddress, // asserter
@@ -281,9 +246,7 @@ export class UMABlockchainClient {
         },
       )
 
-      console.log("[v0] Proposal tx sent:", tx.hash)
       const receipt = await tx.wait()
-      console.log("[v0] Proposal confirmed in block:", receipt.blockNumber)
 
       const assertionEvent = receipt.logs.find((log: any) => {
         try {
@@ -302,18 +265,13 @@ export class UMABlockchainClient {
 
       const livenessEndsAt = currentTime + liveness
 
-      console.log("[v0] Assertion ID:", assertionId)
-      console.log("[v0] Challenge window ends:", new Date(livenessEndsAt * 1000).toISOString())
-      console.log("[v0] ===== PROPOSAL COMPLETE =====")
-
       return {
         assertionId,
         transactionHash: receipt.hash,
         livenessEndsAt,
       }
     } catch (error: any) {
-      console.error("[v0] ===== PROPOSAL FAILED =====")
-      console.error("[v0] Error:", error.message)
+      console.error("[Blockchain] Proposal failed:", error.message)
       throw error
     }
   }
@@ -322,9 +280,6 @@ export class UMABlockchainClient {
    * Settle assertion after challenge period
    */
   async settleAssertion(assertionId: string): Promise<SettlementResult> {
-    console.log("[v0] ===== SETTLEMENT START =====")
-    console.log("[v0] Assertion ID:", assertionId)
-
     if (!this.optimisticOracle) {
       throw new Error("OptimisticOracle not initialized")
     }
@@ -334,25 +289,17 @@ export class UMABlockchainClient {
         gasLimit: GAS_LIMITS.SETTLE_MARKET,
       })
 
-      console.log("[v0] Settlement tx sent:", tx.hash)
       const receipt = await tx.wait()
-      console.log("[v0] Settlement confirmed in block:", receipt.blockNumber)
 
       const assertion = await this.optimisticOracle.getAssertion(assertionId)
-      const settled = assertion.settled
       const outcome = !assertion.settlementResolution // true if assertion was correct
-
-      console.log("[v0] Assertion settled:", settled)
-      console.log("[v0] Outcome accepted:", outcome)
-      console.log("[v0] ===== SETTLEMENT COMPLETE =====")
 
       return {
         outcome,
         transactionHash: receipt.hash,
       }
     } catch (error: any) {
-      console.error("[v0] ===== SETTLEMENT FAILED =====")
-      console.error("[v0] Error:", error.message)
+      console.error("[Blockchain] Settlement failed:", error.message)
       throw error
     }
   }
@@ -384,12 +331,12 @@ export class UMABlockchainClient {
         isSettled: assertion.settled,
       }
     } catch (error: any) {
-      console.error("[v0] Failed to get assertion status:", error.message)
+      console.error("[Blockchain] Get assertion status failed:", error.message)
       return {
         isDeployed: false,
-        hasResolutionRequest: false, // No longer relevant in this version
-        requestId: null, // No longer relevant in this version
-        proposalCount: 0, // No longer relevant in this version
+        hasResolutionRequest: false,
+        requestId: null,
+        proposalCount: 0,
         canSettle: false,
         timeRemaining: 0,
         hasAssertion: false,
@@ -425,5 +372,4 @@ export function getUMAClient(network?: string): UMABlockchainClient {
 
 export function resetUMAClient(): void {
   clientInstance = null
-  console.log("[UMA Client] Singleton instance reset")
 }

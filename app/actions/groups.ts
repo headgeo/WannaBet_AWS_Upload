@@ -6,7 +6,6 @@ import { insert, select, deleteRows } from "@/lib/database/adapter"
 
 export async function createGroup(name: string, description?: string) {
   try {
-    console.log("[v0] createGroup called with:", { name, description })
     const supabase = await createClient()
 
     const {
@@ -14,26 +13,14 @@ export async function createGroup(name: string, description?: string) {
       error: userError,
     } = await supabase.auth.getUser()
 
-    console.log("[v0] createGroup: User authentication result:", {
-      userId: user?.id,
-      error: userError?.message,
-    })
-
     if (userError || !user) {
       return { success: false, error: "Authentication required" }
     }
 
-    console.log("[v0] createGroup: Attempting to insert group into AWS RDS...")
     const { data: groupArray, error: groupError } = await insert("groups", {
       name: name.trim(),
       description: description?.trim() || null,
       creator_id: user.id,
-    })
-
-    console.log("[v0] createGroup: Insert result:", {
-      group: groupArray,
-      error: groupError?.message,
-      errorDetails: groupError,
     })
 
     if (groupError || !groupArray || groupArray.length === 0) {
@@ -44,7 +31,6 @@ export async function createGroup(name: string, description?: string) {
     }
 
     const group = groupArray[0]
-    console.log("[v0] createGroup: Group created with ID:", group.id)
 
     const existingMembership = await select<any>(
       "user_groups",
@@ -58,26 +44,20 @@ export async function createGroup(name: string, description?: string) {
     )
 
     if (!existingMembership || existingMembership.length === 0) {
-      console.log("[v0] createGroup: Auto-joining creator to group...")
       const { error: joinError } = await insert("user_groups", {
         user_id: user.id,
         group_id: group.id,
       })
 
-      console.log("[v0] createGroup: Auto-join result:", { error: joinError?.message })
-
       if (joinError) {
         console.error("Failed to auto-join creator to group:", joinError)
       }
-    } else {
-      console.log("[v0] createGroup: User already in group, skipping auto-join")
     }
 
     revalidatePath("/profile")
-    console.log("[v0] createGroup: Success! Returning group:", group)
     return { success: true, group }
   } catch (error) {
-    console.error("[v0] Create group error:", error)
+    console.error("Create group error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -87,7 +67,6 @@ export async function createGroup(name: string, description?: string) {
 
 export async function joinGroup(groupId: string) {
   try {
-    console.log("[v0] Join group action called for group:", groupId)
     const supabase = await createClient()
 
     const {
@@ -95,11 +74,8 @@ export async function joinGroup(groupId: string) {
       error: userError,
     } = await supabase.auth.getUser()
     if (userError || !user) {
-      console.log("[v0] Join group: No user authenticated")
       return { success: false, error: "Authentication required" }
     }
-
-    console.log("[v0] Join group: User authenticated:", user.id)
 
     const existingMembership = await select<any>(
       "user_groups",
@@ -113,7 +89,6 @@ export async function joinGroup(groupId: string) {
     )
 
     if (existingMembership && existingMembership.length > 0) {
-      console.log("[v0] Join group: User already in group")
       return { success: false, error: "You are already a member of this group" }
     }
 
@@ -121,8 +96,6 @@ export async function joinGroup(groupId: string) {
       user_id: user.id,
       group_id: groupId,
     })
-
-    console.log("[v0] Join group insert result:", { data, error: error?.message })
 
     if (error) {
       if (error.message?.includes("duplicate") || error.message?.includes("unique")) {
@@ -132,10 +105,9 @@ export async function joinGroup(groupId: string) {
     }
 
     revalidatePath("/profile")
-    console.log("[v0] Join group: Success, revalidated path")
     return { success: true }
   } catch (error) {
-    console.error("[v0] Join group error:", error)
+    console.error("Join group error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -151,7 +123,7 @@ export async function leaveGroup(groupId: string) {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser()
-    
+
     if (userError || !user) {
       return { success: false, error: "Authentication required" }
     }
@@ -168,7 +140,7 @@ export async function leaveGroup(groupId: string) {
     revalidatePath("/profile")
     return { success: true }
   } catch (error) {
-    console.error("[v0] Leave group error:", error)
+    console.error("Leave group error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -222,7 +194,6 @@ export async function searchGroups(query: string) {
 
 export async function getUserGroups(userId?: string) {
   try {
-    console.log("[v0] Get user groups called for userId:", userId)
     const supabase = await createClient()
 
     let targetUserId = userId
@@ -232,13 +203,10 @@ export async function getUserGroups(userId?: string) {
         error: userError,
       } = await supabase.auth.getUser()
       if (userError || !user) {
-        console.log("[v0] Get user groups: No user authenticated")
         return { success: false, error: "Authentication required" }
       }
       targetUserId = user.id
     }
-
-    console.log("[v0] Get user groups: Fetching from AWS RDS for user:", targetUserId)
 
     const userGroups = await select<any>(
       "user_groups",
@@ -251,10 +219,7 @@ export async function getUserGroups(userId?: string) {
       return { success: false, error: "Failed to fetch user groups" }
     }
 
-    console.log("[v0] Get user groups: Found user_groups:", userGroups.length)
-
     const groupIds = [...new Set(userGroups.map((ug) => ug.group_id))]
-    console.log("[v0] Get user groups: Unique group IDs:", groupIds.length)
 
     const enrichedGroups = await Promise.all(
       groupIds.map(async (groupId) => {
@@ -268,7 +233,6 @@ export async function getUserGroups(userId?: string) {
         const group = groups?.[0]
 
         if (!group) {
-          console.log("[v0] Get user groups: Group not found for ID:", groupId)
           return null
         }
 
@@ -280,7 +244,6 @@ export async function getUserGroups(userId?: string) {
           1,
         )
 
-        // Find the most recent user_groups entry for this group
         const userGroupEntry = userGroups.find((ug) => ug.group_id === groupId)
 
         return {
@@ -298,14 +261,9 @@ export async function getUserGroups(userId?: string) {
 
     const validGroups = enrichedGroups.filter((g) => g !== null)
 
-    console.log("[v0] Get user groups result:", {
-      groupsCount: validGroups.length,
-      groups: validGroups.map((g) => ({ id: g.group_id, groupName: g.groups?.name })),
-    })
-
     return { success: true, groups: validGroups }
   } catch (error) {
-    console.error("[v0] Get user groups error:", error)
+    console.error("Get user groups error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -315,8 +273,6 @@ export async function getUserGroups(userId?: string) {
 
 export async function getGroupMembers(groupId: string) {
   try {
-    console.log("[v0] Server action: Getting group members for group:", groupId)
-
     const members = await select<any>(
       "user_groups",
       ["user_id", "joined_at"],
@@ -344,14 +300,9 @@ export async function getGroupMembers(groupId: string) {
       }),
     )
 
-    console.log("[v0] Service query result:", {
-      membersCount: enrichedMembers.length,
-      members: enrichedMembers.map((m) => ({ user_id: m.user_id, username: m.profiles?.username })),
-    })
-
     return { success: true, members: enrichedMembers }
   } catch (error) {
-    console.error("[v0] Get group members error:", error)
+    console.error("Get group members error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

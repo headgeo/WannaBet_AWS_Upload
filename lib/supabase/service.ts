@@ -8,13 +8,6 @@ export function createServiceClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  console.log("[v0] Service client env check:", {
-    hasUrl: !!supabaseUrl,
-    hasKey: !!serviceRoleKey,
-    urlValue: supabaseUrl ? "present" : "missing",
-    keyValue: serviceRoleKey ? "present" : "missing",
-  })
-
   if (!supabaseUrl) {
     throw new Error("NEXT_PUBLIC_SUPABASE_URL is required for service client")
   }

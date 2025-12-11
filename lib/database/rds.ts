@@ -12,13 +12,6 @@ export function getRDSPool(): Pool {
     const connectionString =
       process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL_NON_POOLING
 
-    console.log("[RDS] Available env vars:", {
-      POSTGRES_URL: !!process.env.POSTGRES_URL,
-      POSTGRES_PRISMA_URL: !!process.env.POSTGRES_PRISMA_URL,
-      POSTGRES_URL_NON_POOLING: !!process.env.POSTGRES_URL_NON_POOLING,
-      selected: connectionString ? "found" : "not found",
-    })
-
     if (!connectionString) {
       throw new Error(
         "No PostgreSQL connection string found. Please set one of: POSTGRES_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL_NON_POOLING",
@@ -27,14 +20,6 @@ export function getRDSPool(): Pool {
 
     try {
       const url = new URL(connectionString)
-      console.log("[RDS] Connection string validation:", {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port || "5432",
-        database: url.pathname.slice(1),
-        hasUsername: !!url.username,
-        hasPassword: !!url.password,
-      })
 
       if (!url.hostname || url.hostname === "base") {
         throw new Error(
@@ -47,14 +32,14 @@ export function getRDSPool(): Pool {
       }
     } catch (error) {
       if (error instanceof TypeError) {
-        throw new Error(
-          `Invalid POSTGRES_URL format. Expected: postgresql://username:password@host:5432/database\nGot: ${connectionString.replace(/:[^:@]+@/, ":****@")}`,
-        )
+        throw new Error(`Invalid POSTGRES_URL format. Expected: postgresql://username:password@host:5432/database`)
       }
       throw error
     }
 
-    console.log("[RDS] Initializing connection pool")
+    if (process.env.NODE_ENV === "development") {
+      console.log("[RDS] Initializing connection pool")
+    }
 
     pool = new Pool({
       connectionString,
@@ -68,13 +53,10 @@ export function getRDSPool(): Pool {
 
     // Handle pool errors
     pool.on("error", (err) => {
-      console.error("[RDS Pool] Unexpected error on idle client", err)
+      console.error("[RDS] Unexpected pool error:", err.message)
     })
 
-    pool
-      .query("SELECT NOW()")
-      .then(() => console.log("[RDS] Connection pool initialized successfully"))
-      .catch((err) => console.error("[RDS] Failed to initialize connection pool:", err))
+    pool.query("SELECT NOW()").catch((err) => console.error("[RDS] Pool initialization failed:", err.message))
   }
 
   return pool
@@ -91,9 +73,8 @@ export async function query<T = any>(text: string, params?: any[]): Promise<{ ro
     const result = await pool.query(text, params)
     const duration = Date.now() - start
 
-    // Log slow queries (over 1 second)
     if (duration > 1000) {
-      console.warn("[RDS] Slow query detected:", {
+      console.warn("[RDS] Slow query:", {
         duration: `${duration}ms`,
         query: text.substring(0, 100),
       })
@@ -101,10 +82,7 @@ export async function query<T = any>(text: string, params?: any[]): Promise<{ ro
 
     return result
   } catch (error) {
-    console.error("[RDS] Query error:", {
-      error,
-      query: text.substring(0, 100),
-    })
+    console.error("[RDS] Query error:", (error as Error).message)
     throw error
   }
 }

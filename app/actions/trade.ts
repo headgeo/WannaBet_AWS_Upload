@@ -11,7 +11,7 @@ export async function executeTradeV2(
   betAmount: number,
   betSide: "YES" | "NO",
   userId: string,
-  expectedPrice: number, // Current price shown to user for slippage validation
+  expectedPrice: number,
 ) {
   try {
     const supabase = await createSupabaseClient()
@@ -58,14 +58,6 @@ export async function executeTradeV2(
       throw new Error("Trading is not available for this market")
     }
 
-    console.log("[v0] Executing trade v2:", {
-      marketId,
-      betAmount,
-      betSide,
-      expectedPrice,
-    })
-
-    // Call the new v2 function - server handles all calculations, locking, and 2% slippage validation
     const { data: tradeResult, error: rpcError } = await rpc("execute_trade_lmsr_v2", {
       p_market_id: marketId,
       p_user_id: userId,
@@ -75,15 +67,11 @@ export async function executeTradeV2(
     })
 
     if (rpcError) {
-      console.error("[v0] Trade RPC error:", rpcError)
-      // Check for slippage error
       if (rpcError.message?.includes("slippage")) {
         throw new Error(rpcError.message)
       }
       throw new Error(`Trade execution failed: ${rpcError.message}`)
     }
-
-    console.log("[v0] Trade v2 executed successfully:", tradeResult)
 
     revalidatePath(`/market/${marketId}`)
     revalidatePath("/")
@@ -101,7 +89,7 @@ export async function sellSharesV2(
   userId: string,
   sharesToSell: number,
   betSide: "YES" | "NO",
-  expectedPrice: number, // Current price shown to user for slippage validation
+  expectedPrice: number,
 ) {
   try {
     const supabase = await createSupabaseClient()
@@ -148,14 +136,6 @@ export async function sellSharesV2(
       throw new Error("Trading is not available for this market")
     }
 
-    console.log("[v0] Executing sell v2:", {
-      marketId,
-      sharesToSell,
-      betSide,
-      expectedPrice,
-    })
-
-    // Call the new v2 function - server handles all calculations, locking, and 2% slippage validation
     const { data: sellResult, error: rpcError } = await rpc("sell_shares_lmsr_v2", {
       p_market_id: marketId,
       p_user_id: userId,
@@ -165,15 +145,11 @@ export async function sellSharesV2(
     })
 
     if (rpcError) {
-      console.error("[v0] Sell RPC error:", rpcError)
-      // Check for slippage error
       if (rpcError.message?.includes("slippage")) {
         throw new Error(rpcError.message)
       }
       throw new Error(`Sell execution failed: ${rpcError.message}`)
     }
-
-    console.log("[v0] Sell v2 executed successfully:", sellResult)
 
     revalidatePath(`/market/${marketId}`)
     revalidatePath("/")
@@ -186,7 +162,6 @@ export async function sellSharesV2(
   }
 }
 
-// Keep legacy functions for backwards compatibility during transition
 export async function executeTrade(
   marketId: string,
   betAmount: number,
@@ -204,7 +179,6 @@ export async function executeTrade(
   maxSlippagePercent = 5,
   expectedPrice: number,
 ) {
-  console.log("[v0] Legacy executeTrade called, redirecting to v2")
   return executeTradeV2(marketId, betAmount, betSide, userId, expectedPrice)
 }
 
@@ -225,9 +199,6 @@ export async function sellShares(
   maxSlippagePercent = 5,
   expectedPricePerShare: number,
 ) {
-  console.log("[v0] Legacy sellShares called, redirecting to v2")
-
-  // Get position to determine side
   const { data: position } = await selectWithJoin("positions", {
     select: "side",
     where: [{ column: "id", value: positionId }],

@@ -26,17 +26,9 @@ export async function checkTradeRateLimit(
     const allowed = tradeCount < MAX_TRADES_PER_MINUTE
     const resetAt = new Date(Date.now() + RATE_LIMIT_WINDOW_MS)
 
-    console.log("[v0] Rate limit check:", {
-      userId,
-      tradeCount,
-      remaining,
-      allowed,
-      resetAt: resetAt.toISOString(),
-    })
-
     return { allowed, remaining, resetAt }
   } catch (error) {
-    console.error("[v0] Rate limit check failed:", error)
+    console.error("[RateLimit] Check failed:", (error as Error).message)
     // On error, allow the trade (fail open to prevent blocking legitimate users)
     return { allowed: true, remaining: MAX_TRADES_PER_MINUTE, resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS) }
   }

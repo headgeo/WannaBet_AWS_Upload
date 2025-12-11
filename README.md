@@ -1,524 +1,684 @@
 # Prediction Market Platform
 
-A full-stack decentralized prediction market platform built with Next.js 14, featuring both private markets with an internal oracle system and public markets with UMA Optimistic Oracle integration on Polygon.
-
----
+A full-stack prediction market application built with Next.js 15, PostgreSQL, and Supabase Auth. The platform enables users to create, trade, and settle prediction markets using the Logarithmic Market Scoring Rule (LMSR) automated market maker.
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [System Architecture](#system-architecture)
-- [Tech Stack](#tech-stack)
-- [Market Types](#market-types)
-- [Oracle Systems](#oracle-systems)
+- [Architecture](#architecture)
+- [Frontend Structure](#frontend-structure)
+- [Backend Structure](#backend-structure)
 - [Database Schema](#database-schema)
-- [Scalability & Performance](#scalability--performance)
-- [Getting Started](#getting-started)
-- [Deployment](#deployment)
-- [API Reference](#api-reference)
-- [Contributing](#contributing)
+- [Trading Mechanics](#trading-mechanics)
+- [Market Types](#market-types)
+- [Settlement System](#settlement-system)
+- [Ledger System](#ledger-system)
+- [Authentication](#authentication)
+- [Key Features](#key-features)
+- [API Routes](#api-routes)
+- [Environment Variables](#environment-variables)
 
 ---
 
 ## Overview
 
-This platform enables users to create and trade on prediction markets with real money. It supports two distinct market types:
+This prediction market platform allows users to:
 
-1. **Private Markets** - Group-based markets with internal oracle settlement
-2. **Public Markets** - Open markets with UMA Optimistic Oracle integration (Polygon)
+- **Create markets** - Both public and private prediction markets with customizable liquidity
+- **Trade shares** - Buy and sell YES/NO shares using the LMSR pricing mechanism
+- **Settle markets** - Decentralized settlement with bond-based dispute resolution
+- **Track P&L** - Comprehensive profit/loss tracking with cost basis calculations
+- **Manage groups** - Create private groups for exclusive market access
 
-### Key Features
-
-- LMSR (Logarithmic Market Scoring Rule) automated market maker
-- Real-time price updates and trading
-- Group-based access control for private markets
-- Decentralized dispute resolution via UMA (public markets)
-- Internal oracle with bond-based incentive alignment (private markets)
-- Comprehensive notification system
-- PnL tracking and transaction history
-- Mobile-responsive design
+The platform uses a **double-entry ledger system** for all financial transactions, ensuring complete auditability and balance reconciliation.
 
 ---
 
-## System Architecture
+## Architecture
 
 \`\`\`
-┌─────────────────────────────────────────────────────────────┐
-│                     Next.js 14 App Router                    │
-│                    (React 19, TypeScript)                    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ├─────────────────────────────────┐
-                              │                                 │
-                    ┌─────────▼─────────┐          ┌──────────▼──────────┐
-                    │  Private Markets  │          │   Public Markets    │
-                    │  (Internal Oracle)│          │   (UMA Oracle)      │
-                    └─────────┬─────────┘          └──────────┬──────────┘
-                              │                                │
-                    ┌─────────▼─────────┐          ┌──────────▼──────────┐
-                    │  Settlement Flow  │          │  UMA Integration    │
-                    │  - Initiate       │          │  - Propose          │
-                    │  - Contest        │          │  - Dispute          │
-                    │  - Vote           │          │  - Resolve          │
-                    │  - Resolve        │          │  (Polygon Testnet)  │
-                    └─────────┬─────────┘          └──────────┬──────────┘
-                              │                                │
-                              └────────────┬───────────────────┘
-                                           │
-                              ┌────────────▼────────────┐
-                              │   AWS RDS PostgreSQL    │
-                              │   - 20 Tables           │
-                              │   - 50+ Indexes         │
-                              │   - Connection Pool     │
-                              └─────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        Frontend (Next.js 15)                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
+│  │  Pages   │  │Components│  │  Hooks   │  │  Server Actions  │ │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Backend (PostgreSQL)                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │   Functions  │  │   Triggers   │  │   Ledger System      │   │
+│  │  (PL/pgSQL)  │  │  (Auto-sync) │  │  (Double-entry)      │   │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    External Services                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │ Supabase Auth│  │  AWS RDS     │  │  UMA Oracle (future) │   │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
 \`\`\`
 
-### Architecture Layers
+### Tech Stack
 
-1. **Presentation Layer** - Next.js 14 with React Server Components
-2. **Business Logic Layer** - Server Actions for mutations, Server Components for queries
-3. **Data Access Layer** - Custom database adapter with connection pooling
-4. **Database Layer** - AWS RDS PostgreSQL with optimized indexes
-5. **Blockchain Layer** - UMA Optimistic Oracle on Polygon (public markets only)
-
----
-
-## Tech Stack
-
-### Frontend
-- **Framework**: Next.js 14.2.25 (App Router)
-- **UI Library**: React 19
-- **Styling**: Tailwind CSS 4.1.9
-- **Components**: Radix UI primitives
-- **State Management**: SWR for client-side caching
-- **Forms**: React Hook Form + Zod validation
+- **Frontend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS v4
+- **UI Components**: shadcn/ui, Radix UI primitives
+- **Backend**: PostgreSQL with PL/pgSQL stored procedures
+- **Authentication**: Supabase Auth
+- **Database**: AWS RDS PostgreSQL (or Supabase PostgreSQL)
+- **State Management**: React Server Components + SWR for client state
 - **Charts**: Recharts
 
-### Backend
-- **Runtime**: Node.js with Next.js API Routes & Server Actions
-- **Database**: AWS RDS PostgreSQL 17.6
-- **Connection Pooling**: Custom pg pool (50 max connections)
-- **Authentication**: Supabase Auth
-- **Rate Limiting**: Custom implementation with in-memory store
+---
 
-### Blockchain (Public Markets)
-- **Network**: Polygon Amoy Testnet (testing) → Polygon Mainnet (production)
-- **Oracle**: UMA Optimistic Oracle V3
-- **Smart Contracts**: Hardhat development environment
-- **Libraries**: ethers.js, Hardhat
+## Frontend Structure
 
-### Infrastructure
-- **Hosting**: Vercel
-- **Database**: AWS RDS
-- **Monitoring**: Health check endpoint (`/api/health`)
-- **Analytics**: Vercel Analytics
+### `/app` - Application Routes
+
+| Route | Description |
+|-------|-------------|
+| `/` | Homepage with featured markets and activity feed |
+| `/markets` | Browse all public markets |
+| `/market/[id]` | Individual market detail page with trading interface |
+| `/create-market` | Create new public or private markets |
+| `/my-bets` | User's active positions, P&L tracking, settlement history |
+| `/private-bets` | Private markets the user has access to |
+| `/wallet` | Deposit/withdraw funds, view transaction history |
+| `/profile` | User profile management |
+| `/admin` | Admin dashboard for platform management |
+| `/auth/*` | Authentication pages (login, sign-up, etc.) |
+
+### `/app/actions` - Server Actions
+
+| File | Purpose |
+|------|---------|
+| `trade.ts` | Execute buy/sell trades via `executeTradeV2`, `sellSharesV2` |
+| `markets.ts` | Create markets, fetch market data |
+| `oracle-settlement.ts` | Private market settlement (propose, contest, vote) |
+| `uma-settlement.ts` | Public market settlement via UMA oracle |
+| `wallet.ts` | Deposit/withdraw funds |
+| `admin.ts` | Admin functions, audits, market management |
+| `groups.ts` | Group creation and management |
+| `notifications.ts` | Notification management |
+
+### `/components` - React Components
+
+| Component | Purpose |
+|-----------|---------|
+| `market-card.tsx` | Market preview card with price, volume, status |
+| `market-price-chart.tsx` | Price history visualization |
+| `blockchain-status.tsx` | Settlement proposal button and status |
+| `sell-shares-dialog.tsx` | Dialog for selling positions |
+| `propose-outcome-dialog.tsx` | Dialog for proposing settlement |
+| `contest-outcome-dialog.tsx` | Dialog for contesting settlements |
+| `vote-outcome-dialog.tsx` | Dialog for voting on contested settlements |
+| `notifications.tsx` | Notification bell and dropdown |
+| `mobile-bottom-nav.tsx` | Mobile navigation bar |
+
+### `/lib` - Shared Libraries
+
+| File | Purpose |
+|------|---------|
+| `lmsr.ts` | LMSR pricing calculations |
+| `fees.ts` | Fee calculation (1% on trades) |
+| `market-status.ts` | Market status utilities |
+| `database/adapter.ts` | Database abstraction layer |
+| `database/ledger.ts` | Ledger query utilities |
+| `database/rds.ts` | Direct RDS connection |
+| `supabase/*.ts` | Supabase client configurations |
 
 ---
 
-## Market Types
+## Backend Structure
 
-### Private Markets
+### Database Functions (PL/pgSQL)
 
-**Access Control**: Group-based (invite-only)
+All core business logic is implemented as PostgreSQL stored procedures for atomicity and performance.
 
-**Settlement**: Internal oracle system with economic incentives
+#### Trading Functions
 
-**Use Cases**:
-- Friend groups
-- Company internal predictions
-- Private betting pools
-- Closed communities
+| Function | Purpose |
+|----------|---------|
+| `execute_trade_lmsr_v2(market_id, user_id, bet_amount, bet_side, expected_price)` | Execute a buy trade with 2% slippage protection |
+| `sell_shares_lmsr_v2(market_id, user_id, shares_to_sell, bet_side, expected_price)` | Execute a sell trade with 2% slippage protection |
 
-**Features**:
-- Creator has settlement authority
-- Participants can contest settlements
-- Community voting for disputes
-- Bond-based incentive alignment
+#### Settlement Functions
 
-### Public Markets
+| Function | Purpose |
+|----------|---------|
+| `initiate_settlement_v2(creator_id, market_id, outcome)` | Propose settlement outcome (private markets) |
+| `contest_settlement_v2(market_id, contestant_id, contested_outcome)` | Contest a proposed settlement |
+| `submit_vote_v2(contest_id, voter_id, vote_outcome)` | Vote on contested settlement |
+| `force_settle_pending_settlements()` | Auto-settle markets after deadline |
 
-**Access Control**: Open to all users
+#### Ledger Functions
 
-**Settlement**: UMA Optimistic Oracle on Polygon
+| Function | Purpose |
+|----------|---------|
+| `create_ledger_entry(...)` | Create double-entry ledger records |
+| `get_or_create_account(entity_id, account_type)` | Get or create ledger account |
+| `check_all_balance_reconciliation()` | Audit all user balances vs ledger |
 
-**Use Cases**:
-- Public events
-- Sports outcomes
-- Political predictions
-- Cryptocurrency prices
+### Triggers
 
-**Features**:
-- Decentralized dispute resolution
-- Blockchain-verified outcomes
-- Larger bond pools
-- Trustless settlement
-
----
-
-## Oracle Systems
-
-### Internal Oracle (Private Markets)
-
-A three-phase settlement system with economic incentives:
-
-#### Phase 1: Settlement Initiation
-- **Who**: Market creator
-- **Bond**: Creator's accumulated fees (typically 2-5% of volume)
-- **Action**: Proposes winning outcome
-- **Timeline**: 1-hour contest period begins
-
-#### Phase 2: Contest (Optional)
-- **Who**: Any market participant
-- **Bond**: $50 fixed amount
-- **Action**: Disputes creator's proposed outcome
-- **Timeline**: Triggers 24-hour voting period
-
-#### Phase 3: Voting (If Contested)
-- **Who**: Random selection of 5 verifiers from participants
-- **Bond**: $25 per voter
-- **Action**: Vote on correct outcome
-- **Resolution**: Majority vote wins
-- **Incentives**:
-  - Correct voters: Split losing side's bonds
-  - Incorrect voters: Forfeit bonds
-
-#### Uncontested Settlement
-- If no contest within 1 hour → Creator's outcome accepted
-- Creator's bond returned
-- Positions settled automatically
-
-#### Bond Distribution
-\`\`\`
-Uncontested:
-  Creator Bond → Returned to creator
-
-Contested (Creator Correct):
-  Creator Bond → Returned to creator
-  Contestant Bond → Forfeited to creator
-  Correct Voter Bonds → Returned + share of incorrect voter bonds
-  Incorrect Voter Bonds → Split among correct voters
-
-Contested (Creator Incorrect):
-  Creator Bond → Forfeited to contestant
-  Contestant Bond → Returned to contestant
-  Correct Voter Bonds → Returned + share of incorrect voter bonds
-  Incorrect Voter Bonds → Split among correct voters
-\`\`\`
-
-### UMA Oracle (Public Markets)
-
-**Status**: Local testing complete, Amoy testnet integration in progress
-
-**Integration Points**:
-1. Market creation → Register with UMA
-2. Settlement proposal → Submit to UMA Optimistic Oracle
-3. Dispute period → UMA handles bond management
-4. Resolution → Callback triggers position settlement
-
-**Smart Contracts**:
-- `OptimisticOracleV3` - Main oracle contract
-- Custom market resolver contract (in development)
-
-**Database Tables**:
-- `uma_proposals` - Tracks settlement proposals
-- `uma_disputes` - Records dispute events
-- `blockchain_transactions` - Logs all on-chain interactions
+| Trigger | Purpose |
+|---------|---------|
+| `sync_profile_balance_from_ledger` | Sync `profiles.balance` when ledger changes |
+| `update_twap_on_trade` | Update TWAP probability after each trade |
+| `update_creator_fees_from_ledger` | Track creator fees earned |
 
 ---
 
 ## Database Schema
 
-### Core Tables (20 total)
+### Core Tables
 
-#### Markets & Trading
-- `markets` - Market definitions and metadata
-- `positions` - User positions (shares held)
-- `transactions` - Trade history
-- `market_price_history` - Price snapshots
-- `market_participants` - Access control for private markets
-
-#### Oracle & Settlement (Private)
-- `settlement_bonds` - Creator settlement bonds
-- `settlement_contests` - Contest records
-- `settlement_votes` - Voter decisions
-- `settlement_notifications` - Voter notifications
-
-#### UMA Integration (Public)
-- `uma_proposals` - Settlement proposals to UMA
-- `uma_disputes` - Dispute records
-- `blockchain_transactions` - On-chain transaction log
-
-#### User Management
-- `profiles` - User profiles and balances
-- `groups` - Group definitions
-- `user_groups` - Group membership
-- `notifications` - User notifications
-- `fees` - Platform fee tracking
-
-### Key Indexes (50+ total)
-
-Performance-critical indexes on:
-- Market status and timestamps
-- User positions and transactions
-- Settlement status and deadlines
-- UMA proposal states
-- Price history queries
-
-See `scripts/add_performance_indexes.sql` for complete list.
-
----
-
-## Scalability & Performance
-
-### Current Optimizations
-
-#### Database
-- **Connection Pooling**: 50 max connections, 5 min idle
-- **Query Timeout**: 30 seconds
-- **Indexes**: 50+ strategic indexes for 10-100x faster queries
-- **Slow Query Logging**: Queries >1 second logged
-
-#### Application
-- **Rate Limiting**: Per-user limits on critical endpoints
-  - Trading: 10 requests/minute
-  - Settlement: 5 requests/minute
-  - Contests: 3 requests/minute
-  - Voting: 10 requests/minute
-  - Market Creation: 5 requests/minute
-- **Caching**: Page-level caching (5-minute revalidation)
-- **Request Timeouts**: 30-second timeout on long-running operations
-
-#### Infrastructure
-- **Health Monitoring**: `/api/health` endpoint
-- **Connection Pool Stats**: Real-time monitoring
-- **Memory Tracking**: Heap usage monitoring
-
-### Performance Targets
-
-- **API Response Time**: <500ms (p95)
-- **Database Queries**: <100ms (p95)
-- **Page Load**: <2 seconds (p95)
-- **Concurrent Users**: 1,000-10,000 supported
-
-### Capacity Planning
-
-**Current Configuration** (Pre-Launch):
-- AWS RDS t3.micro
-- 50 database connections
-- Vercel Pro hosting
-- **Cost**: ~$35-50/month
-
-**At Scale** (10k+ users):
-- AWS RDS t3.small or larger
-- 100+ database connections
-- Redis caching layer (optional)
-- **Cost**: ~$100-200/month
-
-See `SCALABILITY_IMPROVEMENTS.md` for detailed implementation status.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ 
-- PostgreSQL 17+ (AWS RDS recommended)
-- Supabase account (for authentication)
-- Vercel account (for deployment)
-
-### Environment Variables
-
-Create a `.env.local` file:
-
-\`\`\`bash
-# Database (AWS RDS)
-POSTGRES_URL=postgresql://user:password@host:5432/database
-POSTGRES_URL_NON_POOLING=postgresql://user:password@host:5432/database
-
-# Supabase Auth
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# App Config
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
-
-# UMA Integration (Public Markets)
-NEXT_PUBLIC_POLYGON_RPC=https://rpc-amoy.polygon.technology
-NEXT_PUBLIC_UMA_ORACLE_ADDRESS=0x... # UMA OptimisticOracleV3 address
-PRIVATE_KEY=your-wallet-private-key # For settlement proposals
+#### `profiles`
+User accounts with balance and profile information.
+\`\`\`sql
+- id (uuid, FK to auth.users)
+- username (text, unique)
+- display_name (text)
+- balance (numeric) -- Synced from ledger
+- avatar_url (text)
+- created_at (timestamp)
 \`\`\`
 
-### Installation
+#### `markets`
+Prediction markets with LMSR parameters.
+\`\`\`sql
+- id (uuid, PK)
+- title (text)
+- description (text)
+- category (text)
+- end_date (timestamp)
+- creator_id (uuid, FK to profiles)
+- is_private (boolean)
+- status (text) -- 'active', 'expired', 'settled', 'cancelled', 'suspended', 'contested'
+- qy (numeric) -- YES share quantity (LMSR state)
+- qn (numeric) -- NO share quantity (LMSR state)
+- b (numeric) -- LMSR liquidity parameter
+- liquidity_pool (numeric) -- Current liquidity
+- total_volume (numeric)
+- outcome (boolean) -- null until settled
+- outcome_text (text) -- 'yes', 'no', 'cancel'
+- winning_side (boolean)
+- settled_at (timestamp)
+- group_id (uuid, FK to groups)
+\`\`\`
+
+#### `positions`
+User positions in markets.
+\`\`\`sql
+- id (uuid, PK)
+- user_id (uuid, FK to profiles)
+- market_id (uuid, FK to markets)
+- side (boolean) -- true = YES, false = NO
+- shares (numeric)
+- cost_basis (numeric) -- Total amount invested
+- avg_price (numeric) -- Average price per share
+- created_at (timestamp)
+- updated_at (timestamp)
+\`\`\`
+
+#### `closed_positions`
+Historical record of settled/sold positions for P&L calculation.
+\`\`\`sql
+- id (uuid, PK)
+- user_id (uuid, FK to profiles)
+- market_id (uuid, FK to markets)
+- side (boolean)
+- shares (numeric)
+- cost_basis (numeric)
+- pnl (numeric) -- Profit/loss
+- outcome (text) -- 'won', 'lost', 'sold', 'cancelled'
+- closed_at (timestamp)
+\`\`\`
+
+### Ledger Tables
+
+#### `ledger_accounts`
+Account registry for double-entry accounting.
+\`\`\`sql
+- id (uuid, PK)
+- entity_id (uuid) -- Can be user_id or market_id
+- reference_id (uuid) -- User's profile id for user accounts
+- account_type (text) -- 'user', 'platform', 'external_clearing', 'market_pool', 'settlement_bond', etc.
+- created_at (timestamp)
+\`\`\`
+
+#### `ledger_balance_snapshots`
+Current balance for each ledger account.
+\`\`\`sql
+- id (uuid, PK)
+- account_id (uuid, FK to ledger_accounts)
+- balance_cents (bigint)
+- updated_at (timestamp)
+\`\`\`
+
+#### `ledger_entries`
+Individual ledger entries (immutable audit trail).
+\`\`\`sql
+- id (uuid, PK)
+- account_id (uuid, FK to ledger_accounts)
+- user_id (uuid)
+- entry_type (text) -- 'deposit', 'withdrawal', 'trade_buy', 'trade_sell', 'settlement_win', etc.
+- debit (numeric)
+- credit (numeric)
+- transaction_id (uuid)
+- market_id (uuid)
+- metadata (jsonb)
+- created_at (timestamp)
+\`\`\`
+
+### Settlement Tables
+
+#### `settlement_bonds`
+Bonds posted for settlement proposals/contests.
+\`\`\`sql
+- id (uuid, PK)
+- market_id (uuid, FK to markets)
+- creator_id (uuid, FK to profiles)
+- amount (numeric)
+- status (text) -- 'held', 'returned', 'forfeited'
+- proposal_outcome (text) -- 'yes', 'no', 'cancel'
+- contest_deadline (timestamp)
+- created_at (timestamp)
+\`\`\`
+
+#### `settlement_contests`
+Contested settlement records.
+\`\`\`sql
+- id (uuid, PK)
+- bond_id (uuid, FK to settlement_bonds)
+- market_id (uuid, FK to markets)
+- contestant_id (uuid, FK to profiles)
+- proposal_outcome (text)
+- contested_outcome_text (text)
+- status (text) -- 'pending', 'resolved'
+- vote_deadline (timestamp)
+- created_at (timestamp)
+\`\`\`
+
+#### `settlement_votes`
+Votes on contested settlements.
+\`\`\`sql
+- id (uuid, PK)
+- contest_id (uuid, FK to settlement_contests)
+- voter_id (uuid, FK to profiles)
+- vote_outcome_text (text) -- 'yes', 'no', 'cancel'
+- created_at (timestamp)
+\`\`\`
+
+---
+
+## Trading Mechanics
+
+### LMSR (Logarithmic Market Scoring Rule)
+
+The platform uses LMSR for automated market making, ensuring continuous liquidity.
+
+#### Key Parameters
+
+- **qy**: Cumulative YES shares sold
+- **qn**: Cumulative NO shares sold
+- **b**: Liquidity parameter (higher = more liquidity, less price impact)
+
+#### Price Calculation
+
+\`\`\`
+P(YES) = e^(qy/b) / (e^(qy/b) + e^(qn/b))
+P(NO) = 1 - P(YES)
+\`\`\`
+
+#### Cost Function
+
+\`\`\`
+C(qy, qn) = b * ln(e^(qy/b) + e^(qn/b))
+\`\`\`
+
+#### Buying Shares
+
+To buy `n` YES shares, the cost is:
+\`\`\`
+Cost = C(qy + n, qn) - C(qy, qn)
+\`\`\`
+
+#### Selling Shares
+
+To sell `n` YES shares, the payout is:
+\`\`\`
+Payout = C(qy, qn) - C(qy - n, qn)
+\`\`\`
+
+#### Liquidity Parameter (b)
+
+\`\`\`
+b = (liquidity_amount / ln(2)) - 1
+\`\`\`
+
+Where `liquidity_amount` is the initial liquidity posted by the market creator.
+
+### Fees
+
+- **Trading Fee**: 1% on all buys and sells
+- **Fee Distribution**: Fees go to the platform account
+- **Creator Fees**: Market creators earn fees from trades on their markets
+
+### Slippage Protection
+
+The platform enforces **2% maximum slippage** protection:
+- User sees a price when placing a trade
+- If the execution price differs by more than 2%, the trade fails
+- This prevents front-running and stale price exploitation
+
+---
+
+## Market Types
+
+### Public Markets
+
+- **Visibility**: Anyone can view and trade
+- **Minimum Liquidity**: $20 ($10 for LMSR pool + $10 for UMA proposer reward)
+- **Settlement**: Via UMA oracle (decentralized) or TWAP-based early settlement
+- **Trading Restriction**: Anyone can trade except the market creator (conflict of interest)
+
+### Private Markets
+
+- **Visibility**: Only invited users and group members
+- **Minimum Liquidity**: $10
+- **Settlement**: Creator-initiated with bond-based dispute resolution
+- **Trading Restriction**: Market creator cannot trade their own market
+
+### Market Statuses
+
+| Status | Description |
+|--------|-------------|
+| `active` | Trading is open |
+| `expired` | End date passed, awaiting settlement |
+| `suspended` | Settlement proposed, contest period active |
+| `contested` | Settlement contested, voting in progress |
+| `settled` | Final outcome determined, positions paid out |
+| `cancelled` | Market cancelled, all positions refunded |
+
+---
+
+## Settlement System
+
+### Private Market Settlement Flow
+
+\`\`\`
+┌─────────────────┐
+│  Market Expires │
+└────────┬────────┘
+         ▼
+┌─────────────────────────────────────┐
+│  1. PROPOSE SETTLEMENT              │
+│  - Creator proposes YES/NO/CANCEL   │
+│  - Posts bond (10% of liquidity)    │
+│  - 24-hour contest period starts    │
+└────────┬────────────────────────────┘
+         ▼
+┌─────────────────────────────────────┐
+│  2. CONTEST PERIOD (24 hours)       │
+│  - Any participant can contest      │
+│  - Contestant posts matching bond   │
+│  - Proposes different outcome       │
+└────────┬────────────────────────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌─────────┐ ┌─────────────────────────┐
+│   NO    │ │   YES - CONTESTED       │
+│ CONTEST │ │   48-hour voting period │
+└────┬────┘ └────────┬────────────────┘
+     │               ▼
+     │      ┌─────────────────────────┐
+     │      │  3. VOTING PHASE        │
+     │      │  - All participants vote│
+     │      │  - 3 options: YES/NO/   │
+     │      │    CANCEL               │
+     │      └────────┬────────────────┘
+     │               ▼
+     │      ┌─────────────────────────┐
+     │      │  4. VOTE COUNTING       │
+     │      │  - Proposer vote counts │
+     │      │  - Contestant vote      │
+     │      │    counts               │
+     │      │  - Majority wins        │
+     │      │  - Ties favor proposer  │
+     │      └────────┬────────────────┘
+     │               │
+     └───────┬───────┘
+             ▼
+┌─────────────────────────────────────┐
+│  5. SETTLEMENT EXECUTION            │
+│  - Winning positions paid $1/share  │
+│  - Losing positions worth $0        │
+│  - Correct bond returned + bonus    │
+│  - Wrong bond forfeited             │
+│  - Liquidity returned to creator    │
+└─────────────────────────────────────┘
+\`\`\`
+
+### Vote Counting Rules
+
+1. **Proposer's vote** = their proposed outcome (implicit vote)
+2. **Contestant's vote** = their contested outcome (implicit vote)
+3. **Explicit votes** from other participants
+4. **Majority wins**
+5. **Two-way ties**: If proposer's outcome is one of the tied options, proposer wins
+6. **Three-way ties**: Proposer's outcome wins
+7. **Contestant wins tie against proposer**: Contestant's outcome wins only if strictly more votes
+
+### Bond Mechanics
+
+- **Proposal Bond**: 10% of market liquidity (minimum $0.10)
+- **Contest Bond**: Must match proposal bond exactly
+- **Bond Return**: Returned to winner with bonus from loser's forfeited bond
+- **Bond Distribution**: Loser's bond split among all voters who voted correctly
+
+### Public Market Settlement (UMA Oracle)
+
+For public markets, settlement can be initiated via:
+1. **Manual UMA proposal** after market expires
+2. **TWAP-based early settlement** - If probability stays above 99% (or below 1%) for 4+ hours continuously
+
+---
+
+## Ledger System
+
+The platform uses a **double-entry accounting system** where every transaction creates matching debit and credit entries.
+
+### Account Types
+
+| Account Type | Purpose |
+|--------------|---------|
+| `user` | User balance account |
+| `platform` | Platform fee collection |
+| `external_clearing` | External money flow (deposits/withdrawals) |
+| `market_pool` | Market liquidity pool |
+| `settlement_bond` | Settlement bond escrow |
+| `market_creator_fees` | Market creator fee earnings |
+
+### Entry Types
+
+| Entry Type | Description |
+|------------|-------------|
+| `deposit` | User deposits funds |
+| `withdrawal` | User withdraws funds |
+| `trade_buy` | User buys shares |
+| `trade_sell` | User sells shares |
+| `trade_fee` | Trading fee collected |
+| `market_creation` | Market creation liquidity |
+| `settlement_win` | Winning position payout |
+| `settlement_loss` | Losing position close |
+| `bond_deposit` | Settlement bond posted |
+| `bond_return` | Settlement bond returned |
+| `bond_forfeit` | Settlement bond forfeited |
+| `liquidity_return` | Unused liquidity returned to creator |
+| `liquidity_sweep` | Excess liquidity swept to platform |
+
+### Balance Sync
+
+User balances in `profiles.balance` are automatically synced from the ledger via a PostgreSQL trigger. The ledger is the **source of truth** for all balances.
+
+### Audit Functions
+
+\`\`\`sql
+-- Check all user balances match their ledger
+SELECT * FROM check_all_balance_reconciliation();
+
+-- Sum all debits and credits (should equal zero)
+SELECT SUM(credit) - SUM(debit) FROM ledger_entries;
+
+-- Sum all account balances (should equal zero)
+SELECT SUM(balance_cents) FROM ledger_balance_snapshots;
+\`\`\`
+
+---
+
+## Authentication
+
+The platform uses **Supabase Auth** for authentication.
+
+### Supported Methods
+
+- Email/password registration
+- Email verification required
+- Password reset via email
+
+### Protected Routes
+
+All routes except `/`, `/auth/*`, and `/markets` require authentication. The middleware in `middleware.ts` handles route protection and token refresh.
+
+### User Roles
+
+- **Regular User**: Can create markets, trade, participate in settlements
+- **Admin**: Access to admin dashboard, can settle markets manually, view audits
+
+---
+
+## Key Features
+
+### TWAP-Based Early Settlement
+
+Markets can be settled early if the probability maintains an extreme value:
+- **Threshold**: 99% (YES) or 1% (NO)
+- **Duration**: 4 hours continuous
+- **Calculation**: Exponential moving average updated on each trade
+
+### Position P&L Tracking
+
+The platform tracks:
+- **Cost basis**: Total amount invested in a position
+- **Average price**: Weighted average price per share
+- **Realized P&L**: Profit/loss from closed positions
+- **Unrealized P&L**: Current value vs cost basis
+
+### Groups
+
+Users can create private groups to:
+- Share markets among members
+- Control market visibility
+- Enable group-based settlement voting
+
+### Notifications
+
+Users receive notifications for:
+- Market creation
+- Trade execution
+- Settlement proposals
+- Contest notifications
+- Vote requests
+- Settlement results
+- Bond returns/forfeitures
+
+---
+
+## API Routes
+
+### Cron Jobs
+
+| Route | Purpose | Schedule |
+|-------|---------|----------|
+| `/api/cron/force-settle` | Auto-settle expired settlements | Every 5 minutes |
+| `/api/cron/check-settlements` | Check pending settlements | Every minute |
+
+### Data APIs
+
+| Route | Purpose |
+|-------|---------|
+| `/api/markets` | Fetch markets list |
+| `/api/my-bets` | Fetch user positions |
+| `/api/profile` | Fetch user profile |
+| `/api/market-price-history` | Fetch price history for charts |
+
+---
+
+## Environment Variables
+
+### Required
+
+\`\`\`env
+# Database
+POSTGRES_URL=postgresql://...
+POSTGRES_URL_NON_POOLING=postgresql://...
+
+# Supabase Auth
+NEXT_PUBLIC_SUPABASE_URL=https://...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+
+# Development redirect (for Supabase email auth)
+NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
+\`\`\`
+
+### Optional
+
+\`\`\`env
+# UMA Oracle (public markets)
+UMA_ORACLE_ADDRESS=0x...
+PRIVATE_KEY=0x...
+
+# Feature Flags
+NEXT_PUBLIC_ENABLE_UMA=true
+\`\`\`
+
+---
+
+## Development
+
+### Running Locally
 
 \`\`\`bash
-# Clone repository
-git clone <repository-url>
-cd prediction-market-platform
-
 # Install dependencies
 npm install
 
-# Run database migrations
-psql $POSTGRES_URL -f scripts/add_performance_indexes.sql
-
-# Start development server
+# Run development server
 npm run dev
 \`\`\`
 
-### Database Setup
+### Database Migrations
 
-1. Create PostgreSQL database on AWS RDS
-2. Run schema creation scripts (in order):
-   - Core tables (markets, positions, transactions)
-   - Settlement tables (bonds, contests, votes)
-   - UMA tables (proposals, disputes)
-   - Performance indexes
-
-3. Verify setup:
+SQL migration scripts are stored in `/scripts/` and should be run in order:
 \`\`\`bash
-npm run test:rds
+# Run a specific migration
+psql $POSTGRES_URL -f scripts/378_add_twap_early_settlement.sql
 \`\`\`
-
----
-
-## Deployment
-
-### Vercel Deployment
-
-1. **Connect Repository**
-   \`\`\`bash
-   vercel link
-   \`\`\`
-
-2. **Set Environment Variables**
-   - Add all `.env.local` variables to Vercel project settings
-   - Ensure `POSTGRES_URL` points to production RDS instance
-
-3. **Deploy**
-   \`\`\`bash
-   vercel --prod
-   \`\`\`
-
-### Post-Deployment Checklist
-
-- [ ] Verify `/api/health` endpoint returns 200
-- [ ] Test authentication flow
-- [ ] Create test market
-- [ ] Execute test trade
-- [ ] Verify database connections
-- [ ] Check rate limiting
-- [ ] Monitor error logs
-
----
-
-## API Reference
-
-### Server Actions
-
-#### Trading
-- `executeTrade(marketId, side, amount)` - Execute a trade
-- `getMarketData(marketId)` - Fetch market details
-
-#### Markets
-- `createMarket(data)` - Create new market
-- `getMarkets(filters)` - List markets
-
-#### Oracle (Private Markets)
-- `initiateSettlement(marketId, outcome)` - Start settlement
-- `contestSettlement(marketId)` - Contest outcome
-- `submitVote(contestId, outcome)` - Vote on dispute
-
-#### Admin
-- `settleMarket(marketId, outcome)` - Force settle (public markets)
-- `cancelMarket(marketId)` - Cancel market
-
-### API Routes
-
-- `GET /api/health` - Health check
-- `GET /api/markets` - List markets
-- `GET /api/market-price-history?marketId=...` - Price history
-- `POST /api/cron/settlement` - Auto-settlement cron job
-
----
-
-## Development Roadmap
-
-### Phase 1: Stabilization (Current)
-- [x] Internal oracle for private markets
-- [x] Database performance optimization
-- [x] Rate limiting implementation
-- [x] Health monitoring setup
-- [ ] Error tracking (Sentry)
-- [ ] Load testing
-
-### Phase 2: UMA Integration
-- [x] Local UMA testing
-- [ ] Amoy testnet deployment
-- [ ] Smart contract audit
-- [ ] Mainnet deployment
-
-### Phase 3: Launch
-- [ ] Soft launch (100 users)
-- [ ] Public launch
-- [ ] Marketing campaign
-
-### Phase 4: Scale
-- [ ] Redis caching layer
-- [ ] Read replicas
-- [ ] Advanced analytics
-- [ ] Mobile app
-
----
-
-## Contributing
-
-### Development Workflow
-
-1. Create feature branch
-2. Make changes
-3. Test locally
-4. Submit pull request
-
-### Code Style
-
-- TypeScript strict mode
-- ESLint + Prettier
-- Server Actions for mutations
-- Server Components for data fetching
 
 ### Testing
 
-\`\`\`bash
-# Test database connection
-npm run test:rds
-
-# Test RDS queries
-npm run dev
-# Navigate to /api/test-rds
-\`\`\`
+The admin dashboard includes audit tools:
+- **Balance Reconciliation**: Verify user balances match ledger
+- **Ledger Balance Audit**: Verify credits equal debits
+- **Site Net Audit**: Verify all money is accounted for
 
 ---
 
 ## License
 
-Proprietary - All rights reserved
-
----
-
-## Support
-
-For issues or questions:
-- Create GitHub issue
-- Contact: [your-email]
-
----
-
-## Acknowledgments
-
-- UMA Protocol for Optimistic Oracle
-- Supabase for authentication
-- Vercel for hosting
-- Radix UI for components
+Proprietary - All rights reserved.

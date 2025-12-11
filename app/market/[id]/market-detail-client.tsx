@@ -69,6 +69,9 @@ interface Market {
   uma_request_id?: string | null
   uma_liveness_ends_at?: string | null
   creator_settlement_outcome_text?: string
+  twap_yes_probability?: number | null
+  twap_above_threshold_since?: string | null
+  early_settlement_unlocked?: boolean
 }
 
 interface Group {
@@ -933,6 +936,24 @@ export function MarketDetailClient({
                 </CardContent>
               </Card>
             )}
+
+            {/* Early Settlement Unlock */}
+            {market.twap_above_threshold_since && market.early_settlement_unlocked && (
+              <Card className="border-green-200 bg-green-50 dark:bg-green-900/20">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-green-600" />
+                    Early Settlement Unlocked
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    Early settlement has been unlocked due to TWAP being above the threshold since{" "}
+                    {format(new Date(market.twap_above_threshold_since), "MMM d, yyyy h:mm a")}.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <div className="space-y-6">
@@ -955,6 +976,10 @@ export function MarketDetailClient({
                 umaRequestId={market.uma_request_id}
                 livenessEndsAt={market.uma_liveness_ends_at}
                 isPrivate={market.is_private}
+                endDate={market.end_date}
+                earlySettlementUnlocked={market.early_settlement_unlocked}
+                twapYesProbability={market.twap_yes_probability}
+                twapAboveThresholdSince={market.twap_above_threshold_since}
                 onProposeOutcome={handleProposeOutcome}
                 isRequestingSettlement={isRequestingSettlement}
               />

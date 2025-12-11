@@ -102,50 +102,30 @@ export async function getAllMarkets() {
   try {
     await requireAdmin()
 
-    console.log("[v0] getAllMarkets: Starting market fetch")
-
-    // Fetch all markets
     const { data: marketsOnly, error: marketsError } = await selectWithJoin("markets", {
       select: "*",
       orderBy: { column: "created_at", ascending: false },
     })
 
-    console.log("[v0] getAllMarkets: Markets query result:", {
-      count: marketsOnly?.length,
-      error: marketsError,
-    })
-
     if (marketsError) {
-      console.error("[v0] getAllMarkets: Error fetching markets:", marketsError)
       throw new Error(`Failed to fetch markets: ${marketsError.message}`)
     }
 
     if (!marketsOnly || !Array.isArray(marketsOnly)) {
-      console.log("[v0] getAllMarkets: No markets found or invalid data")
       return { success: true, data: [] }
     }
 
     if (marketsOnly.length === 0) {
-      console.log("[v0] getAllMarkets: No markets in database")
       return { success: true, data: [] }
     }
 
-    // Get unique creator IDs
     const creatorIds = [...new Set(marketsOnly.map((m: any) => m.creator_id).filter(Boolean))]
-    console.log("[v0] getAllMarkets: Fetching profiles for creator IDs:", creatorIds)
 
-    // Fetch creator profiles
     const { data: profiles, error: profilesError } = await selectWithJoin("profiles", {
       select: "id, username, display_name",
       where: [{ column: "id", operator: "IN", value: creatorIds }],
     })
 
-    console.log("[v0] getAllMarkets: Profiles query result:", {
-      count: profiles?.length,
-      error: profilesError,
-    })
-
-    // Map markets with creator information
     const marketsWithCreators = marketsOnly.map((market: any) => {
       const creator = Array.isArray(profiles) ? profiles.find((p: any) => p.id === market.creator_id) : null
 
@@ -158,10 +138,9 @@ export async function getAllMarkets() {
       }
     })
 
-    console.log("[v0] getAllMarkets: Returning", marketsWithCreators.length, "markets")
     return { success: true, data: marketsWithCreators }
   } catch (error) {
-    console.error("[v0] getAllMarkets: Error:", error)
+    console.error("getAllMarkets error:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -382,15 +361,11 @@ export async function runBalanceReconciliation() {
   try {
     await requireAdmin()
 
-    console.log("[v0] Starting balance reconciliation...")
-
     const { data: result, error } = await rpc("run_balance_reconciliation", {})
 
     if (error) {
       throw new Error(`Reconciliation failed: ${error.message}`)
     }
-
-    console.log("[v0] Reconciliation complete:", result)
 
     const parsedResult = typeof result === "string" ? JSON.parse(result) : result
     const reconciliationData = parsedResult?.run_balance_reconciliation || parsedResult
@@ -409,9 +384,6 @@ export async function runLedgerBalanceAudit() {
   try {
     await requireAdmin()
 
-    console.log("[v0] Starting ledger balance audit...")
-
-    // Sum all credits and debits from ledger_entries - they should equal zero
     const { rows, error } = await query(
       `SELECT 
         COALESCE(SUM(credit), 0) as total_credits,
@@ -433,9 +405,7 @@ export async function runLedgerBalanceAudit() {
     const difference = Number(result.difference)
     const totalEntries = Number(result.total_entries)
 
-    const isBalanced = Math.abs(difference) < 0.01 // Allow for rounding errors up to 1 cent
-
-    console.log("[v0] Ledger balance audit complete:", { totalCredits, totalDebits, difference, isBalanced })
+    const isBalanced = Math.abs(difference) < 0.01
 
     return {
       success: true,
@@ -462,9 +432,6 @@ export async function runPositionsAudit() {
   try {
     await requireAdmin()
 
-    console.log("[v0] Starting positions audit...")
-
-    // Run all three audits in parallel
     const [positionsResult, marketSharesResult, liquidityResult, summaryResult] = await Promise.all([
       query("SELECT * FROM run_positions_audit()", []),
       query("SELECT * FROM run_market_shares_audit()", []),
@@ -538,7 +505,7 @@ export async function runPositionsAudit() {
       },
     }
   } catch (error: any) {
-    console.error("[v0] Positions audit error:", error)
+    console.error("Positions audit error:", error)
     return { success: false, error: error.message }
   }
 }
@@ -546,8 +513,6 @@ export async function runPositionsAudit() {
 export async function getPrivateMarketSettlements() {
   try {
     await requireAdmin()
-
-    console.log("[v0] Fetching private market settlements...")
 
     const { data: markets, error } = await selectWithJoin("markets", {
       select: `
@@ -578,7 +543,6 @@ export async function getPrivateMarketSettlements() {
       throw new Error(`Failed to fetch private market settlements: ${error.message}`)
     }
 
-    // Get creator profiles
     const creatorIds = [...new Set((markets || []).map((m: any) => m.creator_id).filter(Boolean))]
 
     let profiles: any[] = []
@@ -606,8 +570,6 @@ export async function getPrivateMarketSettlements() {
         time_remaining_formatted: timeRemaining ? formatTimeRemaining(timeRemaining) : "No deadline set",
       }
     })
-
-    console.log("[v0] Found", marketsWithDeadlines.length, "private markets with settlement status")
 
     return {
       success: true,
@@ -644,10 +606,8 @@ function formatTimeRemaining(ms: number): string {
     return `${days}d ${hours % 24}h remaining`
   } else if (hours > 0) {
     return `${hours}h ${minutes % 60}m remaining`
-  } else if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s remaining`
   } else {
-    return `${seconds}s remaining`
+    return `${minutes}m remaining`
   }
 }
 
@@ -655,18 +615,12 @@ export async function runSiteNetAudit() {
   try {
     await requireAdmin()
 
-    console.log("[v0] Starting site net audit...")
-
-    // In double-entry accounting, the sum of all account balances should equal zero
     const { rows, error } = await query(
       `SELECT 
         la.account_type,
-        COALESCE(SUM(lbs.balance_cents), 0) as total_cents,
-        COUNT(*) as account_count
-      FROM ledger_balance_snapshots lbs
-      JOIN ledger_accounts la ON la.id = lbs.account_id
-      GROUP BY la.account_type
-      ORDER BY la.account_type`,
+        COALESCE(lbs.balance_cents, 0) / 100.0 as balance
+      FROM ledger_accounts la
+      LEFT JOIN ledger_balance_snapshots lbs ON la.id = lbs.account_id`,
       [],
     )
 
@@ -674,35 +628,27 @@ export async function runSiteNetAudit() {
       throw new Error(`Site net audit failed: ${error.message}`)
     }
 
-    // Also get the grand total
-    const { rows: totalRows, error: totalError } = await query(
-      `SELECT COALESCE(SUM(balance_cents), 0) as grand_total FROM ledger_balance_snapshots`,
-      [],
-    )
-
-    if (totalError) {
-      throw new Error(`Site net audit failed: ${totalError.message}`)
+    const balancesByType: Record<string, number> = {}
+    for (const row of rows || []) {
+      const type = row.account_type || "unknown"
+      balancesByType[type] = (balancesByType[type] || 0) + Number(row.balance || 0)
     }
 
-    const grandTotal = Number(totalRows?.[0]?.grand_total || 0) / 100
-    const isBalanced = Math.abs(grandTotal) < 0.01
-
-    // Build breakdown by account type
-    const breakdown = (rows || []).map((row: any) => ({
-      account_type: row.account_type,
-      total: Number(row.total_cents) / 100,
-      count: Number(row.account_count),
-    }))
-
-    console.log("[v0] Site net audit complete:", { grandTotal, isBalanced, breakdown })
+    const siteNet =
+      (balancesByType["user"] || 0) +
+      (balancesByType["market_liquidity"] || 0) +
+      (balancesByType["settlement_bond"] || 0) +
+      (balancesByType["proposal_bond"] || 0) +
+      (balancesByType["platform_fee"] || 0) +
+      (balancesByType["market_creator_fees"] || 0) +
+      (balancesByType["external_clearing"] || 0)
 
     return {
       success: true,
       data: {
-        grand_total: grandTotal,
-        is_balanced: isBalanced,
-        status: isBalanced ? "PASS" : "FAIL",
-        breakdown,
+        balances_by_type: balancesByType,
+        site_net: siteNet,
+        is_balanced: Math.abs(siteNet) < 0.01,
         timestamp: new Date().toISOString(),
       },
     }

@@ -13,6 +13,10 @@ interface BlockchainStatusProps {
   umaRequestId?: string | null
   livenessEndsAt?: string | null
   isPrivate: boolean
+  endDate?: string | null
+  earlySettlementUnlocked?: boolean
+  twapYesProbability?: number | null
+  twapAboveThresholdSince?: string | null
   onRequestSettlement?: () => void
   onProposeOutcome?: () => void
   isRequestingSettlement?: boolean
@@ -25,6 +29,10 @@ export function BlockchainStatus({
   umaRequestId,
   livenessEndsAt,
   isPrivate,
+  endDate,
+  earlySettlementUnlocked,
+  twapYesProbability,
+  twapAboveThresholdSince,
   onRequestSettlement,
   onProposeOutcome,
   isRequestingSettlement,
@@ -88,6 +96,53 @@ export function BlockchainStatus({
     return `${baseUrl}/address/${oracleAddress}`
   }
 
+  const now = new Date()
+  const marketExpired = endDate ? new Date(endDate) <= now : false
+  const canProposeSettlement = marketExpired || earlySettlementUnlocked
+
+  const getSettlementStatusMessage = () => {
+    if (canProposeSettlement) {
+      return null
+    }
+
+    if (endDate) {
+      const endDateObj = new Date(endDate)
+      const timeRemaining = endDateObj.getTime() - now.getTime()
+      const hoursRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60))
+      const daysRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24))
+
+      if (daysRemaining > 1) {
+        return `Settlement available in ${daysRemaining} days (at expiry)`
+      } else if (hoursRemaining > 0) {
+        return `Settlement available in ${hoursRemaining} hours (at expiry)`
+      }
+    }
+
+    const twapValue =
+      twapYesProbability !== null && twapYesProbability !== undefined ? Number(twapYesProbability) : null
+
+    // Check if TWAP is trending toward early unlock
+    if (twapValue !== null && !isNaN(twapValue)) {
+      const isNearThreshold = twapValue >= 95 || twapValue <= 5
+      if (isNearThreshold && twapAboveThresholdSince) {
+        const thresholdSince = new Date(twapAboveThresholdSince)
+        const hoursAtThreshold = (now.getTime() - thresholdSince.getTime()) / (1000 * 60 * 60)
+        const hoursNeeded = 4
+        const hoursRemaining = Math.max(0, hoursNeeded - hoursAtThreshold)
+        if (hoursRemaining > 0) {
+          return `Early settlement in ~${hoursRemaining.toFixed(1)} hours (sustained ${twapValue >= 95 ? ">99%" : "<1%"})`
+        }
+      } else if (twapValue >= 99 || twapValue <= 1) {
+        return `Tracking for early settlement (${twapValue >= 99 ? ">99%" : "<1%"} detected)`
+      }
+    }
+
+    return "Settlement available after market expiry"
+  }
+
+  const twapDisplayValue =
+    twapYesProbability !== null && twapYesProbability !== undefined ? Number(twapYesProbability) : null
+
   return (
     <Card>
       <CardHeader>
@@ -105,7 +160,7 @@ export function BlockchainStatus({
 
             <Button
               onClick={onProposeOutcome}
-              disabled={isRequestingSettlement}
+              disabled={isRequestingSettlement || !canProposeSettlement}
               variant="default"
               size="sm"
               className="w-full"

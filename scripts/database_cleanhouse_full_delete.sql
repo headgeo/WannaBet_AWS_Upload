@@ -13,8 +13,9 @@ DECLARE
     v_settlement_contests_count INT;
     v_settlement_votes_count INT;
     v_profiles_count INT;
-    -- Added shares_ledger count variable
     v_shares_ledger_count INT;
+    -- Added closed_positions count variable
+    v_closed_positions_count INT;
 BEGIN
     RAISE NOTICE '=== SAFE DATA RESET (Preserving Profiles & Functions) ===';
     RAISE NOTICE ' ';
@@ -49,14 +50,18 @@ BEGIN
     BEGIN SELECT COUNT(*) INTO v_settlement_votes_count FROM settlement_votes;
     EXCEPTION WHEN undefined_table THEN v_settlement_votes_count := 0; END;
     
-    -- Added shares_ledger count
     BEGIN SELECT COUNT(*) INTO v_shares_ledger_count FROM shares_ledger;
     EXCEPTION WHEN undefined_table THEN v_shares_ledger_count := 0; END;
+    
+    -- Added closed_positions count
+    BEGIN SELECT COUNT(*) INTO v_closed_positions_count FROM closed_positions;
+    EXCEPTION WHEN undefined_table THEN v_closed_positions_count := 0; END;
     
     RAISE NOTICE '   - Profiles: % (will preserve, reset balance to 0)', v_profiles_count;
     RAISE NOTICE '   - Markets: %', v_markets_count;
     RAISE NOTICE '   - Transactions: %', v_transactions_count;
     RAISE NOTICE '   - Positions: %', v_positions_count;
+    RAISE NOTICE '   - Closed Positions: %', v_closed_positions_count;
     RAISE NOTICE '   - Notifications: %', v_notifications_count;
     RAISE NOTICE '   - Settlement bonds: %', v_settlement_bonds_count;
     RAISE NOTICE '   - Settlement contests: %', v_settlement_contests_count;
@@ -66,7 +71,6 @@ BEGIN
     RAISE NOTICE '   - Ledger snapshots: %', v_ledger_snapshots_count;
     RAISE NOTICE '   - Ledger accounts: %', v_ledger_accounts_count;
     RAISE NOTICE '   - Deposit/Withdraw: %', v_deposit_withdraw_count;
-    -- Added shares_ledger to output
     RAISE NOTICE '   - Shares ledger: %', v_shares_ledger_count;
     RAISE NOTICE ' ';
     
@@ -95,6 +99,12 @@ BEGIN
     IF v_notifications_count > 0 THEN
         DELETE FROM notifications;
         RAISE NOTICE '   ✓ Deleted notifications';
+    END IF;
+    
+    -- Delete closed_positions before positions (closed_positions may reference positions)
+    IF v_closed_positions_count > 0 THEN
+        DELETE FROM closed_positions;
+        RAISE NOTICE '   ✓ Deleted closed_positions';
     END IF;
     
     IF v_positions_count > 0 THEN
@@ -149,8 +159,8 @@ BEGIN
     RAISE NOTICE '   - Markets: %', (SELECT COUNT(*) FROM markets);
     RAISE NOTICE '   - Transactions: %', (SELECT COUNT(*) FROM transactions);
     RAISE NOTICE '   - Ledger entries: %', (SELECT COUNT(*) FROM ledger_entries);
-    -- Added shares_ledger verification
     RAISE NOTICE '   - Shares ledger: %', (SELECT COALESCE((SELECT COUNT(*) FROM shares_ledger), 0));
+    RAISE NOTICE '   - Closed positions: %', (SELECT COALESCE((SELECT COUNT(*) FROM closed_positions), 0));
     RAISE NOTICE '   - Profiles: % (PRESERVED, balances = 0)', (SELECT COUNT(*) FROM profiles);
     RAISE NOTICE ' ';
     
@@ -177,6 +187,7 @@ BEGIN
     RAISE NOTICE '✓ All market/transaction data cleared';
     RAISE NOTICE '✓ All ledger data cleared (money + shares)';
     RAISE NOTICE '✓ All settlement data cleared';
+    RAISE NOTICE '✓ All position data cleared (open + closed)';
     RAISE NOTICE '✓ User profiles preserved (balances reset to 0)';
     RAISE NOTICE '✓ All functions and triggers intact';
     RAISE NOTICE ' ';

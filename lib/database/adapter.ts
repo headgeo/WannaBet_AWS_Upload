@@ -9,15 +9,11 @@ import type { PoolClient } from "pg"
 
 const USE_RDS = !!(process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL_NON_POOLING)
 
-console.log("[Adapter] Database mode:", USE_RDS ? "AWS RDS" : "Supabase only")
-console.log("[Adapter] Environment check:", {
-  POSTGRES_URL: !!process.env.POSTGRES_URL,
-  POSTGRES_PRISMA_URL: !!process.env.POSTGRES_PRISMA_URL,
-  POSTGRES_URL_NON_POOLING: !!process.env.POSTGRES_URL_NON_POOLING,
-})
+if (process.env.NODE_ENV === "development") {
+  console.log("[DB] Mode:", USE_RDS ? "RDS" : "Supabase")
+}
 
 export interface QueryResult<T = any> {
-  [x: string]: any
   rows: T[]
   rowCount: number
 }
@@ -31,7 +27,6 @@ export async function query<T = any>(sql: string, params: any[] = []): Promise<Q
       return await rdsQuery(sql, params)
     } catch (error: any) {
       if (error.message?.includes("Connection terminated") || error.message?.includes("timeout")) {
-        console.warn("[Adapter] RDS connection failed, falling back to Supabase")
         throw new Error(
           "AWS RDS connection failed. Please check your network configuration. See AWS_RDS_NETWORK_SETUP.md for help.",
         )
@@ -108,37 +103,27 @@ export async function deleteRows<T = any>(
   table: string,
   where: { column: string; value: any } | Record<string, any>,
 ): Promise<QueryResult<T>> {
-  console.log('[v0] deleteRows called with:', { table, where })
-  
   // Handle both old format { column, value } and new format { col1: val1, col2: val2 }
   let whereClause: string
   let values: any[]
-  
-  if ('column' in where && 'value' in where) {
+
+  if ("column" in where && "value" in where) {
     // Old format: { column: string, value: any }
-    console.log('[v0] Using old format (column/value)')
     whereClause = `${where.column} = $1`
     values = [where.value]
   } else {
     // New format: { col1: val1, col2: val2, ... }
-    console.log('[v0] Using new format (multiple key-value pairs)')
     const keys = Object.keys(where)
-    console.log('[v0] Keys found:', keys)
-    whereClause = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ')
-    values = keys.map(key => where[key])
-    console.log('[v0] Generated WHERE clause:', whereClause)
-    console.log('[v0] Values:', values)
+    whereClause = keys.map((key, i) => `${key} = $${i + 1}`).join(" AND ")
+    values = keys.map((key) => where[key])
   }
-  
+
   const sql = `
     DELETE FROM ${table}
     WHERE ${whereClause}
     RETURNING *
   `
-  
-  console.log('[v0] Final SQL:', sql)
-  console.log('[v0] Final values:', values)
-  
+
   return await rdsQuery(sql, values)
 }
 
@@ -202,7 +187,7 @@ export async function select<T = any>(
       const result = await rdsQuery(sql, params)
       return result.rows as T[]
     } catch (error: any) {
-      console.error("[Adapter] RDS query failed:", error)
+      console.error("[DB] Query failed:", error.message)
       throw error
     }
   }
@@ -257,8 +242,6 @@ export async function rpc<T = any>(
   params: Record<string, any> = {},
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
-    console.log(`[v0] Calling RPC function: ${functionName}`, params)
-
     // Define the expected parameter order for each function
     const functionParamOrder: Record<string, string[]> = {
       execute_trade_lmsr: [
@@ -303,39 +286,25 @@ export async function rpc<T = any>(
       const paramValues = Object.values(params)
       const paramList = paramKeys.map((key, i) => `${key} => $${i + 1}`).join(", ")
       const sql = `SELECT * FROM ${functionName}(${paramList})`
-      console.log(`[v0] RPC SQL (fallback):`, sql)
-      console.log(`[v0] RPC Values:`, paramValues)
       const result = await rdsQuery(sql, paramValues)
       return { data: result.rows[0] as T, error: null }
     }
 
-    console.log(`[v0] Expected parameter order for ${functionName}:`, expectedOrder)
-    console.log(`[v0] Received parameters:`, params)
-
     // Order parameters according to function signature
-    const orderedValues = expectedOrder.map((key, index) => {
+    const orderedValues = expectedOrder.map((key) => {
       if (!(key in params)) {
         throw new Error(`Missing required parameter: ${key} for function ${functionName}`)
       }
-      const value = params[key]
-      console.log(`[v0] Parameter ${index + 1}: ${key} = ${value} (type: ${typeof value})`)
-      return value
+      return params[key]
     })
 
     const placeholders = expectedOrder.map((_, i) => `$${i + 1}`).join(", ")
     const sql = `SELECT * FROM ${functionName}(${placeholders})`
 
-    console.log(`[v0] RPC SQL:`, sql)
-    console.log(`[v0] RPC Values (ordered):`, orderedValues)
-    console.log(
-      `[v0] RPC Values with types:`,
-      orderedValues.map((v, i) => `$${i + 1}: ${v} (${typeof v})`),
-    )
-
     const result = await rdsQuery(sql, orderedValues)
     return { data: result.rows[0] as T, error: null }
   } catch (error) {
-    console.error(`[v0] RPC error for ${functionName}:`, error)
+    console.error(`[DB] RPC ${functionName} failed:`, (error as Error).message)
     return { data: null, error: error as Error }
   }
 }
@@ -407,7 +376,6 @@ export async function selectWithJoin<T = any>(
       sql += ` LIMIT ${options.limit}`
     }
 
-    console.log("[v0] RDS Query:", sql, params)
     const result = await rdsQuery(sql, params)
 
     if (options.single) {
@@ -416,7 +384,7 @@ export async function selectWithJoin<T = any>(
 
     return { data: result.rows as T[], error: null }
   } catch (error) {
-    console.error("[v0] selectWithJoin error:", error)
+    console.error("[DB] Join query failed:", (error as Error).message)
     return { data: null, error: error as Error }
   }
 }

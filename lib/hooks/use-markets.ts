@@ -12,15 +12,6 @@ export function useMarkets() {
     keepPreviousData: true, // Show cached data immediately while revalidating
   })
 
-  console.log("[v0] useMarkets hook - Raw data from SWR:", {
-    hasData: !!data,
-    markets: data?.markets?.length || 0,
-    privateMarkets: data?.privateMarkets?.length || 0,
-    createdMarkets: data?.createdMarkets?.length || 0,
-    isLoading,
-    error: error?.message,
-  })
-
   return {
     markets: data?.markets || [],
     privateMarkets: data?.privateMarkets || [],

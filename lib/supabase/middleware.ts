@@ -44,22 +44,13 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    console.log(
-      "[v0] Middleware: Processing request for:",
-      request.nextUrl.pathname,
-      user ? `User: ${user.id}` : "No user",
-    )
-
     if (request.nextUrl.pathname.startsWith("/admin")) {
       if (!user) {
-        console.log("[v0] Middleware: Admin route accessed without user, redirecting to login")
         const url = request.nextUrl.clone()
         url.pathname = "/auth/login"
         return NextResponse.redirect(url)
       }
-
       // Let the admin pages handle the actual admin role check
-      console.log("[v0] Middleware: Admin route accessed by user:", user.id, "- letting page handle role check")
     }
 
     // Remove automatic redirects to prevent 404 errors
@@ -72,7 +63,7 @@ export async function updateSession(request: NextRequest) {
 
     return supabaseResponse
   } catch (error) {
-    console.log("[v0] Middleware error:", error)
+    console.error("[Middleware] Error:", (error as Error).message)
     return supabaseResponse
   }
 }

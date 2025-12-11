@@ -4,8 +4,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
-export default async function MarketPage({ params }: { params: { id: string } }) {
-  const data = await getMarketData(params.id)
+export default async function MarketPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const data = await getMarketData(id)
 
   if (data.error) {
     return (
@@ -29,9 +30,8 @@ export default async function MarketPage({ params }: { params: { id: string } })
       initialUserPositions={data.userPositions}
       initialUserBalance={data.userBalance}
       initialAccessibleGroups={data.accessibleGroups}
-      initialSettlementBond={data.settlementBond}
       currentUserId={data.user.id}
-      marketId={params.id}
+      marketId={id}
     />
   )
 }

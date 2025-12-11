@@ -10,19 +10,13 @@ export async function createGroupsTables() {
 
     const supabase = await createClient()
 
-    console.log("[v0] Creating groups tables...")
-
     const groupsCheck = await select("groups", ["id"], undefined, undefined, 1)
     const userGroupsCheck = await select("user_groups", ["id"], undefined, undefined, 1)
 
-    // If both tables exist (no error), return success
     if (!groupsCheck.error && !userGroupsCheck.error) {
-      console.log("[v0] Groups tables already exist")
       return { success: true, message: "Groups tables already exist" }
     }
 
-    // If tables don't exist, we need to create them
-    // Since we can't execute DDL directly through the client, we'll provide instructions
     const sqlScript = `
 -- Create groups table
 CREATE TABLE IF NOT EXISTS groups (
@@ -66,7 +60,6 @@ CREATE INDEX IF NOT EXISTS idx_user_groups_user_id ON user_groups(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_groups_group_id ON user_groups(group_id);
 `
 
-    console.log("[v0] Groups tables need to be created manually")
     return {
       success: false,
       error:

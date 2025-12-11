@@ -21,27 +21,20 @@ export async function getNotifications(): Promise<Notification[]> {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    console.log("[v0] No user found for notifications")
     return []
   }
 
   try {
-    console.log("[v0] Fetching notifications for user:", user.id)
     const result = await select<Notification>(
       "notifications",
       "*",
       [{ column: "user_id", value: user.id }],
       { column: "created_at", ascending: false },
-      30, // Increased limit from 20 to 50 to fetch more recent notifications
+      50,
     )
-    console.log("[v0] Notifications fetched:", result.length)
-    if (result.length > 0) {
-      console.log("[v0] Most recent notification:", result[0].created_at)
-      console.log("[v0] Oldest notification:", result[result.length - 1].created_at)
-    }
     return result
   } catch (error) {
-    console.error("[v0] Error loading notifications:", error)
+    console.error("Error loading notifications:", error)
     return []
   }
 }
@@ -60,10 +53,8 @@ export async function markNotificationsAsRead(notificationIds: string[]): Promis
     for (const id of notificationIds) {
       await update("notifications", { is_read: true }, { column: "id", value: id })
     }
-
-    console.log("[v0] Marked notifications as read:", notificationIds.length)
   } catch (error) {
-    console.error("[v0] Error marking notifications as read:", error)
+    console.error("Error marking notifications as read:", error)
     throw error
   }
 }

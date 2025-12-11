@@ -9,11 +9,8 @@ export async function isAdmin(): Promise<boolean> {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      console.log("[v0] isAdmin: No user found")
       return false
     }
-
-    console.log("[v0] isAdmin: Checking role for user:", user.id)
 
     try {
       const profiles = await select<{ role: string }>(
@@ -25,26 +22,22 @@ export async function isAdmin(): Promise<boolean> {
       )
 
       if (!profiles || profiles.length === 0) {
-        console.log("[v0] isAdmin: No profile found for user")
         return false
       }
 
-      const isAdminUser = profiles[0]?.role === "admin"
-      console.log("[v0] isAdmin: Final result:", isAdminUser, "Role:", profiles[0]?.role)
-      return isAdminUser
+      return profiles[0]?.role === "admin"
     } catch (error) {
-      console.error("[v0] isAdmin: Error querying RDS:", error)
+      console.error("[Auth] Admin check failed:", (error as Error).message)
       return false
     }
   } catch (error) {
-    console.error("[v0] isAdmin: Error checking admin status:", error)
+    console.error("[Auth] Admin check error:", (error as Error).message)
     return false
   }
 }
 
 export async function requireAdmin() {
   const adminStatus = await isAdmin()
-  console.log("[v0] requireAdmin: Admin status:", adminStatus)
 
   if (!adminStatus) {
     throw new Error("Admin access required")
@@ -60,8 +53,6 @@ export async function getCurrentUserRole(): Promise<string | null> {
 
     if (!user) return null
 
-    console.log("[v0] getCurrentUserRole: Getting role for user:", user.id)
-
     try {
       const profiles = await select<{ role: string }>(
         "profiles",
@@ -72,18 +63,16 @@ export async function getCurrentUserRole(): Promise<string | null> {
       )
 
       if (!profiles || profiles.length === 0) {
-        console.log("[v0] getCurrentUserRole: No profile found, defaulting to 'user'")
         return "user"
       }
 
-      console.log("[v0] getCurrentUserRole: Role result:", profiles[0]?.role)
       return profiles[0]?.role || "user"
     } catch (error) {
-      console.error("[v0] getCurrentUserRole: Error querying RDS:", error)
+      console.error("[Auth] Get role failed:", (error as Error).message)
       return "user"
     }
   } catch (error) {
-    console.error("[v0] getCurrentUserRole: Error getting user role:", error)
+    console.error("[Auth] Get role error:", (error as Error).message)
     return "user"
   }
 }
@@ -96,11 +85,8 @@ export async function getAdminProfile() {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      console.log("[v0] getAdminProfile: No user found")
       return null
     }
-
-    console.log("[v0] getAdminProfile: Getting profile for user:", user.id)
 
     try {
       const profiles = await select<{ id: string; role: string; username: string; display_name: string }>(
@@ -112,25 +98,22 @@ export async function getAdminProfile() {
       )
 
       if (!profiles || profiles.length === 0) {
-        console.log("[v0] getAdminProfile: No profile found")
         return null
       }
 
       const profile = profiles[0]
 
       if (profile?.role !== "admin") {
-        console.log("[v0] getAdminProfile: User is not admin, role:", profile?.role)
         return null
       }
 
-      console.log("[v0] getAdminProfile: Admin profile found")
       return { user, profile }
     } catch (error) {
-      console.error("[v0] getAdminProfile: Error querying RDS:", error)
+      console.error("[Auth] Get admin profile failed:", (error as Error).message)
       return null
     }
   } catch (error) {
-    console.error("[v0] getAdminProfile: Error getting admin profile:", error)
+    console.error("[Auth] Get admin profile error:", (error as Error).message)
     return null
   }
 }

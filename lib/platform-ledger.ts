@@ -23,26 +23,16 @@ interface RecordPlatformTransactionParams {
  */
 export async function recordPlatformTransaction(params: RecordPlatformTransactionParams) {
   try {
-    console.log("[v0] Recording platform transaction:", {
-      type: params.transactionType,
-      amount: params.amount,
-      marketId: params.marketId,
-      feeId: params.feeId,
-    })
-
     const balanceRows = await select("platform_ledger", "amount")
 
     if (!balanceRows) {
-      console.error("[v0] Error querying platform_ledger table")
-      console.error("[v0] Did you run scripts/016_create_platform_ledger.sql?")
+      console.error("[Ledger] Failed to query platform_ledger table")
       throw new Error("Failed to query platform_ledger")
     }
 
     // Calculate current balance by summing all amounts
     const currentBalance = balanceRows.reduce((sum: number, row: any) => sum + Number(row.amount), 0)
     const newBalance = Number(currentBalance) + Number(params.amount)
-
-    console.log("[v0] Current platform balance:", currentBalance, "→ New balance:", newBalance)
 
     const { data, error } = await insert("platform_ledger", {
       transaction_type: params.transactionType,
@@ -55,17 +45,13 @@ export async function recordPlatformTransaction(params: RecordPlatformTransactio
     })
 
     if (error) {
-      console.error("[v0] Error inserting into platform_ledger:", error)
+      console.error("[Ledger] Insert failed:", error.message)
       throw error
     }
 
-    console.log(
-      `[v0] ✅ Platform ledger: ${params.transactionType} ${params.amount > 0 ? "+" : ""}$${params.amount.toFixed(2)} → Balance: $${newBalance.toFixed(2)}`,
-    )
-
     return { success: true, data: data?.[0], newBalance }
   } catch (error: any) {
-    console.error("[v0] ❌ Failed to record platform transaction:", error)
+    console.error("[Ledger] Transaction failed:", error.message)
     return { success: false, error }
   }
 }
@@ -74,7 +60,6 @@ export async function recordPlatformTransaction(params: RecordPlatformTransactio
  * Records the $10 inflow when a public market is created
  */
 export async function recordMarketCreationReward(marketId: string, creatorId: string, amount = 10) {
-  console.log("[v0] recordMarketCreationReward called:", { marketId, creatorId, amount })
   return recordPlatformTransaction({
     transactionType: "market_creation_reward",
     amount: amount, // Positive = credit to platform
@@ -117,15 +102,13 @@ export async function recordSettlementLeftover(marketId: string, leftoverAmount:
     )
 
     if (updateError) {
-      console.error("[v0] Error zeroing market liquidity pool:", updateError)
+      console.error("[Ledger] Failed to zero liquidity pool:", updateError.message)
       throw updateError
     }
 
-    console.log(`[v0] Recorded $${leftoverAmount} leftover liquidity for market ${marketId}`)
-
     return { success: true, data: result.data }
   } catch (error) {
-    console.error("[v0] Failed to record settlement leftover:", error)
+    console.error("[Ledger] Settlement leftover failed:", (error as Error).message)
     return { success: false, error }
   }
 }
@@ -134,7 +117,6 @@ export async function recordSettlementLeftover(marketId: string, leftoverAmount:
  * Records platform fees (not creator fees) as platform income
  */
 export async function recordPlatformFee(feeId: string, amount: number, marketId: string) {
-  console.log("[v0] recordPlatformFee called:", { feeId, amount, marketId })
   return recordPlatformTransaction({
     transactionType: "platform_fee",
     amount: amount, // Positive = credit to platform
@@ -181,7 +163,7 @@ export async function getPlatformBalance() {
       totalTransactions,
     }
   } catch (error: any) {
-    console.error("[v0] Error getting platform balance:", error)
+    console.error("[Ledger] Get balance failed:", error.message)
     return { success: false, error }
   }
 }
@@ -203,7 +185,6 @@ export async function recordPlatformLedgerEntry({
   feeId?: string
   description?: string
 }) {
-  console.log("[v0] recordPlatformLedgerEntry called:", { type, amount, marketId, feeId, description })
   return recordPlatformTransaction({
     transactionType: type,
     amount,
@@ -221,7 +202,7 @@ export async function zerOutLiquidityPool(marketId: string) {
   const { error } = await update("markets", { liquidity_pool: 0 }, { column: "id", operator: "eq", value: marketId })
 
   if (error) {
-    console.error("[v0] Error zeroing market liquidity pool:", error)
+    console.error("[Ledger] Zero liquidity pool failed:", (error as Error).message)
     throw error
   }
 

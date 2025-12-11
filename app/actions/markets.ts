@@ -22,7 +22,7 @@ export async function getUserBalance() {
 
     return { balance: Number.parseFloat(profileData?.[0]?.balance || "0") }
   } catch (error: any) {
-    console.error("[v0] Error loading user balance:", error)
+    console.error("Error loading user balance:", error)
     return { error: error.message }
   }
 }
@@ -49,25 +49,22 @@ export async function createMarket(data: CreateMarketData) {
       return { error: "You must be logged in to create a market" }
     }
 
-    // Get user balance
     const profileData = await select("profiles", "balance", [{ column: "id", operator: "eq", value: user.id }])
     const userBalance = Number.parseFloat(profileData?.[0]?.balance || "0")
 
-    // Validate balance
     if (data.liquidityAmount > userBalance) {
       return { error: "Insufficient balance" }
     }
 
     const endDateTime = new Date(data.endDate)
 
-    const UMA_COLLATERAL = 10 // $10 reserved for UMA proposal reward
+    const UMA_COLLATERAL = 10
     const isPublicMarket = !data.isPrivate
 
-    let liquidityForPool = data.liquidityAmount // Amount that goes into liquidity_pool
-    let liquidityForReward = 0 // Amount set aside for UMA reward
+    let liquidityForPool = data.liquidityAmount
+    let liquidityForReward = 0
 
     if (isPublicMarket) {
-      // For public markets, deduct $10 for UMA reward
       liquidityForReward = UMA_COLLATERAL
       liquidityForPool = data.liquidityAmount - UMA_COLLATERAL
 
@@ -76,23 +73,11 @@ export async function createMarket(data: CreateMarketData) {
       }
     }
 
-    // Calculate b-value using ONLY the pool liquidity (which is already reduced by $10)
     const calculatedB = calculateBFromLiquidity(liquidityForPool)
-
-    console.log("[v0] Market liquidity split:", {
-      isPublic: isPublicMarket,
-      totalPosted: data.liquidityAmount,
-      liquidityForPool,
-      liquidityForReward,
-      calculatedB,
-    })
 
     const invitedGroups = data.invitedItems.filter((item) => item.type === "group")
     const groupId = data.isPrivate && invitedGroups.length > 0 ? invitedGroups[0].id : null
 
-    console.log("[v0] Creating market with group_id:", groupId)
-
-    // Create market
     const market = await insert("markets", {
       title: data.title,
       description: data.description,
@@ -111,7 +96,7 @@ export async function createMarket(data: CreateMarketData) {
       liquidity_posted_for_reward: liquidityForReward,
       b: calculatedB,
       group_id: groupId,
-      blockchain_status: isPublicMarket ? "not_deployed" : null, // Public markets show as not_deployed
+      blockchain_status: isPublicMarket ? "not_deployed" : null,
     })
 
     if (market.error || !market.data || market.data.length === 0) {
@@ -119,6 +104,14 @@ export async function createMarket(data: CreateMarketData) {
     }
 
     const createdMarket = market.data[0]
+
+    await insert("notifications", {
+      user_id: user.id,
+      market_id: createdMarket.id,
+      type: "market_created",
+      title: "Market Created",
+      message: `Your market "${data.title}" has been created successfully with $${data.liquidityAmount.toFixed(2)} liquidity.`,
+    })
 
     await insert("market_price_history", {
       market_id: createdMarket.id,
@@ -129,18 +122,14 @@ export async function createMarket(data: CreateMarketData) {
       total_volume: 0,
     })
 
-    // Record transaction
     const transactionResult = await insert("transactions", {
       user_id: user.id,
       market_id: createdMarket.id,
       type: "market_creation",
-      amount: -data.liquidityAmount, // Full amount deducted from balance
+      amount: -data.liquidityAmount,
       description: `Created market: ${data.title} (Liquidity: $${liquidityForPool}${isPublicMarket ? `, $${liquidityForReward} for UMA reward` : ""})`,
     })
 
-    console.log("[v0] Transaction result:", transactionResult)
-
-    // Update user balance
     const updateResult = await update(
       "profiles",
       { balance: userBalance - data.liquidityAmount },
@@ -151,11 +140,9 @@ export async function createMarket(data: CreateMarketData) {
       return { error: `Failed to update balance: ${updateResult.error.message}` }
     }
 
-    // Add participants for private markets
     if (data.isPrivate) {
       const allParticipants = []
 
-      // Add creator
       allParticipants.push({
         market_id: createdMarket.id,
         user_id: user.id,
@@ -164,7 +151,6 @@ export async function createMarket(data: CreateMarketData) {
         group_id: null,
       })
 
-      // Add invited users
       for (const item of data.invitedItems) {
         if (item.type === "user") {
           const existingUser = allParticipants.find((p) => p.user_id === item.id)
@@ -187,7 +173,6 @@ export async function createMarket(data: CreateMarketData) {
         }
       }
 
-      // Send notifications to group members
       if (groupId) {
         const groupMembers = await select("user_groups", "user_id", [
           { column: "group_id", operator: "eq", value: groupId },
@@ -214,15 +199,13 @@ export async function createMarket(data: CreateMarketData) {
     revalidatePath("/")
     revalidatePath("/markets")
 
-    // Record platform ledger entry for market creation reward (not deployed yet)
     if (isPublicMarket && liquidityForReward > 0) {
-      console.log("[v0] Recording platform ledger entry for market creation reward (not deployed yet)")
       await recordMarketCreationReward(createdMarket.id, user.id, liquidityForReward)
     }
 
     return { success: true, marketId: createdMarket.id }
   } catch (error: any) {
-    console.error("[v0] Error creating market:", error)
+    console.error("Error creating market:", error)
     return { error: error.message }
   }
 }

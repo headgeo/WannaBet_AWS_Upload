@@ -13,9 +13,6 @@ export async function deployPredictionMarketContract(
   expiryTimestamp: number,
   rewardAmount = "10",
 ): Promise<{ contractAddress: string; transactionHash: string }> {
-  console.log("[v0] ===== DEPLOYING PREDICTION MARKET CONTRACT =====")
-
-  const client = getUMAClient()
   const config = getNetworkConfig()
 
   // For now, we'll use the simpler approach: just approve and track
@@ -27,17 +24,12 @@ export async function deployPredictionMarketContract(
 
   // Approve USDC for future proposals
   const umaClient = getUMAClient()
-  const signerAddress = await umaClient["signer"].getAddress()
   const oracleAddress = config.umaOracleAddress
-
-  console.log("[v0] Approving", rewardAmount, "USDC for market", marketId)
 
   const usdc = umaClient["usdc"]
   const approveTx = await usdc.approve(oracleAddress, rewardWei)
 
-  console.log("[v0] Approval transaction:", approveTx.hash)
   const receipt = await approveTx.wait()
-  console.log("[v0] Approval confirmed in block:", receipt.blockNumber)
 
   // Generate deterministic address from marketId
   const contractAddress = ethers.keccak256(ethers.toUtf8Bytes(marketId)).slice(0, 42)

@@ -27,7 +27,7 @@ export function useIsAdmin() {
 
       setIsAdmin(profile?.role === "admin")
     } catch (error) {
-      console.error("Error checking admin status:", error)
+      console.error("[Auth] Admin check failed:", (error as Error).message)
       setIsAdmin(false)
     } finally {
       setIsLoading(false)
@@ -50,7 +50,7 @@ export async function isAdminClient(): Promise<boolean> {
 
     return profile?.role === "admin"
   } catch (error) {
-    console.error("Error checking admin status:", error)
+    console.error("[Auth] Admin check failed:", (error as Error).message)
     return false
   }
 }

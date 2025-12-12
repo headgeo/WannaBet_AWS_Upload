@@ -53,14 +53,26 @@ export async function searchGroups(query: string): Promise<Group[]> {
   }
 
   try {
+    const supabase = await createServerClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return []
+    }
+
     const db = getDb()
     const searchPattern = `%${query}%`
+
     const result = await db.query<Group>(
-      `SELECT id, name, description 
-       FROM groups 
-       WHERE name ILIKE $1 OR description ILIKE $1 
+      `SELECT DISTINCT g.id, g.name, g.description 
+       FROM groups g
+       INNER JOIN user_groups ug ON g.id = ug.group_id
+       WHERE ug.user_id = $1 
+       AND (g.name ILIKE $2 OR g.description ILIKE $2)
        LIMIT 3`,
-      [searchPattern],
+      [user.id, searchPattern],
     )
     return result.rows
   } catch (error) {

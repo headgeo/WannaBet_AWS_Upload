@@ -646,9 +646,10 @@ export async function runSiteNetAudit() {
     return {
       success: true,
       data: {
-        balances_by_type: balancesByType,
-        site_net: siteNet,
+        breakdown: balancesByType, // Changed from balances_by_type
+        grand_total: siteNet, // Changed from site_net
         is_balanced: Math.abs(siteNet) < 0.01,
+        status: Math.abs(siteNet) < 0.01 ? "PASS" : "FAIL", // Added status field
         timestamp: new Date().toISOString(),
       },
     }

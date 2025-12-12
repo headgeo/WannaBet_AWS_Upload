@@ -618,9 +618,17 @@ export async function runSiteNetAudit() {
     const { rows, error } = await query(
       `SELECT 
         la.account_type,
-        COALESCE(lbs.balance_cents, 0) / 100.0 as balance
+        COALESCE(SUM(lbs.balance_cents), 0) / 100.0 as balance
       FROM ledger_accounts la
-      LEFT JOIN ledger_balance_snapshots lbs ON la.id = lbs.account_id`,
+      LEFT JOIN LATERAL (
+        SELECT balance_cents 
+        FROM ledger_balance_snapshots 
+        WHERE account_id = la.id 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      ) lbs ON true
+      GROUP BY la.account_type
+      ORDER BY la.account_type`,
       [],
     )
 
@@ -628,28 +636,32 @@ export async function runSiteNetAudit() {
       throw new Error(`Site net audit failed: ${error.message}`)
     }
 
+    console.log("[v0] Site Net Audit - Raw rows:", rows)
+
     const balancesByType: Record<string, number> = {}
+    let calculatedSum = 0
+
     for (const row of rows || []) {
       const type = row.account_type || "unknown"
-      balancesByType[type] = (balancesByType[type] || 0) + Number(row.balance || 0)
+      const balance = Number.parseFloat(String(row.balance || 0))
+      balancesByType[type] = balance
+      calculatedSum += balance
+      console.log(`[v0] Adding ${type}: $${balance} (running total: $${calculatedSum})`)
     }
 
-    const siteNet =
-      (balancesByType["user"] || 0) +
-      (balancesByType["market_liquidity"] || 0) +
-      (balancesByType["settlement_bond"] || 0) +
-      (balancesByType["proposal_bond"] || 0) +
-      (balancesByType["platform_fee"] || 0) +
-      (balancesByType["market_creator_fees"] || 0) +
-      (balancesByType["external_clearing"] || 0)
+    const siteNet = Math.round(calculatedSum * 100) / 100
+
+    console.log("[v0] Final balances by type:", balancesByType)
+    console.log("[v0] Calculated sum:", calculatedSum)
+    console.log("[v0] Site net (rounded):", siteNet)
 
     return {
       success: true,
       data: {
-        breakdown: balancesByType, // Changed from balances_by_type
-        grand_total: siteNet, // Changed from site_net
+        breakdown: balancesByType,
+        grand_total: siteNet,
         is_balanced: Math.abs(siteNet) < 0.01,
-        status: Math.abs(siteNet) < 0.01 ? "PASS" : "FAIL", // Added status field
+        status: Math.abs(siteNet) < 0.01 ? "PASS" : "FAIL",
         timestamp: new Date().toISOString(),
       },
     }

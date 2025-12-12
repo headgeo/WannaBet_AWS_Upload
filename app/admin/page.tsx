@@ -288,9 +288,9 @@ export default function AdminPage() {
       setSiteNetAuditData(result.data)
 
       if (result.data?.is_balanced) {
-        setSuccessMessage("Site net is balanced! All funds are accounted for.")
+        setSuccessMessage("Ledger is balanced! All accounts sum to $0.00.")
       } else {
-        setError(`Site net imbalance detected: $${Math.abs(result.data?.grand_total || 0).toFixed(2)} discrepancy.`)
+        setError(`Ledger imbalance detected: $${Math.abs(result.data?.grand_total || 0).toFixed(2)} discrepancy.`)
       }
     } catch (error: any) {
       setError(`Site net audit failed: ${error.message}`)
@@ -1001,14 +1001,14 @@ export default function AdminPage() {
                   Site Net Audit
                 </CardTitle>
                 <p className="text-[10px] text-muted-foreground">
-                  Verify: Deposits - Withdrawals = Platform Balance + All User Balances
+                  Verify: Sum of all ledger account balances = $0.00 (double-entry accounting)
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button
                   onClick={handleRunSiteNetAudit}
                   disabled={isRunningSiteNetAudit}
-                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8"
+                  className="bg-green-600 hover:bg-green-700 text-white text-xs h-8"
                 >
                   {isRunningSiteNetAudit ? (
                     <>
@@ -1040,54 +1040,56 @@ export default function AdminPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-3">
+                        <div className="text-xs mb-3">
+                          <div className="text-[10px] text-muted-foreground mb-2">Account Balances by Type</div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                            {siteNetAuditData.breakdown &&
+                              Object.entries(siteNetAuditData.breakdown).map(([type, balance]: [string, any]) => (
+                                <div key={type} className="bg-gray-50 rounded p-2">
+                                  <div className="text-[9px] text-muted-foreground capitalize">
+                                    {type.replace(/_/g, " ")}
+                                  </div>
+                                  <div
+                                    className={`text-sm font-semibold ${
+                                      type === "external_clearing"
+                                        ? Number(balance) < 0
+                                          ? "text-green-600"
+                                          : "text-red-600"
+                                        : Number(balance) >= 0
+                                          ? "text-green-600"
+                                          : "text-red-600"
+                                    }`}
+                                  >
+                                    ${Number(balance).toFixed(2)}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t">
                           <div className="flex items-center justify-between">
                             <div>
                               <div className="text-[10px] text-muted-foreground">Net Balance (should be $0.00)</div>
                               <div
-                                className={`text-2xl font-bold ${siteNetAuditData.is_balanced ? "text-green-600" : "text-red-600"}`}
+                                className={`text-xl font-bold ${siteNetAuditData.is_balanced ? "text-green-600" : "text-red-600"}`}
                               >
                                 ${Number(siteNetAuditData.grand_total).toFixed(2)}
                               </div>
                             </div>
-                            <Badge
-                              variant={siteNetAuditData.status === "PASS" ? "default" : "destructive"}
-                              className="text-[9px]"
-                            >
-                              {siteNetAuditData.status}
-                            </Badge>
-                          </div>
-
-                          {siteNetAuditData.breakdown && siteNetAuditData.breakdown.length > 0 && (
-                            <div className="mt-3 pt-3 border-t">
-                              <div className="text-[10px] text-muted-foreground mb-2">Breakdown by Account Type</div>
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                {siteNetAuditData.breakdown.map((item: any) => (
-                                  <div key={item.account_type} className="bg-gray-50 dark:bg-gray-800 rounded p-2">
-                                    <div className="text-[9px] text-muted-foreground capitalize">
-                                      {item.account_type.replace(/_/g, " ")}
-                                    </div>
-                                    <div
-                                      className={`text-sm font-semibold ${item.total >= 0 ? "text-green-600" : "text-red-600"}`}
-                                    >
-                                      ${Number(item.total).toFixed(2)}
-                                    </div>
-                                    <div className="text-[8px] text-muted-foreground">
-                                      {item.count} account{item.count !== 1 ? "s" : ""}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                            <div className="text-right">
+                              <Badge
+                                variant={siteNetAuditData.status === "PASS" ? "default" : "destructive"}
+                                className="mb-1 text-[9px]"
+                              >
+                                {siteNetAuditData.status}
+                              </Badge>
+                              <p className="text-[9px] text-muted-foreground">
+                                Last run:{" "}
+                                {siteNetAuditData.timestamp
+                                  ? format(new Date(siteNetAuditData.timestamp), "MMM d, yyyy 'at' HH:mm:ss")
+                                  : "Unknown"}
+                              </p>
                             </div>
-                          )}
-
-                          <div className="mt-2 pt-2 border-t">
-                            <p className="text-[9px] text-muted-foreground">
-                              Last run:{" "}
-                              {siteNetAuditData.timestamp
-                                ? format(new Date(siteNetAuditData.timestamp), "MMM d, yyyy 'at' HH:mm:ss")
-                                : "Unknown"}
-                            </p>
                           </div>
                         </div>
                       </CardContent>
@@ -1109,8 +1111,7 @@ export default function AdminPage() {
                       <Card className="border-green-200 bg-green-50/50 shadow-sm">
                         <CardContent className="pt-3">
                           <p className="text-xs text-green-700">
-                            Site net is balanced! The sum of all ledger account balances equals zero, confirming
-                            double-entry accounting integrity.
+                            Ledger is balanced! All accounts sum to $0.00, confirming double-entry accounting integrity.
                           </p>
                         </CardContent>
                       </Card>

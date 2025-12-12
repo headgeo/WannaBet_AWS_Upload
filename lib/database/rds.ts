@@ -46,9 +46,9 @@ export function getRDSPool(): Pool {
       ssl: {
         rejectUnauthorized: false, // Set to false for AWS RDS connections
       },
-      max: 5, // Reduced from 20 to 5 to prevent connection exhaustion
-      idleTimeoutMillis: 10000, // Reduced from 30s to 10s to release connections faster
-      connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection cannot be established
+      max: 25, // Increased from 5 to 25 for better concurrency
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000,
     })
 
     // Handle pool errors

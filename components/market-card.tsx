@@ -5,7 +5,6 @@ import type React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { TrendingUp, TrendingDown, Clock, Users } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -130,7 +129,12 @@ export function MarketCard({ market }: MarketCardProps) {
             </span>
           </div>
 
-          <Progress value={yesPercentage} className="h-1.5 md:h-2 bg-gray-100 dark:bg-gray-800" />
+          <div className="relative h-1.5 md:h-2 w-full overflow-hidden rounded-full bg-red-100 dark:bg-red-900/20">
+            <div
+              className="h-full bg-gradient-to-r from-green-500 to-green-600 dark:from-green-400 dark:to-green-500 transition-all"
+              style={{ width: `${yesPercentage}%` }}
+            />
+          </div>
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">

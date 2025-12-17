@@ -129,10 +129,27 @@ export function MarketCard({ market }: MarketCardProps) {
             </span>
           </div>
 
-          <div className="relative h-1.5 md:h-2 w-full overflow-hidden rounded-full bg-red-200/60 dark:bg-red-900/30">
+          {/* Polished dual-gradient probability bar */}
+          <div className="relative h-1.5 md:h-2 w-full overflow-hidden rounded-full bg-gray-200/30 dark:bg-gray-700/20">
+            {/* YES bar */}
             <div
-              className="h-full bg-gradient-to-r from-green-400/70 to-green-500/70 dark:from-green-400/60 dark:to-green-500/60 transition-all"
-              style={{ width: `${yesPercentage}%` }}
+              className="absolute left-0 top-0 h-full rounded-l-full"
+              style={{
+                width: `${yesPercentage}%`,
+                background:
+                  "linear-gradient(to right, rgba(16, 185, 129, 0.8) 0%, rgba(34, 197, 94, 0.9) 50%, rgba(16, 185, 129, 0.8) 100%)",
+                transition: "width 0.3s ease",
+              }}
+            />
+            {/* NO bar */}
+            <div
+              className="absolute right-0 top-0 h-full rounded-r-full"
+              style={{
+                width: `${noPercentage}%`,
+                background:
+                  "linear-gradient(to left, rgba(239, 68, 68, 0.8) 0%, rgba(220, 38, 38, 0.9) 50%, rgba(239, 68, 68, 0.8) 100%)",
+                transition: "width 0.3s ease",
+              }}
             />
           </div>
 

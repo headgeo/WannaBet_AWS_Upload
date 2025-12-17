@@ -129,7 +129,7 @@ export function MarketCard({ market }: MarketCardProps) {
             </span>
           </div>
 
-          {/* Updated more faded and stronger gradient dual bars */}
+          {/* Tighter gradient with subtle fade */}
           <div className="relative h-1.5 md:h-2 w-full overflow-hidden rounded-full bg-gray-200/20 dark:bg-gray-700/10">
             {/* YES bar */}
             <div
@@ -138,7 +138,8 @@ export function MarketCard({ market }: MarketCardProps) {
                 width: `${yesPercentage}%`,
                 background: `linear-gradient(to right,
                   rgba(22, 163, 74, 0.15) 0%,
-                  rgba(22, 163, 74, 0.5) 50%,
+                  rgba(22, 163, 74, 0.5) 40%,
+                  rgba(22, 163, 74, 0.5) 60%,
                   rgba(22, 163, 74, 0.15) 100%)`,
                 transition: "width 0.3s ease",
               }}
@@ -150,7 +151,8 @@ export function MarketCard({ market }: MarketCardProps) {
                 width: `${noPercentage}%`,
                 background: `linear-gradient(to left,
                   rgba(220, 38, 38, 0.15) 0%,
-                  rgba(220, 38, 38, 0.5) 50%,
+                  rgba(220, 38, 38, 0.5) 40%,
+                  rgba(220, 38, 38, 0.5) 60%,
                   rgba(220, 38, 38, 0.15) 100%)`,
                 transition: "width 0.3s ease",
               }}

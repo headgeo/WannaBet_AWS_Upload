@@ -129,9 +129,9 @@ export function MarketCard({ market }: MarketCardProps) {
             </span>
           </div>
 
-          <div className="relative h-1.5 md:h-2 w-full overflow-hidden rounded-full bg-red-100 dark:bg-red-900/20">
+          <div className="relative h-1.5 md:h-2 w-full overflow-hidden rounded-full bg-red-200/60 dark:bg-red-900/30">
             <div
-              className="h-full bg-gradient-to-r from-green-500 to-green-600 dark:from-green-400 dark:to-green-500 transition-all"
+              className="h-full bg-gradient-to-r from-green-400/70 to-green-500/70 dark:from-green-400/60 dark:to-green-500/60 transition-all"
               style={{ width: `${yesPercentage}%` }}
             />
           </div>

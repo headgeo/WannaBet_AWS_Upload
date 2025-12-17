@@ -121,7 +121,7 @@ export function MarketCard({ market }: MarketCardProps) {
         <div className="space-y-2 mb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <TrendingUp className="w-3 h-3 text-green-500" />
+              <TrendingUp className="w-3 h-3 text-green-600 dark:text-green-400" />
               <span className="text-xs md:text-xs font-medium text-gray-700 dark:text-gray-300">YES</span>
             </div>
             <span className="text-xs md:text-xs font-bold text-green-600 dark:text-green-400">
@@ -129,15 +129,17 @@ export function MarketCard({ market }: MarketCardProps) {
             </span>
           </div>
 
-          {/* Polished dual-gradient probability bar */}
-          <div className="relative h-1.5 md:h-2 w-full overflow-hidden rounded-full bg-gray-200/30 dark:bg-gray-700/20">
+          {/* Updated more faded and stronger gradient dual bars */}
+          <div className="relative h-1.5 md:h-2 w-full overflow-hidden rounded-full bg-gray-200/20 dark:bg-gray-700/10">
             {/* YES bar */}
             <div
               className="absolute left-0 top-0 h-full rounded-l-full"
               style={{
                 width: `${yesPercentage}%`,
-                background:
-                  "linear-gradient(to right, rgba(16, 185, 129, 0.8) 0%, rgba(34, 197, 94, 0.9) 50%, rgba(16, 185, 129, 0.8) 100%)",
+                background: `linear-gradient(to right,
+                  rgba(22, 163, 74, 0.15) 0%,
+                  rgba(22, 163, 74, 0.5) 50%,
+                  rgba(22, 163, 74, 0.15) 100%)`,
                 transition: "width 0.3s ease",
               }}
             />
@@ -146,8 +148,10 @@ export function MarketCard({ market }: MarketCardProps) {
               className="absolute right-0 top-0 h-full rounded-r-full"
               style={{
                 width: `${noPercentage}%`,
-                background:
-                  "linear-gradient(to left, rgba(239, 68, 68, 0.8) 0%, rgba(220, 38, 38, 0.9) 50%, rgba(239, 68, 68, 0.8) 100%)",
+                background: `linear-gradient(to left,
+                  rgba(220, 38, 38, 0.15) 0%,
+                  rgba(220, 38, 38, 0.5) 50%,
+                  rgba(220, 38, 38, 0.15) 100%)`,
                 transition: "width 0.3s ease",
               }}
             />
@@ -155,7 +159,7 @@ export function MarketCard({ market }: MarketCardProps) {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <TrendingDown className="w-3 h-3 text-red-500" />
+              <TrendingDown className="w-3 h-3 text-red-600 dark:text-red-400" />
               <span className="text-xs md:text-xs font-medium text-gray-700 dark:text-gray-300">NO</span>
             </div>
             <span className="text-xs md:text-xs font-bold text-red-600 dark:text-red-400">

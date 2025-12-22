@@ -13,5 +13,5 @@ export async function POST(request: NextRequest) {
     await supabase.auth.signOut()
   }
 
-  return NextResponse.redirect(new URL("/auth/login", request.url))
+  return NextResponse.json({ success: true, redirect: "/auth/login" })
 }

@@ -124,33 +124,25 @@ export function MarketCard({ market }: MarketCardProps) {
       <CardContent className="pt-0 px-4 pb-3 md:px-5 md:pb-4 flex-1 flex flex-col">
         <div className="space-y-2 mb-3">
           <div className="flex items-center justify-between">
-            <div className="flex flex-col items-start">
-              <div className="flex items-center gap-1">
-                <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5 text-green-600 dark:text-green-400" />
-                <span className="text-xs md:text-xs font-semibold text-green-600 dark:text-green-400">YES</span>
-              </div>
-              <span className="text-[10px] md:text-[10px] font-medium text-green-500/80 dark:text-green-400/80">
-                {yesPercentage.toFixed(1)}%
-              </span>
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="w-3 h-3 text-green-500" />
+              <span className="text-xs md:text-xs font-medium text-gray-700 dark:text-gray-300">YES</span>
             </div>
-            <div className="flex flex-col items-end">
-              <div className="flex items-center gap-1">
-                <span className="text-xs md:text-xs font-semibold text-red-600 dark:text-red-400">NO</span>
-                <TrendingDown className="w-3 h-3 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
-              </div>
-              <span className="text-[10px] md:text-[10px] font-medium text-red-500/80 dark:text-red-400/80">
-                {noPercentage.toFixed(1)}%
-              </span>
-            </div>
+            <span className="text-xs md:text-xs font-bold text-green-600 dark:text-green-400">
+              {yesPercentage.toFixed(1)}%
+            </span>
           </div>
 
-          <div className="relative h-2 md:h-2.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-            <div
-              className="h-full bg-gray-900 dark:bg-gray-300 transition-all duration-500 ease-out"
-              style={{
-                width: `${yesPercentage}%`,
-              }}
-            />
+          <Progress value={yesPercentage} className="h-1.5 md:h-2 bg-gray-100 dark:bg-gray-800" />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <TrendingDown className="w-3 h-3 text-red-500" />
+              <span className="text-xs md:text-xs font-medium text-gray-700 dark:text-gray-300">NO</span>
+            </div>
+            <span className="text-xs md:text-xs font-bold text-red-600 dark:text-red-400">
+              {noPercentage.toFixed(1)}%
+            </span>
           </div>
         </div>
 

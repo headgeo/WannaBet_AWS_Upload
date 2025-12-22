@@ -150,7 +150,7 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
 
         <div className="mb-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Profile</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Profile</h1>
             <Button
               variant="outline"
               onClick={handleSignOut}
@@ -166,7 +166,7 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
           <div className="lg:col-span-2 space-y-4">
             <Card className="shadow-sm hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
+                <CardTitle className="flex items-center gap-2 text-base">
                   <User className="w-4 h-4" />
                   Profile Information
                 </CardTitle>
@@ -275,7 +275,7 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
 
             <Card className="shadow-sm hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
+                <CardTitle className="flex items-center gap-2 text-base">
                   <Settings className="w-4 h-4" />
                   Trading Settings
                 </CardTitle>
@@ -340,7 +340,7 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
           <div className="space-y-4">
             <Card className="shadow-sm hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
+                <CardTitle className="flex items-center gap-2 text-base">
                   <DollarSign className="w-4 h-4" />
                   Balance
                 </CardTitle>
@@ -356,7 +356,7 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
             {stats && (
               <Card className="shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-sm">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <TrendingUp className="w-4 h-4" />
                     Trading Stats
                   </CardTitle>

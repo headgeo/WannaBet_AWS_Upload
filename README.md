@@ -36,7 +36,7 @@ The platform uses a **double-entry ledger system** for all financial transaction
 
 ## Architecture
 
-\`\`\`
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Frontend (Next.js 15)                     │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
@@ -51,7 +51,7 @@ The platform uses a **double-entry ledger system** for all financial transaction
 │  │   Functions  │  │   Triggers   │  │   Ledger System      │   │
 │  │  (PL/pgSQL)  │  │  (Auto-sync) │  │  (Double-entry)      │   │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘   │
-��─────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
@@ -60,7 +60,7 @@ The platform uses a **double-entry ledger system** for all financial transaction
 │  │ Supabase Auth│  │  AWS RDS     │  │  UMA Oracle (future) │   │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
-\`\`\`
+```
 
 ### Tech Stack
 
@@ -142,8 +142,8 @@ All core business logic is implemented as PostgreSQL stored procedures for atomi
 
 | Function | Purpose |
 |----------|---------|
-| `execute_trade_lmsr_v2(market_id, user_id, bet_amount, bet_side, expected_price)` | Execute a buy trade with 2% slippage protection |
-| `sell_shares_lmsr_v2(market_id, user_id, shares_to_sell, bet_side, expected_price)` | Execute a sell trade with 2% slippage protection |
+| `execute_trade_lmsr_v2(market_id, user_id, bet_amount, bet_side, expected_price)` | Execute a buy trade with customizable slippage protection |
+| `sell_shares_lmsr_v2(market_id, user_id, shares_to_sell, bet_side, expected_price)` | Execute a sell trade with customizable slippage protection |
 
 #### Settlement Functions
 
@@ -178,18 +178,19 @@ All core business logic is implemented as PostgreSQL stored procedures for atomi
 
 #### `profiles`
 User accounts with balance and profile information.
-\`\`\`sql
+```sql
 - id (uuid, FK to auth.users)
 - username (text, unique)
 - display_name (text)
 - balance (numeric) -- Synced from ledger
 - avatar_url (text)
 - created_at (timestamp)
-\`\`\`
+- slippage_tolerance (numeric) -- Customizable slippage tolerance per user (default: 5%, range: 0.5% - 30%)
+```
 
 #### `markets`
 Prediction markets with LMSR parameters.
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - title (text)
 - description (text)
@@ -208,11 +209,11 @@ Prediction markets with LMSR parameters.
 - winning_side (boolean)
 - settled_at (timestamp)
 - group_id (uuid, FK to groups)
-\`\`\`
+```
 
 #### `positions`
 User positions in markets.
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - user_id (uuid, FK to profiles)
 - market_id (uuid, FK to markets)
@@ -222,11 +223,11 @@ User positions in markets.
 - avg_price (numeric) -- Average price per share
 - created_at (timestamp)
 - updated_at (timestamp)
-\`\`\`
+```
 
 #### `closed_positions`
 Historical record of settled/sold positions for P&L calculation.
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - user_id (uuid, FK to profiles)
 - market_id (uuid, FK to markets)
@@ -236,32 +237,32 @@ Historical record of settled/sold positions for P&L calculation.
 - pnl (numeric) -- Profit/loss
 - outcome (text) -- 'won', 'lost', 'sold', 'cancelled'
 - closed_at (timestamp)
-\`\`\`
+```
 
 ### Ledger Tables
 
 #### `ledger_accounts`
 Account registry for double-entry accounting.
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - entity_id (uuid) -- Can be user_id or market_id
 - reference_id (uuid) -- User's profile id for user accounts
 - account_type (text) -- 'user', 'platform', 'external_clearing', 'market_pool', 'settlement_bond', etc.
 - created_at (timestamp)
-\`\`\`
+```
 
 #### `ledger_balance_snapshots`
 Current balance for each ledger account.
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - account_id (uuid, FK to ledger_accounts)
 - balance_cents (bigint)
 - updated_at (timestamp)
-\`\`\`
+```
 
 #### `ledger_entries`
 Individual ledger entries (immutable audit trail).
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - account_id (uuid, FK to ledger_accounts)
 - user_id (uuid)
@@ -272,13 +273,13 @@ Individual ledger entries (immutable audit trail).
 - market_id (uuid)
 - metadata (jsonb)
 - created_at (timestamp)
-\`\`\`
+```
 
 ### Settlement Tables
 
 #### `settlement_bonds`
 Bonds posted for settlement proposals/contests.
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - market_id (uuid, FK to markets)
 - creator_id (uuid, FK to profiles)
@@ -287,11 +288,11 @@ Bonds posted for settlement proposals/contests.
 - proposal_outcome (text) -- 'yes', 'no', 'cancel'
 - contest_deadline (timestamp)
 - created_at (timestamp)
-\`\`\`
+```
 
 #### `settlement_contests`
 Contested settlement records.
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - bond_id (uuid, FK to settlement_bonds)
 - market_id (uuid, FK to markets)
@@ -301,17 +302,17 @@ Contested settlement records.
 - status (text) -- 'pending', 'resolved'
 - vote_deadline (timestamp)
 - created_at (timestamp)
-\`\`\`
+```
 
 #### `settlement_votes`
 Votes on contested settlements.
-\`\`\`sql
+```sql
 - id (uuid, PK)
 - contest_id (uuid, FK to settlement_contests)
 - voter_id (uuid, FK to profiles)
 - vote_outcome_text (text) -- 'yes', 'no', 'cancel'
 - created_at (timestamp)
-\`\`\`
+```
 
 ---
 
@@ -329,36 +330,36 @@ The platform uses LMSR for automated market making, ensuring continuous liquidit
 
 #### Price Calculation
 
-\`\`\`
+```
 P(YES) = e^(qy/b) / (e^(qy/b) + e^(qn/b))
 P(NO) = 1 - P(YES)
-\`\`\`
+```
 
 #### Cost Function
 
-\`\`\`
+```
 C(qy, qn) = b * ln(e^(qy/b) + e^(qn/b))
-\`\`\`
+```
 
 #### Buying Shares
 
 To buy `n` YES shares, the cost is:
-\`\`\`
+```
 Cost = C(qy + n, qn) - C(qy, qn)
-\`\`\`
+```
 
 #### Selling Shares
 
 To sell `n` YES shares, the payout is:
-\`\`\`
+```
 Payout = C(qy, qn) - C(qy - n, qn)
-\`\`\`
+```
 
 #### Liquidity Parameter (b)
 
-\`\`\`
+```
 b = (liquidity_amount / ln(2)) - 1
-\`\`\`
+```
 
 Where `liquidity_amount` is the initial liquidity posted by the market creator.
 
@@ -370,10 +371,13 @@ Where `liquidity_amount` is the initial liquidity posted by the market creator.
 
 ### Slippage Protection
 
-The platform enforces **2% maximum slippage** protection:
-- User sees a price when placing a trade
-- If the execution price differs by more than 2%, the trade fails
-- This prevents front-running and stale price exploitation
+The platform enforces **customizable slippage protection** per user:
+- Each user can set their own slippage tolerance (default: 5%, range: 0.5% - 30%)
+- When placing a trade, the system checks if the execution price differs from the expected price by more than the user's tolerance
+- If slippage exceeds the user's setting, the trade is rejected
+- This prevents front-running and stale price exploitation while giving users control over their risk tolerance
+
+Users can adjust their slippage tolerance in their profile settings.
 
 ---
 
@@ -410,7 +414,7 @@ The platform enforces **2% maximum slippage** protection:
 
 ### Private Market Settlement Flow
 
-\`\`\`
+```
 ┌─────────────────┐
 │  Market Expires │
 └────────┬────────┘
@@ -462,7 +466,7 @@ The platform enforces **2% maximum slippage** protection:
 │  - Wrong bond forfeited             │
 │  - Liquidity returned to creator    │
 └─────────────────────────────────────┘
-\`\`\`
+```
 
 ### Vote Counting Rules
 
@@ -528,7 +532,7 @@ User balances in `profiles.balance` are automatically synced from the ledger via
 
 ### Audit Functions
 
-\`\`\`sql
+```sql
 -- Check all user balances match their ledger
 SELECT * FROM check_all_balance_reconciliation();
 
@@ -537,7 +541,7 @@ SELECT SUM(credit) - SUM(debit) FROM ledger_entries;
 
 -- Sum all account balances (should equal zero)
 SELECT SUM(balance_cents) FROM ledger_balance_snapshots;
-\`\`\`
+```
 
 ---
 
@@ -623,7 +627,7 @@ Users receive notifications for:
 
 ### Required
 
-\`\`\`env
+```env
 # Database
 POSTGRES_URL=postgresql://...
 POSTGRES_URL_NON_POOLING=postgresql://...
@@ -635,18 +639,18 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 # Development redirect (for Supabase email auth)
 NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL=http://localhost:3000
-\`\`\`
+```
 
 ### Optional
 
-\`\`\`env
+```env
 # UMA Oracle (public markets)
 UMA_ORACLE_ADDRESS=0x...
 PRIVATE_KEY=0x...
 
 # Feature Flags
 NEXT_PUBLIC_ENABLE_UMA=true
-\`\`\`
+```
 
 ---
 
@@ -654,21 +658,21 @@ NEXT_PUBLIC_ENABLE_UMA=true
 
 ### Running Locally
 
-\`\`\`bash
+```bash
 # Install dependencies
 npm install
 
 # Run development server
 npm run dev
-\`\`\`
+```
 
 ### Database Migrations
 
 SQL migration scripts are stored in `/scripts/` and should be run in order:
-\`\`\`bash
+```bash
 # Run a specific migration
 psql $POSTGRES_URL -f scripts/378_add_twap_early_settlement.sql
-\`\`\`
+```
 
 ### Testing
 

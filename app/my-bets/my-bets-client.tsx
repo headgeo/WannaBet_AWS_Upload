@@ -181,8 +181,10 @@ export default function MyBetsClient({
             {isHistorical ? (
               <>
                 <History className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Historical Bets</h3>
-                <p className="text-muted-foreground">Your completed bets will appear here once markets are resolved.</p>
+                <h3 className="text-base font-semibold mb-2">No Historical Bets</h3>
+                <p className="text-sm text-muted-foreground">
+                  Your completed bets will appear here once markets are resolved.
+                </p>
               </>
             ) : (
               <>
@@ -240,16 +242,16 @@ export default function MyBetsClient({
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0 mr-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge variant={position.side ? "default" : "destructive"} className="text-xs px-1.5 py-0">
+                          <Badge variant={position.side ? "default" : "destructive"} className="text-xs px-2 py-0.5">
                             {position.side ? "YES" : "NO"}
                           </Badge>
                           {position.market.outcome !== null && (
-                            <Badge variant={isWinner ? "default" : "destructive"} className="text-xs px-1.5 py-0">
+                            <Badge variant={isWinner ? "default" : "destructive"} className="text-xs px-2 py-0.5">
                               {isWinner ? "Won" : "Lost"}
                             </Badge>
                           )}
                           {isCancelled && (
-                            <Badge variant="outline" className="text-xs px-1.5 py-0">
+                            <Badge variant="outline" className="text-xs px-2 py-0.5">
                               Cancelled
                             </Badge>
                           )}
@@ -272,19 +274,19 @@ export default function MyBetsClient({
                         <div className="flex-1">
                           <h3 className="font-semibold text-base mb-2">{position.market.title}</h3>
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="text-xs px-2 py-0.5">
                               {position.market.category}
                             </Badge>
-                            <Badge variant={position.side ? "default" : "destructive"} className="text-xs">
+                            <Badge variant={position.side ? "default" : "destructive"} className="text-xs px-2 py-0.5">
                               {position.side ? "YES" : "NO"}
                             </Badge>
                             {position.market.outcome !== null && (
-                              <Badge variant={isWinner ? "default" : "destructive"} className="text-xs">
+                              <Badge variant={isWinner ? "default" : "destructive"} className="text-xs px-2 py-0.5">
                                 {isWinner ? "✓ Won" : "✗ Lost"}
                               </Badge>
                             )}
                             {isCancelled && (
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="text-xs px-2 py-0.5">
                                 Cancelled - Refunded
                               </Badge>
                             )}
@@ -364,101 +366,105 @@ export default function MyBetsClient({
               <CardContent className="p-3 md:p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-sm md:text-lg mb-2">{position.market.title}</h3>
+                    <h3 className="font-semibold text-sm mb-2">{position.market.title}</h3>
                     <div className="flex items-center gap-1 md:gap-2 mb-2 md:mb-3 flex-wrap">
-                      <Badge variant="secondary" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                      <Badge variant="secondary" className="text-xs px-2 py-0.5">
                         {position.market.category}
                       </Badge>
-                      <Badge
-                        variant={isExpired ? "destructive" : "default"}
-                        className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
-                      >
+                      <Badge variant={isExpired ? "destructive" : "default"} className="text-xs px-2 py-0.5">
                         {position.market.status}
                       </Badge>
                       {isCancelled && (
-                        <Badge
-                          variant="outline"
-                          className="bg-gray-100 dark:bg-gray-800 text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
-                        >
+                        <Badge variant="outline" className="bg-gray-100 dark:bg-gray-800 text-xs px-2 py-0.5">
                           Cancelled - Refunded
                         </Badge>
                       )}
                       {position.market.outcome !== null && !isCancelled && (
-                        <Badge
-                          variant={isWinner ? "default" : "destructive"}
-                          className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
-                        >
+                        <Badge variant={isWinner ? "default" : "destructive"} className="text-xs px-2 py-0.5">
                           {isWinner ? "Won" : "Lost"}
                         </Badge>
                       )}
                       {position.market.is_private && (
-                        <Badge variant="outline" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                        <Badge variant="outline" className="text-xs px-2 py-0.5">
                           Private
                         </Badge>
                       )}
                     </div>
                   </div>
                   <div className="text-right ml-2">
-                    <div
-                      className={`flex items-center gap-1 mb-1 md:mb-2 ${position.side ? "text-green-600" : "text-red-600"}`}
-                    >
-                      {position.side ? (
-                        <TrendingUp className="w-3 h-3 md:w-4 md:h-4" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3 md:w-4 md:h-4" />
-                      )}
-                      <span className="font-semibold text-xs md:text-sm">{position.side ? "YES" : "NO"}</span>
+                    <div className={`font-bold text-base ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {isCancelled ? "REFUNDED" : pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`}
                     </div>
-                    <div className="text-xs md:text-sm text-muted-foreground">
-                      {Number.parseFloat(position.shares.toString()).toFixed(2)} shares @ $
-                      {Number.parseFloat(position.avg_price.toString()).toFixed(3)}
-                    </div>
+                    <div className="text-xs text-muted-foreground">P&L</div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 pt-2 md:pt-4 border-t">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 pt-3 md:pt-4 border-t">
                   <div>
-                    <div className="text-xs md:text-sm text-muted-foreground">Invested</div>
-                    <div className="font-semibold text-base">
+                    <div className="text-xs text-muted-foreground">Position</div>
+                    <div className="flex items-center gap-1">
+                      <Badge
+                        variant={position.side ? "default" : "destructive"}
+                        className="text-xs font-semibold px-2 py-0.5"
+                      >
+                        {position.side ? (
+                          <>
+                            <TrendingUp className="w-3 h-3 mr-1" />
+                            YES
+                          </>
+                        ) : (
+                          <>
+                            <TrendingDown className="w-3 h-3 mr-1" />
+                            NO
+                          </>
+                        )}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Shares</div>
+                    <div className="font-medium text-sm">
+                      {Number.parseFloat(position.shares.toString()).toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Avg Price</div>
+                    <div className="font-medium text-sm">
+                      ${Number.parseFloat(position.avg_price.toString()).toFixed(3)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Invested</div>
+                    <div className="font-medium text-sm">
                       ${Number.parseFloat(position.amount_invested.toString()).toFixed(2)}
                     </div>
                   </div>
-                  {isCancelled ? (
-                    <>
-                      <div>
-                        <div className="text-xs md:text-sm text-muted-foreground">Refund</div>
-                        <div className="font-semibold text-base text-blue-600">${refundAmount.toFixed(2)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs md:text-sm text-muted-foreground">Status</div>
-                        <div className="font-semibold text-base text-gray-600">Refunded</div>
-                      </div>
-                      <div>
-                        <div className="text-xs md:text-sm text-muted-foreground">Net</div>
-                        <div className="font-semibold text-base text-gray-600">$0.00</div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div>
-                        <div className="text-xs md:text-sm text-muted-foreground">Price</div>
-                        <div className="font-semibold text-base">${currentSharePrice.toFixed(3)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs md:text-sm text-muted-foreground">Value</div>
-                        <div className="font-semibold text-base">${currentValue.toFixed(2)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs md:text-sm text-muted-foreground">P&L</div>
-                        <div className={`font-semibold text-base ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
-                        </div>
-                        <div className="text-[10px] md:text-xs text-muted-foreground">
-                          ({pnlPerShare >= 0 ? "+" : ""}${pnlPerShare.toFixed(3)}/sh)
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  <div>
+                    <div className="text-xs text-muted-foreground">Current Price</div>
+                    <div className="font-medium text-sm">${currentSharePrice.toFixed(3)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Current Value</div>
+                    <div className="font-medium text-sm">${currentValue.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">P&L per Share</div>
+                    <div className={`font-medium text-sm ${pnlPerShare >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {pnlPerShare >= 0 ? "+" : ""}${pnlPerShare.toFixed(3)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">
+                      {isCancelled ? "Refund" : position.market.outcome !== null ? "Final" : "Total"} P&L
+                    </div>
+                    <div className={`font-semibold text-sm ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {isCancelled
+                        ? `+$${refundAmount.toFixed(2)}`
+                        : pnl >= 0
+                          ? `+$${pnl.toFixed(2)}`
+                          : `-$${Math.abs(pnl).toFixed(2)}`}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-2 md:mt-4 flex gap-1 md:gap-2">
@@ -500,13 +506,13 @@ export default function MyBetsClient({
                   <h3 className="font-semibold text-sm md:text-lg mb-1 md:mb-2">{market.title}</h3>
                   <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-3">{market.description}</p>
                   <div className="flex items-center gap-1 md:gap-2 flex-wrap">
-                    <Badge variant="secondary" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                    <Badge variant="secondary" className="text-xs md:text-sm px-2 py-0.5">
                       {market.category}
                     </Badge>
-                    <Badge variant="outline" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                    <Badge variant="outline" className="text-xs md:text-sm px-2 py-0.5">
                       Private
                     </Badge>
-                    <Badge variant="default" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                    <Badge variant="default" className="text-xs md:text-sm px-2 py-0.5">
                       Active
                     </Badge>
                     <span className="text-xs md:text-sm text-muted-foreground">
@@ -574,25 +580,25 @@ export default function MyBetsClient({
                     <h3 className="font-semibold text-sm md:text-lg mb-1 md:mb-2">{market.title}</h3>
                     <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-3">{market.description}</p>
                     <div className="flex items-center gap-1 md:gap-2 flex-wrap">
-                      <Badge variant="secondary" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                      <Badge variant="secondary" className="text-xs md:text-sm px-2 py-0.5">
                         {market.category}
                       </Badge>
                       <Badge
                         variant={market.status === "active" ? "default" : "secondary"}
-                        className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5"
+                        className="text-xs md:text-sm px-2 py-0.5"
                       >
                         {market.status === "active" ? "Active" : "Pending"}
                       </Badge>
                       {isExpired && (
-                        <Badge variant="destructive" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                        <Badge variant="destructive" className="text-xs md:text-sm px-2 py-0.5">
                           Expired
                         </Badge>
                       )}
-                      <Badge variant="outline" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                      <Badge variant="outline" className="text-xs md:text-sm px-2 py-0.5">
                         Creator
                       </Badge>
                       {market.is_private && (
-                        <Badge variant="outline" className="text-xs md:text-sm px-1 md:px-2 py-0 md:py-0.5">
+                        <Badge variant="outline" className="text-xs md:text-sm px-2 py-0.5">
                           Private
                         </Badge>
                       )}
@@ -737,13 +743,13 @@ export default function MyBetsClient({
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <Badge
                               variant={trade.type === "buy" ? "default" : "secondary"}
-                              className="text-xs px-1.5 py-0 shrink-0"
+                              className="text-xs px-2 py-0.5 shrink-0"
                             >
                               {trade.type.toUpperCase()}
                             </Badge>
                             <Badge
                               variant={trade.side === "YES" ? "default" : "destructive"}
-                              className="text-xs px-1.5 py-0 shrink-0"
+                              className="text-xs px-2 py-0.5 shrink-0"
                             >
                               {trade.side}
                             </Badge>
@@ -903,26 +909,26 @@ export default function MyBetsClient({
       switch (closeType) {
         case "settlement_win":
           return (
-            <Badge variant="default" className="bg-green-600 text-xs">
+            <Badge variant="default" className="bg-green-600 text-xs px-2 py-0.5">
               Won
             </Badge>
           )
         case "settlement_loss":
           return (
-            <Badge variant="destructive" className="text-xs">
+            <Badge variant="destructive" className="text-xs px-2 py-0.5">
               Lost
             </Badge>
           )
         case "cancellation_refund":
           return (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs px-2 py-0.5">
               Refund
             </Badge>
           )
         case "sell":
         default:
           return (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs px-2 py-0.5">
               Sold
             </Badge>
           )
@@ -1046,7 +1052,7 @@ export default function MyBetsClient({
                                 <div className="flex items-center gap-3 flex-1 min-w-0">
                                   <Badge
                                     variant="outline"
-                                    className="text-xs px-2 py-0.5 shrink-0 font-semibold bg-black text-white dark:bg-white dark:text-black"
+                                    className="text-xs px-2 py-0.5 font-semibold bg-black text-white dark:bg-white dark:text-black"
                                   >
                                     {pnl.side.toUpperCase()}
                                   </Badge>
@@ -1217,7 +1223,7 @@ export default function MyBetsClient({
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <Badge
                             variant="outline"
-                            className="text-xs shrink-0 bg-black text-white dark:bg-white dark:text-black"
+                            className="text-xs shrink-0 bg-black text-white dark:bg-white dark:text-black px-2 py-0.5"
                           >
                             {bond.bond_type === "creator_settlement"
                               ? "Creator Bond"
@@ -1227,7 +1233,7 @@ export default function MyBetsClient({
                           </Badge>
                           <Badge
                             variant="outline"
-                            className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700 font-semibold shrink-0"
+                            className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700 font-semibold shrink-0 px-2 py-0.5"
                           >
                             Outstanding
                           </Badge>
@@ -1285,7 +1291,7 @@ export default function MyBetsClient({
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <Badge
                               variant="outline"
-                              className="text-xs shrink-0 bg-black text-white dark:bg-white dark:text-black"
+                              className="text-xs shrink-0 bg-black text-white dark:bg-white dark:text-black px-2 py-0.5"
                             >
                               {bond.bond_type === "creator_settlement"
                                 ? "Creator Bond"
@@ -1297,10 +1303,10 @@ export default function MyBetsClient({
                               variant="outline"
                               className={`text-xs font-semibold shrink-0 ${
                                 isProfitable
-                                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700"
+                                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 px-2 py-0.5"
                                   : isLoss
-                                    ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700"
-                                    : "bg-muted text-muted-foreground border-border"
+                                    ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 px-2 py-0.5"
+                                    : "bg-muted text-muted-foreground border-border px-2 py-0.5"
                               }`}
                             >
                               {isProfitable ? "✓ Paid Out" : isLoss ? "✗ Lost" : "✓ Returned"}

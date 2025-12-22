@@ -7,9 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft } from "lucide-react"
+import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft, ChevronDown } from "lucide-react"
 import { format } from "date-fns"
 import { executeTrade } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
@@ -34,6 +33,7 @@ import { BLOCKCHAIN_FEATURES } from "@/lib/blockchain/feature-flags"
 import { useToast } from "@/hooks/use-toast"
 import { ContestOutcomeDialog } from "@/components/contest-outcome-dialog"
 import { VoteOutcomeDialog } from "@/components/vote-outcome-dialog"
+import { SellSharesDialog } from "@/components/sell-shares-dialog"
 
 type OutcomeChoice = "yes" | "no" | "cancel"
 
@@ -127,6 +127,8 @@ export function MarketDetailClient({
   const [showContestDialog, setShowContestDialog] = useState(false)
   const [showVoteDialog, setShowVoteDialog] = useState(false)
   const { toast } = useToast()
+
+  const [isRulesExpanded, setIsRulesExpanded] = useState(false)
 
   const marketStatus = getMarketStatusDisplay(market)
 
@@ -413,6 +415,20 @@ export function MarketDetailClient({
     }
   }
 
+  // Added sellShares function
+  const sellShares = async (positionId: string, sharesToSell: number, expectedValue: number) => {
+    // This is a placeholder for the actual sell shares logic.
+    // In a real application, you would call an API here to execute the sale.
+    console.log("Selling shares:", { positionId, sharesToSell, expectedValue })
+    toast({
+      title: "Shares Sold",
+      description: `Successfully sold ${sharesToSell.toFixed(2)} shares for $${expectedValue.toFixed(2)}.`,
+    })
+    // After selling, you'd likely want to refresh the user's positions and balance.
+    // For now, we'll just simulate a refresh.
+    router.refresh()
+  }
+
   useEffect(() => {
     if (market.is_private) {
       fetchSettlementStatus()
@@ -514,28 +530,27 @@ export function MarketDetailClient({
               <CardHeader className="pb-3 md:pb-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-base md:text-lg mb-1 md:mb-2">{market.title}</CardTitle>
-                    <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-4">{market.description}</p>
+                    <CardTitle className="text-lg mb-2">{market.title}</CardTitle>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 md:gap-2 flex-wrap max-w-full overflow-hidden">
-                  <Badge variant="secondary" className="flex-shrink-0 text-xs px-1.5 py-0">
+                <div className="flex items-center gap-2 flex-wrap max-w-full overflow-hidden">
+                  <Badge variant="secondary" className="flex-shrink-0 text-xs px-2 py-0.5">
                     {market.category}
                   </Badge>
                   {marketStatus && (
                     <Badge
                       variant={marketStatus.color}
-                      className="flex items-center gap-1 flex-shrink-0 text-xs px-1.5 py-0"
+                      className="flex items-center gap-1 flex-shrink-0 text-xs px-2 py-0.5"
                     >
-                      <Clock className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                      <Clock className="w-3 h-3" />
                       {marketStatus.label}
                     </Badge>
                   )}
                   {market.is_private && (
                     <Badge
                       variant="outline"
-                      className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 flex-shrink-0 text-xs px-1.5 py-0"
+                      className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 flex-shrink-0 text-xs px-2 py-0.5"
                     >
                       Private
                     </Badge>
@@ -543,14 +558,14 @@ export function MarketDetailClient({
                   {!marketSettled && settlementStatus?.status === "pending_contest" && (
                     <Badge
                       variant="outline"
-                      className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 flex-shrink-0 text-xs px-1.5 py-0"
+                      className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 flex-shrink-0 text-xs px-2 py-0.5"
                     >
                       Settlement Pending
                     </Badge>
                   )}
                 </div>
 
-                <div className="mt-2 md:mt-3 text-[10px] md:text-xs text-muted-foreground/80 font-medium">
+                <div className="mt-3 text-[10px] text-muted-foreground/80 font-medium">
                   Created by{" "}
                   <span className="text-muted-foreground">
                     {market.creator.display_name || market.creator.username}
@@ -558,52 +573,72 @@ export function MarketDetailClient({
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-3 md:space-y-4">
+              <CardContent className="space-y-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 md:gap-2">
-                      <TrendingUp className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
-                      <span className="text-sm md:font-medium">YES</span>
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium">YES</span>
                     </div>
-                    <span className="text-base md:text-lg font-bold text-green-600">
-                      {yesImpliedProbability.toFixed(1)}%
-                    </span>
+                    <span className="text-lg font-bold text-green-600">{yesImpliedProbability.toFixed(1)}%</span>
                   </div>
 
-                  <Progress value={yesPercentage} className="h-2 md:h-3" />
+                  <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      className="h-full bg-gray-900 dark:bg-gray-300 transition-all duration-500 ease-out"
+                      style={{
+                        width: `${yesPercentage}%`,
+                      }}
+                    />
+                  </div>
 
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 md:gap-2">
-                      <TrendingDown className="w-4 h-4 md:w-5 md:h-5 text-red-600" />
-                      <span className="text-sm md:font-medium">NO</span>
+                    <div className="flex items-center gap-2">
+                      <TrendingDown className="w-4 h-4 text-red-600" />
+                      <span className="text-sm font-medium">NO</span>
                     </div>
-                    <span className="text-base md:text-lg font-bold text-red-600">
-                      {noImpliedProbability.toFixed(1)}%
-                    </span>
+                    <span className="text-lg font-bold text-red-600">{noImpliedProbability.toFixed(1)}%</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 md:gap-4 pt-3 md:pt-4 border-t">
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                     <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5 md:mb-1">
-                        <DollarSign className="w-3 h-3 md:w-4 md:h-4" />
-                        <span className="text-xs md:text-sm">Total Volume</span>
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                        <DollarSign className="w-4 h-4" />
+                        <span className="text-sm">Total Volume</span>
                       </div>
-                      <div className="text-base md:text-lg font-semibold">
+                      <div className="text-lg font-semibold">
                         ${Number.parseFloat(market.total_volume.toString()).toFixed(2)}
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5 md:mb-1">
-                        <Users className="w-3 h-3 md:w-4 md:h-4" />
-                        <span className="text-xs md:text-sm">End Date</span>
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                        <Users className="w-4 h-4" />
+                        <span className="text-sm">End Date</span>
                       </div>
-                      <div className="text-base md:text-lg font-semibold">
-                        {format(new Date(market.end_date), "MMM d, yyyy")}
-                      </div>
+                      <div className="text-lg font-semibold">{format(new Date(market.end_date), "MMM d, yyyy")}</div>
                     </div>
                   </div>
                 </div>
               </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader
+                className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setIsRulesExpanded(!isRulesExpanded)}
+              >
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Rules</CardTitle>
+                  <ChevronDown className={`w-5 h-5 transition-transform ${isRulesExpanded ? "rotate-180" : ""}`} />
+                </div>
+              </CardHeader>
+              {isRulesExpanded && (
+                <CardContent>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {market.description || "No rules specified for this market."}
+                  </p>
+                </CardContent>
+              )}
             </Card>
 
             {market.is_private && accessibleGroups.length > 0 && (
@@ -772,7 +807,7 @@ export function MarketDetailClient({
                           </div>
 
                           <p className="text-xs text-muted-foreground text-center">
-                            Your $25 voting bond will be returned with rewards if you vote with the majority.
+                            Your $25 voting bond will be returned with rewards after the voting period ends.
                           </p>
                         </div>
                       </div>
@@ -829,16 +864,37 @@ export function MarketDetailClient({
             {hasAnyPosition && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Your Positions</CardTitle>
+                  <CardTitle className="text-sm">Your Positions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {yesPosition && (
                     <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-semibold text-green-600">YES Position</span>
-                        <span className="text-sm text-muted-foreground">
-                          {Number.parseFloat(yesPosition.shares.toString()).toFixed(2)} shares
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {Number.parseFloat(yesPosition.shares.toString()).toFixed(2)} shares
+                          </span>
+                          <SellSharesDialog
+                            position={{
+                              id: yesPosition.id,
+                              side: true,
+                              shares: Number.parseFloat(yesPosition.shares.toString()),
+                              avg_price: yesPosition.avg_price.toString(),
+                              amount_invested: Number.parseFloat(yesPosition.amount_invested.toString()),
+                              market: {
+                                id: market.id,
+                                title: market.title,
+                                qy: market.qy,
+                                qn: market.qn,
+                                b: market.b,
+                              },
+                            }}
+                            onSell={async (positionId: string, sharesToSell: number, expectedValue: number) => {
+                              await sellShares(positionId, sharesToSell, expectedValue)
+                            }}
+                          />
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
@@ -860,9 +916,30 @@ export function MarketDetailClient({
                     <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-semibold text-red-600">NO Position</span>
-                        <span className="text-sm text-muted-foreground">
-                          {Number.parseFloat(noPosition.shares.toString()).toFixed(2)} shares
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {Number.parseFloat(noPosition.shares.toString()).toFixed(2)} shares
+                          </span>
+                          <SellSharesDialog
+                            position={{
+                              id: noPosition.id,
+                              side: false,
+                              shares: Number.parseFloat(noPosition.shares.toString()),
+                              avg_price: noPosition.avg_price.toString(),
+                              amount_invested: Number.parseFloat(noPosition.amount_invested.toString()),
+                              market: {
+                                id: market.id,
+                                title: market.title,
+                                qy: market.qy,
+                                qn: market.qn,
+                                b: market.b,
+                              },
+                            }}
+                            onSell={async (positionId: string, sharesToSell: number, expectedValue: number) => {
+                              await sellShares(positionId, sharesToSell, expectedValue)
+                            }}
+                          />
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>

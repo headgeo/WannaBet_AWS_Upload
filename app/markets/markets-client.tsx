@@ -160,7 +160,7 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <h1 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Browse Markets</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Browse Markets</h1>
 
         {/* Search and Filter Section */}
         <div className="mb-6 space-y-3">

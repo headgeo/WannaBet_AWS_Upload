@@ -45,7 +45,7 @@ export default function CreateMarketPage() {
   const router = useRouter()
 
   const titleCharLimit = 100
-  const descriptionCharLimit = 400
+  const descriptionCharLimit = 2000
   const isTitleOverLimit = title.length > titleCharLimit
   const isDescriptionOverLimit = description.length > descriptionCharLimit
 
@@ -181,7 +181,7 @@ export default function CreateMarketPage() {
         </div>
 
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create New Market</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Market</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-2">Create a prediction market for others to trade on</p>
         </div>
 
@@ -220,10 +220,10 @@ export default function CreateMarketPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">Rules</Label>
                 <Textarea
                   id="description"
-                  placeholder="Provide additional context, resolution criteria, and any relevant details..."
+                  placeholder="Provide resolution criteria, rules, and any relevant details for settling this market..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}

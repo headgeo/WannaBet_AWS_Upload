@@ -12,10 +12,6 @@ export async function GET() {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const markets = await select(
       "markets",
       "*, settled_at, winning_side",
@@ -28,7 +24,24 @@ export async function GET() {
       12,
     )
 
-    // User-specific data
+    if (!user) {
+      const activeStats = await select("markets", "total_volume", [
+        { column: "status", operator: "eq", value: "active" },
+      ])
+      const totalVolume =
+        activeStats?.reduce((sum, market) => sum + Number.parseFloat(market.total_volume || "0"), 0) || 0
+      const activeMarketsCount = activeStats?.length || 0
+
+      return NextResponse.json({
+        markets: Array.isArray(markets) ? markets : [],
+        privateMarkets: [],
+        createdMarkets: [],
+        totalVolume,
+        activeMarkets: activeMarketsCount,
+      })
+    }
+
+    // User-specific data (only if logged in)
     const userGroups = await select("user_groups", "group_id", [{ column: "user_id", operator: "eq", value: user.id }])
     const groupIds = userGroups?.map((ug) => ug.group_id) || []
 
@@ -60,12 +73,10 @@ export async function GET() {
       }
     }
 
-    // Get stats
-    const stats = await select("markets", "total_volume", [
-      { column: "status", operator: "not.in", value: "(settled,cancelled)" },
-    ])
-    const totalVolume = stats?.reduce((sum, market) => sum + Number.parseFloat(market.total_volume || "0"), 0) || 0
-    const activeMarketsCount = stats?.length || 0
+    const activeStats = await select("markets", "total_volume", [{ column: "status", operator: "eq", value: "active" }])
+    const totalVolume =
+      activeStats?.reduce((sum, market) => sum + Number.parseFloat(market.total_volume || "0"), 0) || 0
+    const activeMarketsCount = activeStats?.length || 0
 
     return NextResponse.json({
       markets: Array.isArray(markets) ? markets : [],

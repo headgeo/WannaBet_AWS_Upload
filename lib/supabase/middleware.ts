@@ -34,31 +34,49 @@ export async function updateSession(request: NextRequest) {
       },
     )
 
-    // Do not run code between createServerClient and
-    // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-    // issues with users being randomly logged out.
-
-    // IMPORTANT: If you remove getUser() and you use server-side rendering
-    // with the Supabase client, your users may be randomly logged out.
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (request.nextUrl.pathname.startsWith("/admin")) {
-      if (!user) {
-        const url = request.nextUrl.clone()
-        url.pathname = "/auth/login"
-        return NextResponse.redirect(url)
-      }
-      // Let the admin pages handle the actual admin role check
+    const publicRoutes = [
+      "/",
+      "/markets",
+      "/auth/login",
+      "/auth/sign-up",
+      "/auth/forgot-password",
+      "/auth/reset-password",
+      "/auth/callback",
+      "/auth/error",
+      "/auth/sign-up-success",
+    ]
+
+    const isPublicRoute = publicRoutes.some(
+      (route) => request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith("/market/"), // Individual market pages are public
+    )
+
+    const protectedRoutes = [
+      "/my-bets",
+      "/profile",
+      "/wallet",
+      "/create-market",
+      "/admin",
+      "/private-bets",
+      "/test-database",
+    ]
+
+    const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
+
+    // Redirect to login if accessing protected route without auth
+    if (!user && isProtectedRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/auth/login"
+      url.searchParams.set("redirect", request.nextUrl.pathname)
+      return NextResponse.redirect(url)
     }
 
-    // Remove automatic redirects to prevent 404 errors
-    if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
-      // Redirect to home page instead of non-existent login page
-      const url = request.nextUrl.clone()
-      url.pathname = "/"
-      return NextResponse.redirect(url)
+    // Admin check (only if user is logged in)
+    if (user && request.nextUrl.pathname.startsWith("/admin")) {
+      // Let the admin pages handle the actual admin role check
     }
 
     return supabaseResponse

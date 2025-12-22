@@ -9,9 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { User, DollarSign, TrendingUp, LogOut, ArrowLeft, Settings, Lock, Unlock } from "lucide-react"
+import { User, DollarSign, TrendingUp, Settings, Lock, Unlock } from "lucide-react"
 import GroupsSection from "@/components/groups-section"
-import Link from "next/link"
 import { MobileHeader } from "@/components/mobile-header"
 import type { Profile, UserStats } from "./actions"
 import { Slider } from "@/components/ui/slider"
@@ -152,29 +151,6 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
       <MobileHeader />
 
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="mb-3 hidden md:block">
-          <Button variant="ghost" asChild className="w-fit text-xs">
-            <Link href="/">
-              <ArrowLeft className="w-3 h-3 mr-1" />
-              Back to Dashboard
-            </Link>
-          </Button>
-        </div>
-
-        <div className="mb-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Profile</h1>
-            <Button
-              variant="outline"
-              onClick={handleSignOut}
-              className="flex items-center gap-1 bg-transparent text-xs h-8"
-            >
-              <LogOut className="w-3 h-3" />
-              Sign Out
-            </Button>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
             <Card className="shadow-sm hover:shadow-md transition-shadow">

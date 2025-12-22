@@ -1,12 +1,21 @@
 import { redirect } from "next/navigation"
 import { getProfileData } from "./actions"
 import ProfileClient from "./profile-client"
+import UnifiedHeader from "@/components/unified-header"
+import { isAdmin } from "@/lib/auth/admin"
 
 export default async function ProfilePage() {
   const { user, profile, stats, error } = await getProfileData()
 
   if (!user) {
     redirect("/auth/login")
+  }
+
+  let userIsAdmin = false
+  try {
+    userIsAdmin = await isAdmin(user.id)
+  } catch {
+    userIsAdmin = false
   }
 
   if (!profile) {
@@ -20,5 +29,10 @@ export default async function ProfilePage() {
     )
   }
 
-  return <ProfileClient profile={profile} stats={stats} initialError={error} />
+  return (
+    <>
+      <UnifiedHeader userId={user.id} userIsAdmin={userIsAdmin} />
+      <ProfileClient profile={profile} stats={stats} initialError={error} />
+    </>
+  )
 }

@@ -3,9 +3,9 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Wallet, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react'
+import { Wallet, ArrowDownToLine, ArrowUpFromLine } from "lucide-react"
 import { depositFunds, withdrawFunds } from "@/app/actions/wallet"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 
 interface WalletClientProps {
   initialBalance: number
@@ -51,7 +51,7 @@ export function WalletClient({ initialBalance }: WalletClientProps) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 pt-4">
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader className="text-center space-y-4">
@@ -93,7 +93,7 @@ export function WalletClient({ initialBalance }: WalletClientProps) {
                 onClick={handleWithdraw}
                 disabled={isDepositing || isWithdrawing}
                 variant="outline"
-                className="h-24 flex flex-col gap-2"
+                className="h-24 flex flex-col gap-2 bg-transparent"
                 size="lg"
               >
                 <ArrowUpFromLine className="w-6 h-6" />
@@ -110,3 +110,5 @@ export function WalletClient({ initialBalance }: WalletClientProps) {
     </div>
   )
 }
+
+export default WalletClient

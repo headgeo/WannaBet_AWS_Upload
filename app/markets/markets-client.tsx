@@ -7,10 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Filter, TrendingUp, Plus, ArrowLeft } from "lucide-react"
+import { Search, Filter, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { NotificationBell } from "@/components/notifications"
 import { MobileHeader } from "@/components/mobile-header"
 
 interface Market {
@@ -114,54 +113,7 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
     <div className="min-h-screen bg-gray-50 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
       <MobileHeader />
 
-      <header className="hidden md:block bg-white dark:bg-gray-900 border-b border-gray-100 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                asChild
-                className="hidden md:flex text-xs text-gray-600 hover:text-gray-900"
-              >
-                <Link href="/">
-                  <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-                  Back
-                </Link>
-              </Button>
-              <h1 className="hidden md:block text-base font-semibold text-gray-900 dark:text-gray-100">
-                Browse Markets
-              </h1>
-              <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] bg-gray-100 text-gray-600">
-                {filteredMarkets.length} markets
-              </Badge>
-            </div>
-
-            <div className="hidden md:flex items-center space-x-3">
-              <Link href="/" className="text-xs text-gray-500 hover:text-gray-900 transition-colors">
-                Home
-              </Link>
-              <Link href="/markets" className="text-xs text-blue-600 font-medium">
-                Browse
-              </Link>
-              <Link href="/my-bets" className="text-xs text-gray-500 hover:text-gray-900 transition-colors">
-                My Bets
-              </Link>
-              <NotificationBell />
-              <Button asChild size="sm" className="h-8 text-xs bg-gray-900 hover:bg-gray-800 text-white">
-                <Link href="/create-market">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  Create
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Browse Markets</h1>
-
         {/* Search and Filter Section */}
         <div className="mb-6 space-y-3">
           <div className="flex flex-col gap-3">

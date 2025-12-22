@@ -18,7 +18,6 @@ import {
   ChevronUp,
   Receipt,
   DollarSign,
-  ArrowLeft,
   Trophy,
   XCircle,
   RefreshCw,
@@ -1380,30 +1379,14 @@ export default function MyBetsClient({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 pb-20 md:pb-0">
       <MobileHeader />
 
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="mb-3 hidden md:block">
-          <Button variant="ghost" asChild className="w-fit h-8 text-xs text-gray-600 hover:text-gray-900">
-            <Link href="/">
-              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-              Back to Dashboard
-            </Link>
-          </Button>
-        </div>
-
-        <div className="mb-5">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">My Bets</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Track all your prediction market positions</p>
-        </div>
-
-        {error && (
-          <Card className="mb-5 shadow-sm border-gray-100">
-            <CardContent className="text-center py-6">
-              <p className="text-red-500 text-sm">{error}</p>
-            </CardContent>
-          </Card>
+        {initialError && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-xs text-red-600 dark:text-red-400">{initialError}</p>
+          </div>
         )}
 
         <Tabs defaultValue="active" className="w-full">

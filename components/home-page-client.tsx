@@ -119,8 +119,8 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
   }
 
   const navItems = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/markets", label: "Browse Markets", icon: Search },
+    { href: "/", label: "Home", icon: Home, public: true },
+    { href: "/markets", label: "Browse Markets", icon: Search, public: true },
     { href: "/my-bets", label: "My Bets", icon: Briefcase },
     { href: "/profile", label: "Profile", icon: User },
   ]
@@ -156,35 +156,56 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                   Beta
                 </Badge>
               </Link>
-              <div className="hidden xl:block">
-                <ModeToggle onModeChange={setMode} />
-              </div>
+              {userId && (
+                <div className="hidden md:block">
+                  <ModeToggle onModeChange={setMode} />
+                </div>
+              )}
             </div>
 
             <nav className="hidden md:flex items-center space-x-1">
               {navItems.map((item) => {
                 const Icon = item.icon
+                const isProtected = !item.public
+                const isDisabled = isProtected && !userId
+
                 return (
                   <Button
                     key={item.href}
                     variant="ghost"
-                    asChild
+                    asChild={!isDisabled}
+                    disabled={isDisabled}
+                    onClick={(e) => {
+                      if (isDisabled) {
+                        e.preventDefault()
+                        router.push("/auth/login?redirect=" + item.href)
+                      }
+                    }}
                     className={cn(
                       "text-xs font-medium transition-colors",
-                      pathname === item.href
-                        ? "text-blue-600 dark:text-blue-400"
-                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white",
+                      isDisabled
+                        ? "text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50"
+                        : pathname === item.href
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white",
                     )}
                   >
-                    <Link href={item.href} className="flex items-center gap-1.5">
-                      <Icon className="w-4 h-4 lg:hidden" />
-                      <span className="hidden lg:inline">{item.label}</span>
-                      <Icon className="w-3.5 h-3.5 hidden" />
-                    </Link>
+                    {isDisabled ? (
+                      <span className="flex items-center gap-1.5">
+                        <Icon className="w-4 h-4 lg:hidden" />
+                        <span className="hidden lg:inline">{item.label}</span>
+                      </span>
+                    ) : (
+                      <Link href={item.href} className="flex items-center gap-1.5">
+                        <Icon className="w-4 h-4 lg:hidden" />
+                        <span className="hidden lg:inline">{item.label}</span>
+                        <Icon className="w-3.5 h-3.5 hidden" />
+                      </Link>
+                    )}
                   </Button>
                 )
               })}
-              {userIsAdmin && (
+              {userId && userIsAdmin && (
                 <Button
                   variant="ghost"
                   asChild
@@ -204,30 +225,47 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
             </nav>
 
             <div className="flex items-center space-x-2">
-              <Button variant="ghost" asChild size="sm" className="text-gray-600 dark:text-gray-400">
-                <Link href="/wallet" className="px-2">
-                  <Wallet className="w-4 h-4" />
-                </Link>
-              </Button>
-              <NotificationBell />
-              <Button
-                asChild
-                size="sm"
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:shadow-xl transition-all text-xs"
-              >
-                <Link href="/create-market">
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Create
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={handleSignOut}
-                size="sm"
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
+              {!userId ? (
+                <>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/auth/login">Sign In</Link>
+                  </Button>
+                  <Button
+                    size="sm"
+                    asChild
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:shadow-xl transition-all text-xs"
+                  >
+                    <Link href="/auth/sign-up">Sign Up</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild size="sm" className="text-gray-600 dark:text-gray-400">
+                    <Link href="/wallet" className="px-2">
+                      <Wallet className="w-4 h-4" />
+                    </Link>
+                  </Button>
+                  <NotificationBell />
+                  <Button
+                    asChild
+                    size="sm"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:shadow-xl transition-all text-xs"
+                  >
+                    <Link href="/create-market">
+                      <Plus className="w-4 h-4 mr-1.5" />
+                      Create
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={handleSignOut}
+                    size="sm"
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -246,20 +284,22 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Make Markets. Trade Odds. Earn Fees.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card className="bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
-            <CardContent className="p-4 flex flex-col items-center justify-center space-y-2">
-              <div className="w-9 h-9 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
-                <Wallet className="w-4 h-4 text-green-600 dark:text-green-400" />
-              </div>
-              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                Your Balance
-              </p>
-              <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                ${Number.parseFloat(initialProfile?.balance || "0").toFixed(2)}
-              </p>
-            </CardContent>
-          </Card>
+        <div className={cn("grid gap-4 mb-8", userId ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-2")}>
+          {userId && (
+            <Card className="bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
+              <CardContent className="p-4 flex flex-col items-center justify-center space-y-2">
+                <div className="w-9 h-9 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
+                  <Wallet className="w-4 h-4 text-green-600 dark:text-green-400" />
+                </div>
+                <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Your Balance
+                </p>
+                <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                  ${Number.parseFloat(initialProfile?.balance || "0").toFixed(2)}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="hidden md:block bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-4 flex flex-col items-center justify-center space-y-2">

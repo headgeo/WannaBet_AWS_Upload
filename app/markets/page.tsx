@@ -1,8 +1,9 @@
 import type { Market } from "./markets-client"
 import { createClient } from "@/lib/supabase/server"
 import { select } from "@/lib/database/adapter"
-import { redirect } from "next/navigation"
 import { MarketsClient } from "./markets-client"
+import UnifiedHeader from "@/components/unified-header"
+import { isAdmin } from "@/lib/auth/admin"
 
 const CATEGORIES = [
   "All Categories",
@@ -26,8 +27,13 @@ export default async function BrowseMarketsPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect("/auth/login")
+  let userIsAdmin = false
+  if (user) {
+    try {
+      userIsAdmin = await isAdmin(user.id)
+    } catch {
+      userIsAdmin = false
+    }
   }
 
   let markets: Market[] = []
@@ -47,31 +53,35 @@ export default async function BrowseMarketsPage() {
       { column: "created_at", ascending: false },
     )
 
-    const userGroups = await select("user_groups", "group_id", [{ column: "user_id", operator: "eq", value: user.id }])
-    const groupIds = userGroups?.map((ug) => ug.group_id) || []
-
-    console.log("[v0] Browse page - User groups:", groupIds)
-
     const privateMarketsMap = new Map()
-    if (groupIds.length > 0) {
-      for (const groupId of groupIds) {
-        const groupMarkets = await select<Market>(
-          "markets",
-          "*",
-          [
-            { column: "is_private", operator: "eq", value: true },
-            { column: "group_id", operator: "eq", value: groupId },
-            { column: "status", operator: "IN", value: ["active", "suspended", "contested"] },
-            { column: "outcome", operator: "=", value: null },
-          ],
-          { column: "created_at", ascending: false },
-        )
-        if (groupMarkets) {
-          groupMarkets.forEach((market) => {
-            if (!privateMarketsMap.has(market.id)) {
-              privateMarketsMap.set(market.id, market)
-            }
-          })
+    if (user) {
+      const userGroups = await select("user_groups", "group_id", [
+        { column: "user_id", operator: "eq", value: user.id },
+      ])
+      const groupIds = userGroups?.map((ug) => ug.group_id) || []
+
+      console.log("[v0] Browse page - User groups:", groupIds)
+
+      if (groupIds.length > 0) {
+        for (const groupId of groupIds) {
+          const groupMarkets = await select<Market>(
+            "markets",
+            "*",
+            [
+              { column: "is_private", operator: "eq", value: true },
+              { column: "group_id", operator: "eq", value: groupId },
+              { column: "status", operator: "IN", value: ["active", "suspended", "contested"] },
+              { column: "outcome", operator: "=", value: null },
+            ],
+            { column: "created_at", ascending: false },
+          )
+          if (groupMarkets) {
+            groupMarkets.forEach((market) => {
+              if (!privateMarketsMap.has(market.id)) {
+                privateMarketsMap.set(market.id, market)
+              }
+            })
+          }
         }
       }
     }
@@ -91,5 +101,10 @@ export default async function BrowseMarketsPage() {
     error = "Failed to load markets. Please try again later."
   }
 
-  return <MarketsClient initialMarkets={markets} error={error} />
+  return (
+    <>
+      <UnifiedHeader userId={user?.id} userIsAdmin={userIsAdmin} />
+      <MarketsClient initialMarkets={markets} error={error} />
+    </>
+  )
 }

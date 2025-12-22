@@ -167,6 +167,10 @@ export function MarketDetailClient({
     try {
       const amount = Number.parseFloat(betAmount)
 
+      if (amount < 2.0) {
+        throw new Error("Minimum trade amount is $2.00")
+      }
+
       if (amount > userBalance) {
         throw new Error("Insufficient balance")
       }
@@ -511,6 +515,8 @@ export function MarketDetailClient({
     }
     return "UNKNOWN"
   }
+
+  const isLoggedIn = !!currentUserId
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 md:pb-0">
@@ -1068,87 +1074,110 @@ export function MarketDetailClient({
                   <CardTitle className="text-lg">Place Bet</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Tabs value={selectedSide ? "yes" : "no"} onValueChange={(value) => setSelectedSide(value === "yes")}>
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="yes" className="text-green-600">
-                        YES
-                      </TabsTrigger>
-                      <TabsTrigger value="no" className="text-red-600">
-                        NO
-                      </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="yes" className="space-y-4">
-                      <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded">
-                        <div className="text-2xl font-bold text-green-600">{yesImpliedProbability.toFixed(1)}%</div>
-                        <div className="text-sm text-muted-foreground">Current YES probability</div>
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="no" className="space-y-4">
-                      <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded">
-                        <div className="text-2xl font-bold text-red-600">{noImpliedProbability.toFixed(1)}%</div>
-                        <div className="text-sm text-muted-foreground">Current NO probability</div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Bet Amount ($)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="0.00"
-                      value={betAmount}
-                      onChange={(e) => setBetAmount(e.target.value)}
-                      min="0"
-                      max={userBalance}
-                      step="0.01"
-                    />
-                  </div>
-
-                  {previewPricing && previewPricing.shares > 0 && (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-sm space-y-2">
-                      <div className="font-medium mb-1">Bet Preview:</div>
-                      <div className="space-y-1">
-                        <div>
-                          You'll receive: <span className="font-medium">{previewPricing.shares.toFixed(2)} shares</span>
-                        </div>
-                        <div>
-                          Unit price:{" "}
-                          <span className="font-medium">${previewPricing.avgPrice.toFixed(3)} per share</span>
-                        </div>
-                        <div>
-                          Fee ({(FEE_PERCENTAGE * 100).toFixed(1)}%):{" "}
-                          <span className="font-medium">${previewPricing.feeAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="pt-1 border-t border-blue-200 dark:border-blue-800">
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Max Payout:</span>
-                            <span className="font-bold text-green-600">${previewPricing.shares.toFixed(2)}</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            (if {selectedSide ? "YES" : "NO"} wins, each share pays $1)
-                          </div>
-                        </div>
+                  {!isLoggedIn ? (
+                    <div className="text-center py-8 space-y-4">
+                      <p className="text-sm text-muted-foreground">Sign in to place bets and trade on this market</p>
+                      <div className="flex gap-2 justify-center">
+                        <Button asChild variant="outline">
+                          <Link href="/auth/login">Sign In</Link>
+                        </Button>
+                        <Button asChild>
+                          <Link href="/auth/sign-up">Sign Up</Link>
+                        </Button>
                       </div>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      <Tabs
+                        value={selectedSide ? "yes" : "no"}
+                        onValueChange={(value) => setSelectedSide(value === "yes")}
+                      >
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="yes" className="text-green-600">
+                            YES
+                          </TabsTrigger>
+                          <TabsTrigger value="no" className="text-red-600">
+                            NO
+                          </TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="yes" className="space-y-4">
+                          <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded">
+                            <div className="text-2xl font-bold text-green-600">{yesImpliedProbability.toFixed(1)}%</div>
+                            <div className="text-sm text-muted-foreground">Current YES probability</div>
+                          </div>
+                        </TabsContent>
+                        <TabsContent value="no" className="space-y-4">
+                          <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded">
+                            <div className="text-2xl font-bold text-red-600">{noImpliedProbability.toFixed(1)}%</div>
+                            <div className="text-sm text-muted-foreground">Current NO probability</div>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
 
-                  {error && (
-                    <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded">{error}</div>
-                  )}
+                      <div className="space-y-2">
+                        <Label htmlFor="amount">Bet Amount ($)</Label>
+                        <Input
+                          id="amount"
+                          type="number"
+                          placeholder="0.00"
+                          value={betAmount}
+                          onChange={(e) => setBetAmount(e.target.value)}
+                          min="2.00"
+                          max={userBalance}
+                          step="0.01"
+                        />
+                        {betAmount && Number.parseFloat(betAmount) < 2.0 && (
+                          <p className="text-xs text-red-500 mt-1">Minimum trade amount is $2.00</p>
+                        )}
+                      </div>
 
-                  <Button
-                    onClick={handleTrade}
-                    disabled={
-                      isTrading ||
-                      !betAmount ||
-                      Number.parseFloat(betAmount) <= 0 ||
-                      Number.parseFloat(betAmount) > userBalance
-                    }
-                    className="w-full"
-                  >
-                    {isTrading ? "Placing Bet..." : `Bet ${selectedSide ? "YES" : "NO"} - $${betAmount || "0.00"}`}
-                  </Button>
+                      {previewPricing && previewPricing.shares > 0 && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-sm space-y-2">
+                          <div className="font-medium mb-1">Bet Preview:</div>
+                          <div className="space-y-1">
+                            <div>
+                              You'll receive:{" "}
+                              <span className="font-medium">{previewPricing.shares.toFixed(2)} shares</span>
+                            </div>
+                            <div>
+                              Unit price:{" "}
+                              <span className="font-medium">${previewPricing.avgPrice.toFixed(3)} per share</span>
+                            </div>
+                            <div>
+                              Fee ({(FEE_PERCENTAGE * 100).toFixed(1)}%):{" "}
+                              <span className="font-medium">${previewPricing.feeAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="pt-1 border-t border-blue-200 dark:border-blue-800">
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Max Payout:</span>
+                                <span className="font-bold text-green-600">${previewPricing.shares.toFixed(2)}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                (if {selectedSide ? "YES" : "NO"} wins, each share pays $1)
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {error && (
+                        <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded">{error}</div>
+                      )}
+
+                      <Button
+                        onClick={handleTrade}
+                        disabled={
+                          isTrading ||
+                          !betAmount ||
+                          Number.parseFloat(betAmount) < 2.0 ||
+                          Number.parseFloat(betAmount) > userBalance
+                        }
+                        className="w-full"
+                      >
+                        {isTrading ? "Placing Bet..." : `Bet ${selectedSide ? "YES" : "NO"} - $${betAmount || "0.00"}`}
+                      </Button>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             )}

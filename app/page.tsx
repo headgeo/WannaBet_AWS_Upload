@@ -14,7 +14,7 @@ export default async function Page() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect("/auth/login")
+    return <HomePage userId="" userIsAdmin={false} initialProfile={null} />
   }
 
   const profileData = await select("profiles", "*", [{ column: "id", operator: "eq", value: user.id }])

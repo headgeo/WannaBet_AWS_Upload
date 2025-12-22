@@ -2,7 +2,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
-export default function AuthErrorPage() {
+export default function AuthErrorPage({
+  searchParams,
+}: {
+  searchParams: { message?: string }
+}) {
+  const errorMessage = searchParams.message || "Something went wrong during the authentication process."
+
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 bg-gray-50 dark:bg-gray-900">
       <div className="w-full max-w-sm">
@@ -13,15 +19,13 @@ export default function AuthErrorPage() {
               <CardDescription>There was an error with your authentication</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Something went wrong during the authentication process. Please try again.
-              </p>
+              <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
               <div className="flex flex-col gap-2">
                 <Button asChild>
                   <Link href="/auth/login">Try Login Again</Link>
                 </Button>
                 <Button variant="outline" asChild>
-                  <Link href="/auth/sign-up">Create New Account</Link>
+                  <Link href="/auth/forgot-password">Reset Password</Link>
                 </Button>
               </div>
             </CardContent>

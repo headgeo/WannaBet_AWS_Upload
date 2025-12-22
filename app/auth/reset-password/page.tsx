@@ -14,18 +14,27 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isValidSession, setIsValidSession] = useState(false)
+  const [isValidSession, setIsValidSession] = useState<boolean | null>(null)
   const router = useRouter()
 
   useEffect(() => {
-    // Check if user has valid reset session
     const checkSession = async () => {
       const supabase = createClient()
       const { data } = await supabase.auth.getSession()
+
+      console.log("[v0] Reset password session check:", { hasSession: !!data.session })
+
       setIsValidSession(!!data.session)
+
+      if (!data.session) {
+        // No valid session, redirect to error page after a moment
+        setTimeout(() => {
+          router.push("/auth/error?message=Invalid or expired reset link. Please request a new one.")
+        }, 2000)
+      }
     }
     checkSession()
-  }, [])
+  }, [router])
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,13 +61,31 @@ export default function ResetPasswordPage() {
 
       if (error) throw error
 
+      console.log("[v0] Password updated successfully")
+
       // Password updated successfully
-      router.push("/auth/login?message=Password updated successfully")
+      router.push("/auth/login?message=Password updated successfully! Please log in with your new password.")
     } catch (error: unknown) {
+      console.error("[v0] Password update error:", error)
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isValidSession === null) {
+    return (
+      <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+        <div className="w-full max-w-sm">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl">Loading...</CardTitle>
+              <CardDescription>Verifying reset link...</CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   if (!isValidSession) {
@@ -68,15 +95,8 @@ export default function ResetPasswordPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">Invalid Reset Link</CardTitle>
-              <CardDescription>
-                This password reset link is invalid or has expired. Please request a new one.
-              </CardDescription>
+              <CardDescription>This password reset link is invalid or has expired. Redirecting...</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button onClick={() => router.push("/auth/forgot-password")} className="w-full">
-                Request New Link
-              </Button>
-            </CardContent>
           </Card>
         </div>
       </div>

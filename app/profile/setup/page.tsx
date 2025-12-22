@@ -6,6 +6,38 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { select, insert } from "@/lib/database/adapter"
 
+async function createProfile(formData: FormData) {
+  "use server"
+
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/auth/login")
+  }
+
+  const username = formData.get("username") as string
+  const displayName = formData.get("displayName") as string
+
+  const { error } = await insert("profiles", {
+    id: user.id,
+    username: username || user.email?.split("@")[0] || "user",
+    display_name: displayName || user.email?.split("@")[0] || "User",
+    balance: 0, // All users start with $0 balance
+    role: "user",
+  })
+
+  if (error) {
+    console.error("Profile creation error:", error)
+    throw error
+  }
+
+  redirect("/")
+}
+
 export default async function ProfileSetupPage() {
   const supabase = await createClient()
 
@@ -21,30 +53,6 @@ export default async function ProfileSetupPage() {
 
   if (existingProfile && existingProfile.length > 0) {
     redirect("/")
-  }
-
-  async function createProfile(formData: FormData) {
-    "use server"
-
-    const supabase = await createClient()
-    const username = formData.get("username") as string
-    const displayName = formData.get("displayName") as string
-    const startingBalance = Number.parseFloat(formData.get("startingBalance") as string) || 0
-
-    const { error } = await insert("profiles", {
-      id: user!.id,
-      username: username || user!.email?.split("@")[0] || "user",
-      display_name: displayName || user!.email?.split("@")[0] || "User",
-      balance: startingBalance,
-      role: "user",
-    })
-
-    if (error) {
-      console.error("Profile creation error:", error)
-      // Handle error appropriately
-    } else {
-      redirect("/")
-    }
   }
 
   return (
@@ -63,6 +71,7 @@ export default async function ProfileSetupPage() {
                 name="username"
                 placeholder={user.email?.split("@")[0] || "username"}
                 defaultValue={user.email?.split("@")[0] || ""}
+                required
               />
             </div>
             <div>
@@ -72,18 +81,7 @@ export default async function ProfileSetupPage() {
                 name="displayName"
                 placeholder="Your display name"
                 defaultValue={user.email?.split("@")[0] || ""}
-              />
-            </div>
-            <div>
-              <Label htmlFor="startingBalance">Starting Balance ($)</Label>
-              <Input
-                id="startingBalance"
-                name="startingBalance"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue="0"
-                placeholder="0.00"
+                required
               />
             </div>
             <Button type="submit" className="w-full">

@@ -104,7 +104,7 @@ export default async function BrowseMarketsPage() {
   return (
     <>
       <UnifiedHeader userId={user?.id} userIsAdmin={userIsAdmin} />
-      <MarketsClient initialMarkets={markets} error={error} />
+      <MarketsClient initialMarkets={markets} error={error} userId={user?.id} userIsAdmin={userIsAdmin} />
     </>
   )
 }

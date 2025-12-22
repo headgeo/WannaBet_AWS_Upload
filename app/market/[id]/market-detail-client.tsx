@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TrendingUp, TrendingDown, Clock, Users, DollarSign, AlertTriangle, ArrowLeft, ChevronDown } from "lucide-react"
 import { format } from "date-fns"
-import { executeTrade } from "@/app/actions/trade"
+import { executeTrade, sellShares } from "@/app/actions/trade"
 import { cancelPrivateMarket } from "@/app/actions/admin"
 import { initiateSettlement, contestSettlement, submitVote, getSettlementStatus } from "@/app/actions/oracle-settlement"
 import { proposeUMAOutcome } from "@/app/actions/uma-settlement"
@@ -22,6 +22,7 @@ import {
   getMarketOdds,
   calculateYesProbability,
   calculateNoProbability,
+  calculateSellValueWithFee,
 } from "@/lib/lmsr"
 import { FEE_PERCENTAGE } from "@/lib/fees"
 import { getMarketStatusDisplay, canTrade, isSettled } from "@/lib/market-status"
@@ -34,6 +35,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ContestOutcomeDialog } from "@/components/contest-outcome-dialog"
 import { VoteOutcomeDialog } from "@/components/vote-outcome-dialog"
 import { SellSharesDialog } from "@/components/sell-shares-dialog"
+import { MobileHeader } from "@/components/mobile-header"
 
 type OutcomeChoice = "yes" | "no" | "cancel"
 
@@ -87,6 +89,7 @@ interface MarketDetailClientProps {
   initialAccessibleGroups: Group[]
   currentUserId: string
   marketId: string
+  userIsAdmin: boolean
 }
 
 export function MarketDetailClient({
@@ -96,6 +99,7 @@ export function MarketDetailClient({
   initialAccessibleGroups,
   currentUserId,
   marketId,
+  userIsAdmin,
 }: MarketDetailClientProps) {
   const [market, setMarket] = useState({
     ...initialMarket,
@@ -419,18 +423,66 @@ export function MarketDetailClient({
     }
   }
 
-  // Added sellShares function
-  const sellShares = async (positionId: string, sharesToSell: number, expectedValue: number) => {
-    // This is a placeholder for the actual sell shares logic.
-    // In a real application, you would call an API here to execute the sale.
-    console.log("Selling shares:", { positionId, sharesToSell, expectedValue })
-    toast({
-      title: "Shares Sold",
-      description: `Successfully sold ${sharesToSell.toFixed(2)} shares for $${expectedValue.toFixed(2)}.`,
-    })
-    // After selling, you'd likely want to refresh the user's positions and balance.
-    // For now, we'll just simulate a refresh.
-    router.refresh()
+  const sellSharesHandler = async (positionId: string, sharesToSell: number, expectedValue: number) => {
+    const position = userPositions.find((p) => p.id === positionId)
+    if (!position) {
+      toast({
+        title: "Error",
+        description: "Position not found.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const side = position.side
+    const currentQy = market.qy
+    const currentQn = market.qn
+    const currentB = market.b
+
+    const { grossValue, feeAmount, netValue, new_qy, new_qn } = calculateSellValueWithFee(
+      sharesToSell,
+      currentQy,
+      currentQn,
+      currentB,
+      side,
+    )
+
+    const newTotalVolume = market.total_volume + netValue
+    const newYesShares = side ? market.yes_shares - sharesToSell : market.yes_shares
+    const newNoShares = !side ? market.no_shares - sharesToSell : market.no_shares
+
+    try {
+      const result = await sellShares(
+        positionId,
+        market.id,
+        sharesToSell,
+        grossValue,
+        market.liquidity_pool,
+        new_qy,
+        new_qn,
+        newTotalVolume,
+        newYesShares,
+        newNoShares,
+      )
+
+      if (!result.success) {
+        throw new Error(result.error || "Share sale failed")
+      }
+
+      toast({
+        title: "Shares Sold",
+        description: `Successfully sold ${sharesToSell.toFixed(2)} shares for $${netValue.toFixed(2)}.`,
+      })
+
+      router.refresh()
+    } catch (error: any) {
+      console.error("Sell shares error:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sell shares. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   useEffect(() => {
@@ -458,6 +510,7 @@ export function MarketDetailClient({
   const betAmountNum = Number.parseFloat(betAmount) || 0
   const previewPricing =
     betAmountNum > 0 ? calculatePrice(market.qy, market.qn, market.b, selectedSide, betAmountNum) : null
+  const avgPrice = previewPricing?.avgPrice || 0
 
   const tradingAllowed = canTrade(market)
   const marketSettled = isSettled(market)
@@ -520,6 +573,8 @@ export function MarketDetailClient({
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 md:pb-0">
+      <MobileHeader userId={currentUserId} userIsAdmin={userIsAdmin} />
+
       <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
         <div className="mb-3 md:mb-4 hidden md:block">
           <Button variant="ghost" asChild className="w-fit h-8 text-sm">
@@ -877,42 +932,39 @@ export function MarketDetailClient({
                     <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-semibold text-green-600">YES Position</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">
-                            {Number.parseFloat(yesPosition.shares.toString()).toFixed(2)} shares
-                          </span>
-                          <SellSharesDialog
-                            position={{
-                              id: yesPosition.id,
-                              side: true,
-                              shares: Number.parseFloat(yesPosition.shares.toString()),
-                              avg_price: yesPosition.avg_price.toString(),
-                              amount_invested: Number.parseFloat(yesPosition.amount_invested.toString()),
-                              market: {
-                                id: market.id,
-                                title: market.title,
-                                qy: market.qy,
-                                qn: market.qn,
-                                b: market.b,
-                              },
-                            }}
-                            onSell={async (positionId: string, sharesToSell: number, expectedValue: number) => {
-                              await sellShares(positionId, sharesToSell, expectedValue)
-                            }}
-                          />
-                        </div>
+                        <SellSharesDialog
+                          position={{
+                            id: yesPosition.id,
+                            side: true,
+                            shares: Number.parseFloat(yesPosition.shares.toString()),
+                            avg_price: yesPosition.avg_price.toString(),
+                            amount_invested: Number.parseFloat(yesPosition.amount_invested.toString()),
+                            market: {
+                              id: market.id,
+                              title: market.title,
+                              qy: market.qy,
+                              qn: market.qn,
+                              b: market.b,
+                            },
+                          }}
+                          onSell={sellSharesHandler}
+                        />
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <span className="text-muted-foreground">Invested: </span>
+                          <span className="text-muted-foreground">Shares Owned: </span>
                           <span className="font-medium">
-                            ${Number.parseFloat(yesPosition.amount_invested.toString()).toFixed(2)}
+                            {Number.parseFloat(yesPosition.shares.toString()).toFixed(2)}
                           </span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Avg Price: </span>
+                          <span className="text-muted-foreground">Position Value: </span>
                           <span className="font-medium">
-                            ${Number.parseFloat(yesPosition.avg_price.toString()).toFixed(3)} per share
+                            $
+                            {(
+                              Number.parseFloat(yesPosition.shares.toString()) *
+                              Number.parseFloat(yesPosition.avg_price.toString())
+                            ).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -922,42 +974,39 @@ export function MarketDetailClient({
                     <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-semibold text-red-600">NO Position</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">
-                            {Number.parseFloat(noPosition.shares.toString()).toFixed(2)} shares
-                          </span>
-                          <SellSharesDialog
-                            position={{
-                              id: noPosition.id,
-                              side: false,
-                              shares: Number.parseFloat(noPosition.shares.toString()),
-                              avg_price: noPosition.avg_price.toString(),
-                              amount_invested: Number.parseFloat(noPosition.amount_invested.toString()),
-                              market: {
-                                id: market.id,
-                                title: market.title,
-                                qy: market.qy,
-                                qn: market.qn,
-                                b: market.b,
-                              },
-                            }}
-                            onSell={async (positionId: string, sharesToSell: number, expectedValue: number) => {
-                              await sellShares(positionId, sharesToSell, expectedValue)
-                            }}
-                          />
-                        </div>
+                        <SellSharesDialog
+                          position={{
+                            id: noPosition.id,
+                            side: false,
+                            shares: Number.parseFloat(noPosition.shares.toString()),
+                            avg_price: noPosition.avg_price.toString(),
+                            amount_invested: Number.parseFloat(noPosition.amount_invested.toString()),
+                            market: {
+                              id: market.id,
+                              title: market.title,
+                              qy: market.qy,
+                              qn: market.qn,
+                              b: market.b,
+                            },
+                          }}
+                          onSell={sellSharesHandler}
+                        />
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <span className="text-muted-foreground">Invested: </span>
+                          <span className="text-muted-foreground">Shares Owned: </span>
                           <span className="font-medium">
-                            ${Number.parseFloat(noPosition.amount_invested.toString()).toFixed(2)}
+                            {Number.parseFloat(noPosition.shares.toString()).toFixed(2)}
                           </span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Avg Price: </span>
+                          <span className="text-muted-foreground">Position Value: </span>
                           <span className="font-medium">
-                            ${Number.parseFloat(noPosition.avg_price.toString()).toFixed(3)} per share
+                            $
+                            {(
+                              Number.parseFloat(noPosition.shares.toString()) *
+                              Number.parseFloat(noPosition.avg_price.toString())
+                            ).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -1140,8 +1189,7 @@ export function MarketDetailClient({
                               <span className="font-medium">{previewPricing.shares.toFixed(2)} shares</span>
                             </div>
                             <div>
-                              Unit price:{" "}
-                              <span className="font-medium">${previewPricing.avgPrice.toFixed(3)} per share</span>
+                              Unit price: <span className="font-medium">${avgPrice.toFixed(3)} per share</span>
                             </div>
                             <div>
                               Fee ({(FEE_PERCENTAGE * 100).toFixed(1)}%):{" "}

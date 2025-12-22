@@ -20,9 +20,17 @@ interface ProfileClientProps {
   profile: Profile
   stats: UserStats | null
   initialError: string | null
+  userId?: string // Added userId prop
+  userIsAdmin?: boolean // Added userIsAdmin prop
 }
 
-export default function ProfileClient({ profile: initialProfile, stats, initialError }: ProfileClientProps) {
+export default function ProfileClient({
+  profile: initialProfile,
+  stats,
+  initialError,
+  userId,
+  userIsAdmin,
+}: ProfileClientProps) {
   const [profile, setProfile] = useState(initialProfile)
   const [isEditing, setIsEditing] = useState(false)
   const [displayName, setDisplayName] = useState(initialProfile.display_name || "")
@@ -148,7 +156,7 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
 
   return (
     <div className="min-h-screen bg-gray-50 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
-      <MobileHeader />
+      <MobileHeader userId={userId} userIsAdmin={userIsAdmin} />
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -25,6 +25,7 @@ export default async function MyBetsPage() {
       <UnifiedHeader userId={user.id} userIsAdmin={userIsAdmin} />
       <MyBetsClient
         userId={user.id}
+        userIsAdmin={userIsAdmin}
         activePositions={positions}
         proposedToMe={privateMarkets}
         createdMarkets={createdMarkets}

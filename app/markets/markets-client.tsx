@@ -31,6 +31,8 @@ interface Market {
 interface MarketsClientProps {
   initialMarkets: Market[]
   error: string | null
+  userId?: string
+  userIsAdmin?: boolean
 }
 
 const CATEGORIES = [
@@ -47,7 +49,7 @@ const CATEGORIES = [
   "Other",
 ]
 
-export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
+export function MarketsClient({ initialMarkets, error, userId, userIsAdmin }: MarketsClientProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All Categories")
   const [sortBy, setSortBy] = useState("newest")
@@ -111,7 +113,7 @@ export function MarketsClient({ initialMarkets, error }: MarketsClientProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:from-gray-900 dark:to-gray-800 pb-20 md:pb-0">
-      <MobileHeader />
+      <MobileHeader userId={userId} userIsAdmin={userIsAdmin} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Search and Filter Section */}

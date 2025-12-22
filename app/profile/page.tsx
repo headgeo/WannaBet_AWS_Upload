@@ -32,7 +32,7 @@ export default async function ProfilePage() {
   return (
     <>
       <UnifiedHeader userId={user.id} userIsAdmin={userIsAdmin} />
-      <ProfileClient profile={profile} stats={stats} initialError={error} />
+      <ProfileClient profile={profile} stats={stats} initialError={error} userId={user.id} userIsAdmin={userIsAdmin} />
     </>
   )
 }

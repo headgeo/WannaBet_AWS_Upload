@@ -27,7 +27,7 @@ export default async function WalletPage() {
   return (
     <>
       <UnifiedHeader userId={user.id} userIsAdmin={userIsAdmin} showModeToggle={false} />
-      <WalletClient initialBalance={Number(profile.balance)} />
+      <WalletClient initialBalance={Number(profile.balance)} userId={user.id} userIsAdmin={userIsAdmin} />
     </>
   )
 }

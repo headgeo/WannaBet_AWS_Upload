@@ -38,6 +38,7 @@ import type { Position, CreatedMarket, PrivateMarket, TradeHistory, PnLHistory, 
 
 interface MyBetsClientProps {
   userId: string
+  userIsAdmin: boolean
   activePositions: Position[]
   proposedToMe: PrivateMarket[]
   createdMarkets: CreatedMarket[]
@@ -49,6 +50,7 @@ interface MyBetsClientProps {
 
 export default function MyBetsClient({
   userId,
+  userIsAdmin,
   activePositions: initialActivePositions,
   proposedToMe: initialProposedToMe,
   createdMarkets: initialCreatedMarkets,
@@ -88,6 +90,7 @@ export default function MyBetsClient({
 
       const liquidityAmount = position.market.liquidity_pool || DEFAULT_LIQUIDITY_AMOUNT
       const b = position.market.b || calculateBFromLiquidity(liquidityAmount)
+
       const sellCalculation = calculateSellValueWithFee(
         actualSharesToSell,
         position.market.qy,
@@ -1380,7 +1383,7 @@ export default function MyBetsClient({
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 pb-20 md:pb-0">
-      <MobileHeader />
+      <MobileHeader userId={userId} userIsAdmin={userIsAdmin} />
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         {initialError && (

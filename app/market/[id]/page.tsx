@@ -3,6 +3,7 @@ import { MarketDetailClient } from "./market-detail-client"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { isAdmin } from "@/lib/auth/admin"
 
 export default async function MarketPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -24,6 +25,15 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
     )
   }
 
+  let userIsAdmin = false
+  if (data.user) {
+    try {
+      userIsAdmin = await isAdmin(data.user.id)
+    } catch {
+      userIsAdmin = false
+    }
+  }
+
   return (
     <MarketDetailClient
       initialMarket={data.market}
@@ -32,6 +42,7 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
       initialAccessibleGroups={data.accessibleGroups}
       currentUserId={data.user.id}
       marketId={id}
+      userIsAdmin={userIsAdmin}
     />
   )
 }

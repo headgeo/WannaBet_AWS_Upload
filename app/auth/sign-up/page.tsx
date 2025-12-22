@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { isPasswordValid } from "@/lib/utils/password-validation"
 import { PasswordStrengthMeter } from "@/components/password-strength-meter"
+import { getAuthRedirectUrl } from "@/lib/utils/auth-redirect"
 
 export default function Page() {
   const [email, setEmail] = useState("")
@@ -45,9 +46,7 @@ export default function Page() {
         email,
         password,
         options: {
-          emailRedirectTo:
-            process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-            "https://wanna-bet-production-beta.vercel.app/auth/login",
+          emailRedirectTo: getAuthRedirectUrl("/auth/callback"),
         },
       })
 

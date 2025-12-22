@@ -423,6 +423,7 @@ export function MarketDetailClient({
     }
   }
 
+  // CHANGE: Fixed sellShares parameter order and added missing calculations
   const sellSharesHandler = async (positionId: string, sharesToSell: number, expectedValue: number) => {
     const position = userPositions.find((p) => p.id === positionId)
     if (!position) {
@@ -450,19 +451,27 @@ export function MarketDetailClient({
     const newTotalVolume = market.total_volume + netValue
     const newYesShares = side ? market.yes_shares - sharesToSell : market.yes_shares
     const newNoShares = !side ? market.no_shares - sharesToSell : market.no_shares
+    const newLiquidityPool = market.liquidity_pool - netValue
+    const expectedPricePerShare = grossValue / sharesToSell
 
     try {
+      // CHANGE: Corrected parameter order to match sellShares function signature
       const result = await sellShares(
-        positionId,
-        market.id,
-        sharesToSell,
-        grossValue,
-        market.liquidity_pool,
-        new_qy,
-        new_qn,
-        newTotalVolume,
-        newYesShares,
-        newNoShares,
+        positionId, // 1. positionId
+        sharesToSell, // 2. sharesToSell
+        grossValue, // 3. expectedValue
+        market.id, // 4. marketId
+        currentUserId, // 5. userId
+        new_qy, // 6. newQy
+        new_qn, // 7. newQn
+        newTotalVolume, // 8. totalVolume
+        newYesShares, // 9. yesShares
+        newNoShares, // 10. noShares
+        newLiquidityPool, // 11. newLiquidityPool
+        feeAmount, // 12. feeAmount
+        netValue, // 13. netValue
+        5, // 14. maxSlippagePercent
+        expectedPricePerShare, // 15. expectedPricePerShare
       )
 
       if (!result.success) {
@@ -479,7 +488,7 @@ export function MarketDetailClient({
       console.error("Sell shares error:", error)
       toast({
         title: "Error",
-        description: error.message || "Failed to sell shares. Please try again.",
+        description: error.message || "Failed to sell shares.",
         variant: "destructive",
       })
     }

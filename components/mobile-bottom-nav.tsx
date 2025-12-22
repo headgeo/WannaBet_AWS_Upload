@@ -36,8 +36,9 @@ export function MobileBottomNav() {
   ]
 
   return (
-    <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white dark:bg-gray-900">
-      <nav className="border-t border-gray-100 dark:border-gray-800 pb-[calc(env(safe-area-inset-bottom,0.5rem)+0.5rem)]">
+    <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white dark:bg-gray-900 pb-3">
+      {/* Nav bar */}
+      <nav className="border-t border-gray-100 dark:border-gray-800">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => {
             const Icon = item.icon
@@ -67,7 +68,7 @@ export function MobileBottomNav() {
                   {isDisabled ? (
                     <Icon className="w-5 h-5 text-gray-500" />
                   ) : (
-                    <Link href={item.href} prefetch={true}>
+                    <Link href={item.href} prefetch>
                       <Icon className="w-5 h-5 text-white" />
                     </Link>
                   )}
@@ -103,7 +104,7 @@ export function MobileBottomNav() {
                     <span className="text-[9px] font-medium">{item.label}</span>
                   </>
                 ) : (
-                  <Link href={item.href} prefetch={true}>
+                  <Link href={item.href} prefetch>
                     <Icon className="w-4 h-4" />
                     <span className="text-[9px] font-medium">{item.label}</span>
                   </Link>
@@ -113,7 +114,9 @@ export function MobileBottomNav() {
           })}
         </div>
       </nav>
-      <div className="h-[env(safe-area-inset-bottom,0px)] bg-white dark:bg-gray-900" />
+
+      {/* White safe-area spacer so background reaches screen bottom */}
+      <div className="h-[env(safe-area-inset-bottom,8px)] bg-white dark:bg-gray-900" />
     </div>
   )
 }

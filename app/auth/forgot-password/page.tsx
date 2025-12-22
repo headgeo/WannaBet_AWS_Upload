@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useState } from "react"
 import { ArrowLeft } from "lucide-react"
+import { getAuthRedirectUrl } from "@/lib/utils/auth-redirect"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -25,7 +26,7 @@ export default function ForgotPasswordPage() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: getAuthRedirectUrl("/auth/callback"),
       })
 
       if (error) throw error

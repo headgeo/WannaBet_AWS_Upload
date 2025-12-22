@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { createBrowserClient } from "@supabase/ssr"
 import {
   TrendingUp,
   Plus,
@@ -124,6 +125,20 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
     { href: "/profile", label: "Profile", icon: User },
   ]
 
+  const handleSignOut = async () => {
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+      await supabase.auth.signOut()
+      window.location.href = "/auth/login"
+    } catch (error) {
+      console.error("Error signing out:", error)
+      alert("Failed to sign out. Please try again.")
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 pb-20 md:pb-0">
       <MobileHeader showModeToggle={true} onModeChange={setMode} />
@@ -195,22 +210,24 @@ export default function HomePage({ userId, userIsAdmin, initialProfile }: HomePa
                 </Link>
               </Button>
               <NotificationBell />
-              <Button asChild size="sm" className="bg-gray-900 hover:bg-gray-800 text-white shadow-sm">
+              <Button
+                asChild
+                size="sm"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:shadow-xl transition-all text-xs"
+              >
                 <Link href="/create-market">
                   <Plus className="w-4 h-4 mr-1.5" />
                   Create
                 </Link>
               </Button>
-              <form action="/auth/logout" method="post">
-                <Button
-                  variant="ghost"
-                  type="submit"
-                  size="sm"
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  <LogOut className="w-4 h-4" />
-                </Button>
-              </form>
+              <Button
+                variant="ghost"
+                onClick={handleSignOut}
+                size="sm"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>

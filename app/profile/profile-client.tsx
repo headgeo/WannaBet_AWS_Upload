@@ -109,9 +109,22 @@ export default function ProfileClient({ profile: initialProfile, stats, initialE
   }
 
   const handleSignOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push("/auth/login")
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signOut()
+
+      if (error) {
+        console.error("[v0] Signout error:", error)
+        setError("Failed to sign out. Please try again.")
+        return
+      }
+
+      // Force a hard navigation to clear all state
+      window.location.href = "/auth/login"
+    } catch (err) {
+      console.error("[v0] Signout exception:", err)
+      setError("Failed to sign out. Please try again.")
+    }
   }
 
   const handleSaveSlippage = async () => {

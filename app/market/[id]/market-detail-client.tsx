@@ -1160,11 +1160,11 @@ export function MarketDetailClient({
                         <TabsList className="grid w-full grid-cols-2">
                           <TabsTrigger value="yes" className="flex items-center gap-2">
                             <TrendingUp className="h-4 w-4" />
-                            YES {(yesProbability * 100).toFixed(1)}%
+                            YES 
                           </TabsTrigger>
                           <TabsTrigger value="no" className="flex items-center gap-2">
                             <TrendingDown className="h-4 w-4" />
-                            NO {(noProbability * 100).toFixed(1)}%
+                            NO
                           </TabsTrigger>
                         </TabsList>
                         <TabsContent value="yes" className="space-y-4">

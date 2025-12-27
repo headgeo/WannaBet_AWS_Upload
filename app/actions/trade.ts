@@ -42,10 +42,8 @@ export async function executeTradeV2(
       throw new Error(`Market not found: ${marketError?.message || "Unknown error"}`)
     }
 
-    if (marketData.is_private && marketData.creator_id === userId) {
-      throw new Error(
-        "You cannot trade on your own private market due to conflict of interest (you have settlement authority)",
-      )
+    if (marketData.creator_id === userId) {
+      throw new Error("You cannot trade on markets you created to avoid conflicts of interest")
     }
 
     if (!canTrade(marketData)) {
@@ -120,10 +118,8 @@ export async function sellSharesV2(
       throw new Error(`Market not found: ${marketError?.message || "Unknown error"}`)
     }
 
-    if (marketData.is_private && marketData.creator_id === userId) {
-      throw new Error(
-        "You cannot trade on your own private market due to conflict of interest (you have settlement authority)",
-      )
+    if (marketData.creator_id === userId) {
+      throw new Error("You cannot trade on markets you created to avoid conflicts of interest")
     }
 
     if (!canTrade(marketData)) {

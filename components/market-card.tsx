@@ -79,7 +79,6 @@ export function MarketCard({ market }: MarketCardProps) {
         "h-full flex flex-col bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800",
         "shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 md:cursor-default cursor-pointer",
         !tradingAllowed && "opacity-60",
-        market.is_private && "ring-1 ring-gray-200 dark:ring-gray-700",
       )}
       onClick={handleCardClick}
     >

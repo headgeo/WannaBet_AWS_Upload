@@ -523,6 +523,7 @@ export function MarketDetailClient({
 
   const tradingAllowed = canTrade(market)
   const marketSettled = isSettled(market)
+  const isMarketCreator = market.creator_id === currentUserId
   const canSettlePrivateMarket =
     market.is_private &&
     market.creator_id === currentUserId &&
@@ -579,6 +580,10 @@ export function MarketDetailClient({
   }
 
   const isLoggedIn = !!currentUserId
+
+  // Derived probabilities for display in the trading panel
+  const yesProbability = market.qy / (market.qy + market.qn) || 0
+  const noProbability = market.qn / (market.qy + market.qn) || 0
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 md:pb-0">
@@ -1126,36 +1131,40 @@ export function MarketDetailClient({
               />
             )}
 
-            {tradingAllowed && (
-              <Card>
+            {/* Trading Panel */}
+            {currentUserId && (
+              <Card className="lg:col-span-1">
                 <CardHeader>
-                  <CardTitle className="text-lg">Place Bet</CardTitle>
+                  <CardTitle>Place Your Bet</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {!isLoggedIn ? (
-                    <div className="text-center py-8 space-y-4">
-                      <p className="text-sm text-muted-foreground">Sign in to place bets and trade on this market</p>
-                      <div className="flex gap-2 justify-center">
-                        <Button asChild variant="outline">
-                          <Link href="/auth/login">Sign In</Link>
-                        </Button>
-                        <Button asChild>
-                          <Link href="/auth/sign-up">Sign Up</Link>
-                        </Button>
-                      </div>
+                  {!tradingAllowed ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <p className="font-medium">{getMarketStatusDisplay(market)}</p>
+                      {marketSettled && (
+                        <p className="text-sm mt-2">Final outcome: {market.winning_side ? "YES" : "NO"}</p>
+                      )}
+                    </div>
+                  ) : // Show message if user is the market creator
+                  isMarketCreator ? (
+                    <div className="text-center py-6">
+                      <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-yellow-500" />
+                      <p className="font-medium text-muted-foreground">You cannot trade on this market</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Market creators cannot place bets on their own markets to avoid conflicts of interest.
+                      </p>
                     </div>
                   ) : (
                     <>
-                      <Tabs
-                        value={selectedSide ? "yes" : "no"}
-                        onValueChange={(value) => setSelectedSide(value === "yes")}
-                      >
+                      <Tabs value={selectedSide ? "yes" : "no"} onValueChange={(v) => setSelectedSide(v === "yes")}>
                         <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="yes" className="text-green-600">
-                            YES
+                          <TabsTrigger value="yes" className="flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            YES {(yesProbability * 100).toFixed(1)}%
                           </TabsTrigger>
-                          <TabsTrigger value="no" className="text-red-600">
-                            NO
+                          <TabsTrigger value="no" className="flex items-center gap-2">
+                            <TrendingDown className="h-4 w-4" />
+                            NO {(noProbability * 100).toFixed(1)}%
                           </TabsTrigger>
                         </TabsList>
                         <TabsContent value="yes" className="space-y-4">
